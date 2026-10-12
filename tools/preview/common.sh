@@ -21,10 +21,10 @@ for tool in kwin_wayland dbus-run-session spectacle qml6 qdbus6 kwriteconfig6; d
     command -v "$tool" >/dev/null || die "$tool not found"
 done
 
-# A tiny venv with Pillow, for cropping screenshots (created on first use).
+# A tiny venv with Pillow (cropping screenshots) and dbus-fast (frames.py), created on first use.
 pil_python() {
-    if [ ! -x "$WORK/venv/bin/python" ] || ! "$WORK/venv/bin/python" -c 'import PIL' 2>/dev/null; then
-        python3 -m venv "$WORK/venv" && "$WORK/venv/bin/pip" install -q pillow >&2 || die "could not set up Pillow"
+    if [ ! -x "$WORK/venv/bin/python" ] || ! "$WORK/venv/bin/python" -c 'import PIL, dbus_fast' 2>/dev/null; then
+        python3 -m venv "$WORK/venv" && "$WORK/venv/bin/pip" install -q pillow dbus-fast >&2 || die "could not set up the preview venv"
     fi
     echo "$WORK/venv/bin/python"
 }

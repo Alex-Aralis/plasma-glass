@@ -15,7 +15,7 @@ docs are in README.md; this file covers how to work on it.
 | `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc) |
 | `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install |
 | `tools/check-patches.sh` | patches apply; patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
-| `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh`, `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `elements.sh`; `fakeinput.c` for pointer input |
+| `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh`, `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`); `fakeinput.c` for pointer input |
 | `desktop/test-notifications.sh` | sample popups (clickable, long and scrolling, image, critical); installed as `plasma-glass-test-notifications` with a "Test Notifications" launcher |
 
 ## Dev loops
@@ -36,6 +36,12 @@ docs are in README.md; this file covers how to work on it.
   `QML_IMPORT_PATH=~/.cache/plasma-glass/dev/qml KRUNNER=$(tools/patch-dev.sh krunner) tools/preview/krunner.sh /tmp/k.png "q"`.
   `tools/preview/fakeinput.c` (built by `common.sh`) sends pointer input to the preview's KWin, and a
   KWin script can print `frameGeometry` of each window, so drags can be measured, not just eyeballed.
+- **Resize glitches:** `tools/preview/unfold.sh` captures ~150 fps while KRunner's results unfold
+  and fold and prints `top edge misplaced in N` (old frame shifted) and `N distinct text layouts`
+  (old frame stretched; 1 = clean). `KRUNNER=`, `KRUNNER_ENV=` and `KWIN_ENV=` pick the build and
+  environment. Baseline on the main box (KWin on NVIDIA): no workaround 29 and 14; with
+  `QT_QUICK_BACKEND=software QT_WAYLAND_DISABLED_INTERFACES=wp_viewporter,wp_fractional_scale_manager_v1`
+  0 and 1.
 - **Search:** edit `search/embedsearch.py`, copy it to `~/.local/share/embedsearch/`, then
   `systemctl --user restart embedsearch`. Use `embedsearch search "q"` to test.
 
@@ -143,5 +149,19 @@ docs are in README.md; this file covers how to work on it.
   relogin fixed it. The user saw the same during earlier desktop dev, so suspect the preview
   sessions (virtual KWin, private bus). Cause unknown; if it recurs, check whether
   `globalShortcutPressed` signals reach `/component/kwin` (dbus-monitor) before relogging.
+- **Root-cause fixes for the resize glitches (next up; the KRunner drop-in is a workaround):**
+  1. Qt (stretch): `QWaylandWindow::setGeometry_helper` calls `updateViewport()`, which sends the
+     `wp_viewporter` destination at once, while the buffer is attached later (`attach()`; for EGL,
+     inside the driver on the render thread). Send the destination with the buffer it belongs to.
+     qtbase 6.11.2, `src/plugins/platforms/wayland/qwaylandwindow.cpp`; check whether newer Qt
+     changed this. Test by building Qt's Wayland client parts only and running KRunner against them
+     in `unfold.sh`; deploy as a Portage patch to dev-qt/qtbase (every Qt app gets it).
+  2. NVIDIA offset: not located. KWin holds commits until buffers are ready (`src/wayland/transaction.cpp`,
+     syncobj and dmabuf fences), yet the old NVIDIA-rendered buffer shows at the new size; a
+     Mesa-rendered client was nearly clean (1 in 29), so NVIDIA's egl-wayland in the client is as
+     suspect as KWin. Reproduces in `unfold.sh` (preview KWin on NVIDIA by default), so a self-built
+     KWin or egl-wayland can be tested there. Time-box it.
+  3. Cross-GPU blur darkening: needs the real monitors; skip while KWin composites on NVIDIA.
+  Bug report drafts for 2 and 3 were written for the user (not filed; kept outside the repo).
 - **Remember password:** the laptop's ksshaskpass passphrase wasn't saved to KWallet yet (tick it
   at login).

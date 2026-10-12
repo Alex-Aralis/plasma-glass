@@ -4,6 +4,7 @@
 #   session.sh krunner QUERY
 #   session.sh dialog
 #   session.sh popup ACTION    plasmashell with popup.sh's config, then a plasmashell shortcut action
+#   session.sh unfold QUERY    KRunner; capture frames while results for QUERY unfold, then fold
 MODE="$1"; shift
 SOCK="$PREVIEW_SOCK"  # chosen by run_session, which also points the bus's services at it
 export XDG_CONFIG_HOME="$WORK/cfg"
@@ -14,7 +15,7 @@ shortcuts=--no-global-shortcuts
 [ "$MODE" = popup ] && shortcuts=
 # KWIN_ENV: extra environment for KWin only, e.g. to composite on another GPU like the real session
 # shellcheck disable=SC2086
-env -u WAYLAND_DISPLAY KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 ${KWIN_ENV:-} \
+env -u WAYLAND_DISPLAY KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1 ${KWIN_ENV:-} \
     kwin_wayland --virtual --width "$WIDTH" --height "$HEIGHT" --scale "$SCALE" --socket "$SOCK" \
     --no-lockscreen $shortcuts >"$WORK/kwin.log" 2>&1 &
 KWIN=$!
@@ -49,6 +50,18 @@ JS
         id=$(qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.loadScript "$WORK/move.js" preview-move)
         qdbus6 org.kde.KWin "/Scripting/Script$id" org.kde.kwin.Script.run >/dev/null 2>&1
         sleep 1.5
+        ;;
+    unfold)
+        # shellcheck disable=SC2086
+        env ${KRUNNER_ENV:-} "${KRUNNER:-krunner}" >"$WORK/app.log" 2>&1 &
+        sleep 2
+        qdbus6 org.kde.krunner /App org.kde.krunner.App.display
+        sleep 1.5
+        "$TOOL_PYTHON" -I "$HERE/frames.py" grab "$WORK/frames" 2.6 >"$WORK/grab.log" 2>&1 &
+        GRAB=$!
+        sleep 0.3; qdbus6 org.kde.krunner /App org.kde.krunner.App.query "$1"
+        sleep 1.2; qdbus6 org.kde.krunner /App org.kde.krunner.App.query ""
+        wait $GRAB
         ;;
     popup)
         plasmashell --no-respawn >"$WORK/app.log" 2>&1 &
