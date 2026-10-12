@@ -12,7 +12,9 @@ export XDG_CONFIG_HOME="$WORK/cfg"
 # checks are off so tools/preview/fakeinput.c may send pointer input; this KWin only serves the preview.
 shortcuts=--no-global-shortcuts
 [ "$MODE" = popup ] && shortcuts=
-env -u WAYLAND_DISPLAY KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 \
+# KWIN_ENV: extra environment for KWin only, e.g. to composite on another GPU like the real session
+# shellcheck disable=SC2086
+env -u WAYLAND_DISPLAY KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 ${KWIN_ENV:-} \
     kwin_wayland --virtual --width "$WIDTH" --height "$HEIGHT" --scale "$SCALE" --socket "$SOCK" \
     --no-lockscreen $shortcuts >"$WORK/kwin.log" 2>&1 &
 KWIN=$!

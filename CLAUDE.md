@@ -106,6 +106,12 @@ docs are in README.md; this file covers how to work on it.
   can't run the model on the 2080 Ti at all (no Intel-only conversion kernels there, even in f32); a
   CUDA backend (ONNX Runtime) was considered and left out. `MAKEOPTS="-j32 -l32"`; plasma-workspace
   rebuilds in about 6 min.
+  Monitors: DP-4 (main, 2560x1440) is on the NVIDIA card (`card1`); DP-1 and HDMI-A-1 are on the
+  iGPU, where KWin composites. On DP-4, KWin's blur darkens what's behind a window as if gamma were
+  applied twice (a 190 background blurs to about 138): the glass is darker there and the corner
+  arcs get a dark fringe, since the blur region is whole pixels and the arcs' anti-aliased pixels
+  show the darkened background. Gone with blur unloaded, and on the iGPU monitors. The preview
+  can't reproduce it (one GPU, even with `KWIN_ENV` putting KWin on Mesa/Intel).
 
 ## Open items
 
