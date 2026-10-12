@@ -106,8 +106,9 @@ patch step until the patch is refreshed.
     fixed, pointer cursor when the popup is clickable. Popups still close on click, timeout,
     middle-click or swipe
 - `milou-section-headers.patch`: KRunner result categories become small headers above each group
-  instead of a 10-grid-unit column beside every row, and rows drop in (slide down and fade in,
-  slightly staggered)
+  instead of a 10-grid-unit column beside every row, and new results drop in (slide down and fade
+  in, slightly staggered). Results already shown during the current search appear in place, so the
+  list stays steady as you type
 
 Before changing a patch, run `tools/check-patches.sh` (10-30 s). It applies the patches to the
 source of your installed versions and loads the patched QML under Qt, with stubs for KRunner's and

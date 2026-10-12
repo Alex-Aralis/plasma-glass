@@ -9,7 +9,7 @@
  import org.kde.milou as Milou
  
  ListView {
-@@ -39,6 +41,39 @@
+@@ -39,6 +41,52 @@
      section {
          criteria: ViewSection.FullString
          property: "category"
@@ -28,16 +28,29 @@
 +        }
 +    }
 +
-+    // Rows drop in: each new row slides down a little and fades in, a beat after the one above.
++    // Rows drop in: each new result slides down a little and fades in, a beat after the one above.
++    // Results already shown during this search appear in place, so the list stays stable while typing.
 +    // displaced also restores opacity/scale, as Qt recommends, in case an add transition is cut short.
++    property var knownResults: ({})  // filled by ResultDelegate; see isNewResult
++    onQueryStringChanged: if (queryString.length === 0) knownResults = {}
++    function animates(item) {
++        return !!item && item.isNewResult === true;
++    }
 +    add: Transition {
 +        id: dropIn
 +        SequentialAnimation {
-+            PropertyAction { property: "opacity"; value: 0 }
-+            PauseAnimation { duration: Math.min(dropIn.ViewTransition.index, 8) * 18 }
++            PropertyAction { property: "opacity"; value: listView.animates(dropIn.ViewTransition.item) ? 0 : 1 }
++            PauseAnimation { duration: listView.animates(dropIn.ViewTransition.item) ? Math.min(dropIn.ViewTransition.index, 8) * 18 : 0 }
 +            ParallelAnimation {
-+                NumberAnimation { property: "opacity"; to: 1; duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
-+                NumberAnimation { property: "y"; from: dropIn.ViewTransition.destination.y - Kirigami.Units.gridUnit; duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
++                NumberAnimation {
++                    property: "opacity"; to: 1; easing.type: Easing.OutCubic
++                    duration: listView.animates(dropIn.ViewTransition.item) ? Kirigami.Units.longDuration : 0
++                }
++                NumberAnimation {
++                    property: "y"; easing.type: Easing.OutCubic
++                    from: dropIn.ViewTransition.destination.y - (listView.animates(dropIn.ViewTransition.item) ? Kirigami.Units.gridUnit : 0)
++                    duration: listView.animates(dropIn.ViewTransition.item) ? Kirigami.Units.longDuration : 0
++                }
 +            }
 +        }
 +    }
@@ -51,16 +64,30 @@
      // This is used to keep track if the user has pressed enter before
 --- a/lib/ResultDelegate.qml
 +++ b/lib/ResultDelegate.qml
-@@ -32,7 +32,7 @@
+@@ -32,7 +32,21 @@
      property int activeAction: -1
  
      property string typeText: sectionHasChanged ? ListView.section : ""
 -    property int categoryWidth: Kirigami.Units.gridUnit * 10
 +    property int categoryWidth: 0 // categories are shown as section headers by ResultsView
++
++    // Whether this row shows a result the list hasn't shown since the query was last empty. Rows are
++    // recreated on every refresh, so ResultsView animates only these and unchanged results stay put.
++    // Keyed by category, title and URL (match ids can change for the same result while typing).
++    property bool isNewResult: true
++    Component.onCompleted: {
++        const view = ListView.view;
++        if (!view || view.knownResults === undefined) {
++            return;
++        }
++        const key = [model.category, model.display, String(model.urls || "")].join("\u001f");
++        isNewResult = !view.knownResults[key];
++        view.knownResults[key] = true;
++    }
  
      required property int index
      required property var model
-@@ -131,7 +131,7 @@
+@@ -131,7 +145,7 @@
              anchors.bottomMargin: Kirigami.Units.smallSpacing
              imagePath: "widgets/line"
              elementId: "horizontal-line"
@@ -69,7 +96,7 @@
                       && !resultDelegate.isCurrent
                       && resultDelegate.index !== 0
                       && resultDelegate.ListView.view.currentIndex !== (resultDelegate.index - indexModifier)
-@@ -145,6 +145,7 @@
+@@ -145,6 +159,7 @@
                  verticalCenter: labelWrapper.verticalCenter
              }
              width: resultDelegate.categoryWidth - Kirigami.Units.largeSpacing
