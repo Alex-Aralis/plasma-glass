@@ -100,7 +100,9 @@ docs are in README.md; this file covers how to work on it.
 - **Main box:** i9-14900K, UHD 770 (Raptor Lake-S GT1, Gen12, drives KDE) plus an RTX 2080 Ti.
   `install-system.sh` picks `:legacy` from `lspci`. OpenVINO lists the NVIDIA card as a GPU too
   (through `nvidia.icd`; it's plain `GPU` when the Intel runtime is missing), and it can't compile
-  the f16 model. `embedsearch.intel_gpu()` picks the device with `vendor=0x8086`.
+  the f16 model. `embedsearch.intel_gpu()` picks the device with `vendor=0x8086`. The UHD 770 is
+  slow (32 EUs vs the laptop's 96): GPU f16 indexes 4.3 chunks/s with 39 ms queries, the CPU (f32)
+  8.9 chunks/s with 14 ms queries. `MAKEOPTS="-j32 -l32"`; plasma-workspace rebuilds in about 6 min.
 
 ## Open items
 
