@@ -15,7 +15,7 @@ docs are in README.md; this file covers how to work on it.
 | `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc) |
 | `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install |
 | `tools/check-patches.sh` | patches apply; patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
-| `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh`, `dialog.sh`, `elements.sh` |
+| `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh`, `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `elements.sh`; `fakeinput.c` for pointer input |
 | `desktop/test-notifications.sh` | sample popups (clickable, long and scrolling, image, critical); installed as `plasma-glass-test-notifications` with a "Test Notifications" launcher |
 
 ## Dev loops
@@ -51,6 +51,11 @@ docs are in README.md; this file covers how to work on it.
   inside exact tile rects (see `tile()` in generate.py). Check with `tools/preview/elements.sh`, where
   every piece must be whole pixels. Use `hint-stretch-borders`, since tiled edges leave seams at
   fractional scales.
+- **Declare zero insets on dialogs/background** (`hint-*-inset`, as Breeze does). Without them
+  PlasmoidHeading sizes itself from `widgets/plasmoidheading` margins, which depend on its own
+  position, and plasmashell logged `Binding loop detected for property "leftInset"` while tearing
+  popups down (on every restart, not start). `tools/preview/popup.sh` prints warnings from running
+  and from quitting separately; `PANEL=mine` uses your real panel and tray.
 - **Plasma caches style renders** in `~/.cache/plasma_theme_<id>.kcache`. Switch to another style,
   delete the cache, then switch back.
 - **KRunner is a layer-shell surface.** KWin can't move it, and Wayland clients never learn their
@@ -104,12 +109,3 @@ docs are in README.md; this file covers how to work on it.
   empty spots.
 - **Remember password:** the laptop's ksshaskpass passphrase wasn't saved to KWallet yet (tick it
   at login).
-- **Binding-loop warnings since Liquid Glass:** plasmashell now logs `PlasmoidHeading: Binding loop
-  detected for property "leftInset"` (volume and clipboard applet popups) on every start. There
-  were none on Breeze. `PlasmoidHeading` takes `leftInset` from the `widgets/plasmoidheading`
-  margins, and picks its enabled borders from whether its scene position touches the window edge.
-  Liquid Glass widened the dialog margins (MARGIN=12) but still falls back to Breeze's heading SVG,
-  which is sized for Breeze's margins. Likely fix: have generate.py emit `widgets/plasmoidheading`
-  with insets matching MARGIN, so the heading reaches the frame edge as in Breeze. Compare Breeze's
-  pieces with `STYLE=default tools/preview/elements.sh widgets/plasmoidheading ...`, then confirm
-  the warnings stop after a plasmashell restart.

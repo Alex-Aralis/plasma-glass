@@ -1,24 +1,29 @@
 #!/bin/sh
 # Runs inside dbus-run-session (see common.sh): virtual KWin, wallpaper, then the app under test.
-# Leaves shots/bg.png (wallpaper only) and shots/app.png (with the app) in $WORK.
+# Leaves shots/bg.png (before the app shows) and shots/app.png (with it) in $WORK.
 #   session.sh krunner QUERY
 #   session.sh dialog
+#   session.sh popup ACTION    plasmashell with popup.sh's config, then a plasmashell shortcut action
 MODE="$1"; shift
 SOCK="$PREVIEW_SOCK"  # chosen by run_session, which also points the bus's services at it
 export XDG_CONFIG_HOME="$WORK/cfg"
 
-# Permission checks are off so tools/preview/fakeinput.c may send pointer input; this KWin only serves
-# the preview.
+# Global shortcuts stay off except for plasmashell, whose applet shortcuts open the popups. Permission
+# checks are off so tools/preview/fakeinput.c may send pointer input; this KWin only serves the preview.
+shortcuts=--no-global-shortcuts
+[ "$MODE" = popup ] && shortcuts=
 env -u WAYLAND_DISPLAY KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 \
     kwin_wayland --virtual --width "$WIDTH" --height "$HEIGHT" --scale "$SCALE" --socket "$SOCK" \
-    --no-lockscreen --no-global-shortcuts >"$WORK/kwin.log" 2>&1 &
+    --no-lockscreen $shortcuts >"$WORK/kwin.log" 2>&1 &
 KWIN=$!
 for _ in $(seq 100); do [ -S "$XDG_RUNTIME_DIR/$SOCK" ] && break; sleep 0.1; done
 export WAYLAND_DISPLAY="$SOCK" QT_QPA_PLATFORM=wayland
 
-qml6 "$HERE/qml/wallpaper.qml" -- "$WALLPAPER_FILE" >"$WORK/wallpaper.log" 2>&1 &
-sleep 1.5
-spectacle -b -n -f -o "$WORK/shots/bg.png" >/dev/null 2>&1
+if [ "$MODE" != popup ]; then  # plasmashell draws its own wallpaper
+    qml6 "$HERE/qml/wallpaper.qml" -- "$WALLPAPER_FILE" >"$WORK/wallpaper.log" 2>&1 &
+    sleep 1.5
+    spectacle -b -n -f -o "$WORK/shots/bg.png" >/dev/null 2>&1
+fi
 
 case "$MODE" in
     krunner)
@@ -43,8 +48,19 @@ JS
         qdbus6 org.kde.KWin "/Scripting/Script$id" org.kde.kwin.Script.run >/dev/null 2>&1
         sleep 1.5
         ;;
+    popup)
+        plasmashell --no-respawn >"$WORK/app.log" 2>&1 &
+        SHELL_PID=$!
+        for _ in $(seq 100); do qdbus6 org.kde.plasmashell >/dev/null 2>&1 && break; sleep 0.1; done
+        sleep 6  # panel, tray and the popups plasmashell preloads
+        spectacle -b -n -f -o "$WORK/shots/bg.png" >/dev/null 2>&1
+        qdbus6 org.kde.kglobalaccel /component/plasmashell org.kde.kglobalaccel.Component.invokeShortcut "$1" \
+            || echo "could not invoke '$1'" >&2
+        sleep 2
+        ;;
 esac
 spectacle -b -n -f -o "$WORK/shots/app.png" >/dev/null 2>&1
+cp "$WORK/app.log" "$WORK/app-running.log"  # what the app logged before it was asked to quit
 
 kill $KWIN 2>/dev/null
 # Services activated on this private bus (portals, keyring, activity manager...) outlive it unless
@@ -54,4 +70,5 @@ for pid in $(pgrep -u "$(id -u)"); do
     { tr '\0' '\n' < "/proc/$pid/environ"; } 2>/dev/null | grep -qxF "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" \
         && kill "$pid" 2>/dev/null
 done
+[ -z "${SHELL_PID:-}" ] || wait "$SHELL_PID"  # plasmashell logs while it tears down; let it finish
 exit 0

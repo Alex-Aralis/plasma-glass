@@ -4,8 +4,9 @@
 Two styles come out of one run: "Liquid Glass" (follows your colour scheme) next to this file, and
 "Liquid Glass Light" (bright frosted glass with its own light colours) in ../liquid-glass-light.
 
-Only dialogs/background is drawn here (KRunner, Kickoff, the calendar and other popups); every
-other element falls back to the default Breeze style. Base colours follow the active colour scheme.
+Drawn here: dialogs/background (KRunner, Kickoff, the calendar and other popups) and the popups'
+scrollbars, search fields, list highlights and header bands; every other element falls back to the
+default Breeze style. Base colours follow the active colour scheme.
 
 Plasma measures each element by its bounding box, so every piece is built from fills that stay
 inside an exact tile rectangle (no strokes, which would grow the box by half a pixel and misalign
@@ -148,8 +149,13 @@ def hints(y0):
     rect("hint-stretch-borders", 4, 4)  # stretch edges instead of tiling them
     for s in ("top", "bottom"):
         rect(f"hint-{s}-margin", 4, MARGIN)
+        # the glass starts at the frame edge (the shadow is outside, drawn by KWin). Breeze declares its
+        # zero insets too; without them PlasmoidHeading falls back to sizing itself from its own
+        # position, which loops (plasmashell warns as popups are torn down)
+        rect(f"hint-{s}-inset", 4, 0.001)
     for s in ("left", "right"):
         rect(f"hint-{s}-margin", MARGIN, 4)
+        rect(f"hint-{s}-inset", 0.001, 4)
     for s in ("top", "bottom"):
         rect(f"shadow-hint-{s}-margin", 4, SHADOW)
         rect(f"shadow-hint-{s}-inset", 4, SHADOW)
@@ -252,6 +258,41 @@ def glass_frame(prefix, x0, y0, r, fill=None, rim=None, rim_w=1, k=16):
     return "".join(out)
 
 
+HEADING = {"band": 0.04, "line": 0.10}  # PlasmoidHeading: a quiet tint and a hairline (text colour)
+def heading_svg():
+    """widgets/plasmoidheading: the header (and footer) band of applet popups. It spans the popup to its
+    frame edge, so it takes the glass's corner radius on the outer side, a hairline on the inner side
+    and margins equal to the popup's."""
+    paint = lambda op: f'class="ColorScheme-Text" style="fill:currentColor;fill-opacity:{op}"'
+    r, k, band, line = R, K, HEADING["band"], HEADING["line"]
+    parts = ['<rect id="hint-stretch-borders" x="0" y="0" width="2" height="2" fill="#f60"/>']
+
+    def quarter(cx, cy, sx, sy, ex, ey):
+        return f'<path d="M{cx},{cy} L{sx},{sy} A{r},{r} 0 0 1 {ex},{ey} Z" {paint(band)}/>'
+
+    def piece(prefix, name, x, y, w, h, body):
+        parts.append(tile(f"{prefix}-{name}", x, y, w, h, body))
+
+    for prefix, y0, flip in (("header", 10, False), ("footer", 10 + r + k + 10, True)):
+        x0 = 0
+        # rows from the outer edge inwards: rounded corners + band, stretchable band, hairline
+        outer_y, mid_y, line_y = (y0 + 1 + k, y0 + 1, y0) if flip else (y0, y0 + r, y0 + r + k)
+        o, i = ("bottom", "top") if flip else ("top", "bottom")
+        if flip:
+            piece(prefix, "bottomleft", x0, outer_y, r, r, quarter(r, 0, r, r, 0, 0))
+            piece(prefix, "bottomright", x0 + r + k, outer_y, r, r, quarter(0, 0, r, 0, 0, r))
+        else:
+            piece(prefix, "topleft", x0, outer_y, r, r, quarter(r, r, 0, r, r, 0))
+            piece(prefix, "topright", x0 + r + k, outer_y, r, r, quarter(0, r, 0, 0, r, r))
+        piece(prefix, o, x0 + r, outer_y, k, r, f'<rect width="{k}" height="{r}" {paint(band)}/>')
+        for name, x, w in (("left", x0, r), ("center", x0 + r, k), ("right", x0 + r + k, r)):
+            piece(prefix, name, x, mid_y, w, k, f'<rect width="{w}" height="{k}" {paint(band)}/>')
+        for name, x, w in ((f"{i}left", x0, r), (i, x0 + r, k), (f"{i}right", x0 + r + k, r)):
+            piece(prefix, name, x, line_y, w, 1, f'<rect width="{w}" height="1" {paint(line)}/>')
+        parts.append(margins(prefix, x0 + 2 * r + k + 10, y0, MARGIN, MARGIN, MARGIN, MARGIN))
+    return standalone(parts, 2 * r + k + 30, 2 * (r + k + 1) + 40)
+
+
 def margins(prefix, x0, y0, top, bottom, left, right):
     # a zero-sized rect is not an element at all, so "no margin" is a sliver (as in Breeze)
     top, bottom, left, right = (v if v else 0.001 for v in (top, bottom, left, right))
@@ -331,6 +372,7 @@ VARIANTS = {
             "FIELD": {"base_fill": 0.05, "base_rim": 0.10, "hover": 0.18, "focus": 0.30, "halo": 0.06},
             "HIGHLIGHT": {"hover": 0.05, "selected": 0.09, "selected+hover": 0.12},
             "SB_SLIDER": 0.30, "SB_HOVER": 0.50, "SB_TRACK": 0.06,
+            "HEADING": {"band": 0.035, "line": 0.12},
         },
     },
 }
@@ -372,6 +414,7 @@ def generate(style_id, variant):
         write(out, "widgets/scrollbar.svgz", scrollbar_svg())
         write(out, "widgets/lineedit.svgz", lineedit_svg())
         write(out, "widgets/viewitem.svgz", viewitem_svg())
+        write(out, "widgets/plasmoidheading.svgz", heading_svg())
     finally:
         globals().update(defaults)
     meta = {

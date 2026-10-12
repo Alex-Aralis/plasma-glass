@@ -8,7 +8,8 @@ notification cruft trimmed.
   in the background, and results appear in KRunner (Alt+Space), about 0.2 s per query. Searching
   finds files by meaning, not just by name.
 - **Liquid Glass Plasma Style.** Translucent popups over KWin's blur: 18 px corners, a light rim along
-  the top, a soft shadow, glassy search fields, list highlights and scrollbars. Everything else
+  the top, a soft shadow, glassy search fields, list highlights and scrollbars, and quiet header
+  bands in applet popups. Everything else
   falls back to Breeze, and colours follow your colour scheme.
 - **Trimmed KRunner and notifications.** KRunner floats where you drag it (by the glass rim) and
   remembers the spot. It is wider, and types straight onto the glass in larger text, with no input box, like Spotlight. It uses

@@ -21,6 +21,8 @@ backdrop and virtual screen; see [`common.sh`](common.sh).
 |---|---|
 | `krunner.sh` | Uses your `krunnerrc` and the installed KRunner (so it shows patched builds). If KRunner calls the semantic search service, a second, read-only copy starts inside the preview; it never re-indexes, so it can't race the real service. Results come out cropped to the KRunner window. |
 | `dialog.sh` | A `PlasmaCore.Dialog` with a header, search field, highlighted row and scrolling body. A plain `qml6` client can't position Plasma dialogs (KWin reserves that for Plasma itself), so it opens top-left. Plasma then leaves out the top and left frame edges, and the script moves the window into view with KWin. The right and bottom edges, padding and content are accurate. |
+| `popup.sh` | A real plasmashell with a system tray, opening one tray popup (`volume` or `clipboard`; with `PANEL=mine`, your own panels and any tray applet). Prints the QML warnings plasmashell logged while running and while quitting. Its private bus can only start the activity manager, so no second kded, KDE Connect or powerdevil runs next to yours. |
+| `fakeinput.c` | Pointer input for the virtual display (`move X Y`, `by DX DY`, `down`, `up`, `wait MS` on stdin), built by `common.sh`'s `fakeinput`. KWin scripts can print window geometry alongside, to measure drags. |
 | `elements.sh` | Prints each SVG element's rect exactly as Plasma measures it. Frame pieces must come out at whole-pixel sizes; a stroke on an outline adds half a pixel and leaves gaps in the frame. |
 
 Requirements: `kwin_wayland`, `spectacle`, `qml6` and `qdbus6` (all part of Plasma 6). A small Pillow
