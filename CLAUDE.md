@@ -102,7 +102,10 @@ docs are in README.md; this file covers how to work on it.
   (through `nvidia.icd`; it's plain `GPU` when the Intel runtime is missing), and it can't compile
   the f16 model. `embedsearch.intel_gpu()` picks the device with `vendor=0x8086`. The UHD 770 is
   slow (32 EUs vs the laptop's 96): GPU f16 indexes 4.3 chunks/s with 39 ms queries, the CPU (f32)
-  8.9 chunks/s with 14 ms queries. `MAKEOPTS="-j32 -l32"`; plasma-workspace rebuilds in about 6 min.
+  8.9 chunks/s with 14 ms queries, so this box's local config.toml uses `device = "CPU"`. OpenVINO
+  can't run the model on the 2080 Ti at all (no Intel-only conversion kernels there, even in f32); a
+  CUDA backend (ONNX Runtime) was considered and left out. `MAKEOPTS="-j32 -l32"`; plasma-workspace
+  rebuilds in about 6 min.
 
 ## Open items
 
