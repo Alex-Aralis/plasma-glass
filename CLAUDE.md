@@ -73,9 +73,13 @@ docs are in README.md; this file covers how to work on it.
 - **KWin compositing on NVIDIA misplaces a resizing layer-shell window for a frame:** it applies
   the new size before the new buffer, so on each step of the results' unfold KRunner's old frame
   showed at the new size (pushed down when growing, up and clipped when shrinking): jumps and
-  ghosts. Not with KWin on the iGPU, and not when KRunner renders in software
-  (`QT_QUICK_BACKEND=software`, CPU shm buffers); KRunner on the iGPU still glitched once. install.sh
-  adds that as a `plasma-krunner.service` drop-in when KWin's GL vendor is NVIDIA. Found by
+  ghosts. Not with KWin on the iGPU. With KRunner's software renderer (`QT_QUICK_BACKEND=software`,
+  CPU shm buffers) the frame was stretched instead (text flicker), in 3 of 4 runs: Qt sends the new
+  `wp_viewporter` destination before the buffer that matches it. Also setting
+  `QT_WAYLAND_DISABLED_INTERFACES=wp_viewporter,wp_fractional_scale_manager_v1` made it clean in 6 of
+  6 (fine at scale 1; fractional scales would render at the next whole scale). install.sh adds both
+  as a `plasma-krunner.service` drop-in when KWin's GL vendor is NVIDIA. Check animations by text
+  positions too, not just edges: a stretch keeps the top edge in place. Found by
   capturing frames from the preview KWin at ~150 fps: start it with
   `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1` and call `org.kde.KWin.ScreenShot2.CaptureActiveScreen`
   in a loop (dbus-fast: the `h` argument is the index into `unix_fds`; raw BGRA, format 6).

@@ -117,13 +117,15 @@ fi
 if [ "$DO_SETTINGS" = 1 ]; then
     say "KRunner / Plasma settings"
     sh "$REPO/desktop/plasma-settings.sh"
-    # When KWin composites on an NVIDIA GPU, it shows a resizing layer-shell window's old frame at the
-    # new size for one frame, so KRunner's results jumped and left ghosts as they unfolded. KRunner's
-    # software renderer (CPU-drawn shared-memory buffers) doesn't trigger that, and costs little.
+    # When KWin composites on an NVIDIA GPU, a resizing KRunner showed its old frame at the new size
+    # for a frame on each step of the results' unfold: shifted with GPU buffers, stretched with CPU
+    # ones (Qt sends the new viewport size before the buffer that matches it). KRunner's software
+    # renderer plus Qt ignoring viewporter/fractional scaling avoids both. (Fractional output scales
+    # would then render KRunner at the next whole scale and downscale it.)
     dropin="$CONF/systemd/user/plasma-krunner.service.d/plasma-glass-software-render.conf"
     if qdbus6 org.kde.KWin /KWin org.kde.KWin.supportInformation 2>/dev/null | grep -q '^OpenGL vendor string: NVIDIA'; then
         mkdir -p "$(dirname "$dropin")"
-        printf '[Service]\nEnvironment=QT_QUICK_BACKEND=software\n' > "$dropin"
+        printf '[Service]\nEnvironment=QT_QUICK_BACKEND=software\nEnvironment=QT_WAYLAND_DISABLED_INTERFACES=wp_viewporter,wp_fractional_scale_manager_v1\n' > "$dropin"
         echo "KWin composites on NVIDIA: KRunner uses software rendering ($dropin)"
     else
         rm -f "$dropin"
