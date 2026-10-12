@@ -1,4 +1,4 @@
-diff -ru '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/ResultDelegate.qml
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/ResultDelegate.qml
 --- a/lib/ResultDelegate.qml
 +++ b/lib/ResultDelegate.qml
 @@ -32,7 +32,8 @@
@@ -28,7 +28,23 @@ diff -ru '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Res
              opacity: 0.75
              color: resultDelegate.down ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
              elide: Text.ElideRight
-diff -ru '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultsView.qml b/lib/ResultsView.qml
+@@ -177,6 +179,7 @@
+ 
+             PlasmaComponents3.Label {
+                 id: displayLabel
++                font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.2
+ 
+                 elide: Text.ElideMiddle
+                 wrapMode: model.multiLine ? Text.WordWrap : Text.NoWrap
+@@ -202,6 +205,7 @@
+ 
+             PlasmaComponents3.Label {
+                 id: subtextLabel
++                font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.2
+                 Layout.fillWidth: true
+                 // HACK If displayLabel is too long it will shift this label outside boundaries
+                 // but still render the text leading to it overlapping the action buttons looking horrible
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultsView.qml b/lib/ResultsView.qml
 --- a/lib/ResultsView.qml
 +++ b/lib/ResultsView.qml
 @@ -10,6 +10,8 @@

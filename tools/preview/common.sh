@@ -77,6 +77,20 @@ run_session() {
         dbus-run-session -- sh "$HERE/session.sh" "$@"
 }
 
+# fakeinput : path to tools/preview/fakeinput.c, compiled on first use (pointer input for the preview)
+fakeinput() {
+    if [ ! -x "$WORK/fakeinput" ] || [ "$HERE/fakeinput.c" -nt "$WORK/fakeinput" ]; then
+        xml=/usr/share/plasma-wayland-protocols/fake-input.xml
+        mkdir -p "$WORK/fakeinput-src"
+        wayland-scanner client-header "$xml" "$WORK/fakeinput-src/fake-input-client-protocol.h" &&
+        wayland-scanner private-code "$xml" "$WORK/fakeinput-src/fake-input-protocol.c" &&
+        # shellcheck disable=SC2046
+        cc -O2 -o "$WORK/fakeinput" -I"$WORK/fakeinput-src" "$HERE/fakeinput.c" "$WORK/fakeinput-src/fake-input-protocol.c" \
+            $(pkg-config --cflags --libs wayland-client) >&2 || die "could not build fakeinput (needs wayland-scanner, plasma-wayland-protocols)"
+    fi
+    echo "$WORK/fakeinput"
+}
+
 # crop_to_changes OUT : crop the app screenshot to what differs from the wallpaper-only screenshot
 crop_to_changes() {
     "$(pil_python)" -I - "$WORK/shots/bg.png" "$WORK/shots/app.png" "$1" <<'PY'

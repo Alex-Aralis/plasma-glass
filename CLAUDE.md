@@ -29,7 +29,13 @@ docs are in README.md; this file covers how to work on it.
   For notification changes, run `plasma-glass-test-notifications` and check
   `journalctl --user -u plasma-plasmashell.service` for QML errors. The real popups only appear in
   plasmashell, so the user looks at them; `tools/preview/dialog.sh` only approximates them.
-  milou rebuilds in about 2 min, plasma-workspace in about 25 min on the laptop.
+  milou rebuilds in about 2 min, plasma-workspace in about 25 min on the laptop (about 6 min on the
+  main box).
+- **KRunner C++/QML without an emerge:** `tools/patch-dev.sh krunner` builds just KRunner from the
+  edited tree (about 20 s the first time, then seconds) and refreshes a milou QML overlay. Preview:
+  `QML_IMPORT_PATH=~/.cache/plasma-glass/dev/qml KRUNNER=$(tools/patch-dev.sh krunner) tools/preview/krunner.sh /tmp/k.png "q"`.
+  `tools/preview/fakeinput.c` (built by `common.sh`) sends pointer input to the preview's KWin, and a
+  KWin script can print `frameGeometry` of each window, so drags can be measured, not just eyeballed.
 - **Search:** edit `search/embedsearch.py`, copy it to `~/.local/share/embedsearch/`, then
   `systemctl --user restart embedsearch`. Use `embedsearch search "q"` to test.
 
@@ -51,6 +57,15 @@ docs are in README.md; this file covers how to work on it.
   position. KRunner places itself with layer margins (`View::applyFloatingMargins`, keys
   `FloatingTop`/`FloatingCenterX`). Test dialogs from `qml6` can't place themselves either (KWin
   reserves plasma-shell), so `dialog.sh` shows them without top/left frame edges.
+- **Pointer positions in a layer-shell window lag its moves.** Events are window-local, and the
+  compositor applies new margins some events later, so "move by the offset from the press point"
+  feeds back on itself (a 100 px drag flew to the screen edge). KRunner's drag follows
+  `zwp_relative_pointer_v1` motion instead, with the virtual pointer clamped to the screen like the
+  real cursor.
+- **Layer-shell margins only apply on a commit.** layer-shell-qt's `setMargins` just sends
+  `set_margin`; `requestUpdate()` doesn't render an unchanged scene, so nothing commits. Use
+  `QQuickWindow::update()`.
+- **`Kirigami.Icon` rounds to standard sizes** (`roundToIconSize`): ask for 28 px and you get 22.
 - **QQuickWindow sees every press as accepted after delivery**, even on empty space. Handle input
   in QML, as the KRunner drag area does (a MouseArea under the content).
 - **KRunner's results model ends every refresh with `layoutChanged`**, which makes ListView recreate
@@ -82,9 +97,11 @@ docs are in README.md; this file covers how to work on it.
 
 ## Open items
 
-- **KRunner drag-to-move** (commit 48f263a) has only been syntax- and load-checked, never dragged
-  for real. If it jitters, the cause is likely that the margin update lags the pointer. Track the
-  press-time position plus the total offset instead of incremental steps.
+- **KRunner drag-to-move** was rewritten to follow relative pointer motion and measured on the
+  virtual display (exact final position, one even step per frame, clamped at the screen edge). It
+  still needs a real-hand test after the rebuild. Only the 12 px glass rim starts a drag: the query
+  field spans the full width and the results list takes presses for flicking, so there are no other
+  empty spots.
 - **Remember password:** the laptop's ksshaskpass passphrase wasn't saved to KWallet yet (tick it
   at login).
 - **Binding-loop warnings since Liquid Glass:** plasmashell now logs `PlasmoidHeading: Binding loop

@@ -60,8 +60,8 @@ QtObject {
     property int historyBehavior: 1
     signal activityChanged(string activity)
     signal showHistoryChanged()
-    function moveFloatingBy(dx, dy) {}
-    function saveFloatingPosition() {}
+    function startFloatingDrag(x, y) {}
+    function endFloatingDrag(x, y) {}
 }
 EOF
 cat > "$STUBS/plasma/applet/org/kde/plasma/notifications/qmldir" <<'EOF'
@@ -149,10 +149,17 @@ if [ -n "$PW" ] && [ -f "$PW/krunner/view.cpp" ]; then
     mkdir -p "$WORK/cxxstub"
     printf '#pragma once\n#include <QtDBus>\nclass AppAdaptor : public QDBusAbstractAdaptor { public: explicit AppAdaptor(QObject *o) : QDBusAbstractAdaptor(o) {} };\n' > "$WORK/cxxstub/appadaptor.h"
     : > "$WORK/cxxstub/moc_view.cpp"
+    # Wayland protocol code CMake would generate (relative pointer, for dragging the window)
+    for xml in "$PW"/krunner/*.xml; do
+        [ -f "$xml" ] || continue
+        name=$(basename "$xml" .xml)
+        wayland-scanner client-header "$xml" "$WORK/cxxstub/wayland-$name-client-protocol.h"
+        /usr/lib64/qt6/libexec/qtwaylandscanner client-header "$xml" > "$WORK/cxxstub/qwayland-$name.h"
+    done
     kf=$(ls -d /usr/include/KF6/* 2>/dev/null | sed 's/^/-I/' | tr '\n' ' ')
     extra=$(find /usr/include -maxdepth 2 -type d \( -name PlasmaActivities -o -name PlasmaQuick -o -name Plasma -o -name LayerShellQt \) 2>/dev/null \
             | sed 's|/[^/]*$||' | sort -u | sed 's/^/-I/' | tr '\n' ' ')
-    qt=$(pkg-config --cflags Qt6Quick Qt6Qml Qt6DBus Qt6Gui Qt6Widgets 2>/dev/null)
+    qt=$(pkg-config --cflags Qt6Quick Qt6Qml Qt6DBus Qt6Gui Qt6Widgets Qt6WaylandClient wayland-client 2>/dev/null)
     # shellcheck disable=SC2086
     if (cd "$PW/krunner" && g++ -std=c++20 -fsyntax-only -fPIC -I. -I"$WORK/cxxstub" $qt $kf $extra -I/usr/include/LayerShellQt \
             -DQT_NO_CAST_FROM_ASCII view.cpp) >"$WORK/cxx.log" 2>&1; then

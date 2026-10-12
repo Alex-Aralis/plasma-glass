@@ -1,68 +1,4 @@
-diff -ru '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/Body.qml b/applets/notifications/components/Body.qml
---- a/applets/notifications/components/Body.qml
-+++ b/applets/notifications/components/Body.qml
-@@ -38,9 +38,7 @@
- 
-     onClicked: modelInterface.bodyClicked()
- 
--    Binding {
--        target: bodyLabel.modelInterface
--        property: "bodyCursorShape"
--        value: bodyLabel.cursorShape
--    }
-+    // Use the cursor the popup asks for (pointing hand when clicking opens something);
-+    // otherwise SelectableLabel's default I-beam
-+    cursorShape: modelInterface && modelInterface.bodyCursorShape ? modelInterface.bodyCursorShape : undefined
- }
-diff -ru '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/HeadingButtons.qml b/applets/notifications/components/HeadingButtons.qml
---- a/applets/notifications/components/HeadingButtons.qml
-+++ b/applets/notifications/components/HeadingButtons.qml
-@@ -144,7 +144,8 @@
-     PlasmaComponents3.ToolButton {
-         id: configureButton
-         icon.name: "configure"
--        visible: headingButtons.modelInterface.configurable
-+        // popups dismiss on click, timeout, middle-click or swipe; keep the buttons in the history only
-+        visible: headingButtons.modelInterface.configurable && headingButtons.modelInterface.inHistory
- 
-         display: PlasmaComponents3.AbstractButton.IconOnly
-         text: headingButtons.modelInterface.configureActionLabel || i18nd("plasma_applet_org.kde.plasma.notifications", "Configure")
-@@ -177,7 +178,7 @@
- 
-     PlasmaComponents3.ToolButton {
-         id: closeButton
--        visible: headingButtons.modelInterface.closable
-+        visible: headingButtons.modelInterface.closable && headingButtons.modelInterface.inHistory
-         icon.name: "window-close"
- 
-         display: PlasmaComponents3.AbstractButton.IconOnly
-diff -ru '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/NotificationHeader.qml b/applets/notifications/components/NotificationHeader.qml
---- a/applets/notifications/components/NotificationHeader.qml
-+++ b/applets/notifications/components/NotificationHeader.qml
-@@ -16,7 +16,8 @@
-     property ModelInterface modelInterface: ModelInterface {}
-     property alias closeButtonTooltip: headingButtons.closeButtonTooltip
- 
--    spacing: Kirigami.Units.smallSpacing
-+    // more space between the app icon and name in popups; the history keeps the compact gap
-+    spacing: notificationHeading.modelInterface.inHistory ? Kirigami.Units.smallSpacing : Kirigami.Units.largeSpacing
- 
-     Kirigami.Icon {
-         id: applicationIconItem
-diff -ru '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
---- a/applets/notifications/delegates/DelegatePopup.qml
-+++ b/applets/notifications/delegates/DelegatePopup.qml
-@@ -22,6 +22,9 @@
- BaseDelegate {
-     id: delegateRoot
- 
-+    // more space between the notification's icon/image and its text
-+    columnSpacing: Kirigami.Units.largeSpacing
-+
-     Layout.preferredWidth: (footerLoader.item as Item)?.implicitWidth ?? -1
- 
-     body: bodyLabel
-diff -ru '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/NotificationPopup.qml b/applets/notifications/NotificationPopup.qml
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/NotificationPopup.qml b/applets/notifications/NotificationPopup.qml
 --- a/applets/notifications/NotificationPopup.qml
 +++ b/applets/notifications/NotificationPopup.qml
 @@ -20,6 +20,8 @@
@@ -130,10 +66,125 @@ diff -ru '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificati
  
                      // When notification is updated, restart hide timer
                      onTimeChanged: {
-diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/Body.qml b/applets/notifications/components/Body.qml
+--- a/applets/notifications/components/Body.qml
++++ b/applets/notifications/components/Body.qml
+@@ -38,9 +38,7 @@
+ 
+     onClicked: modelInterface.bodyClicked()
+ 
+-    Binding {
+-        target: bodyLabel.modelInterface
+-        property: "bodyCursorShape"
+-        value: bodyLabel.cursorShape
+-    }
++    // Use the cursor the popup asks for (pointing hand when clicking opens something);
++    // otherwise SelectableLabel's default I-beam
++    cursorShape: modelInterface && modelInterface.bodyCursorShape ? modelInterface.bodyCursorShape : undefined
+ }
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/HeadingButtons.qml b/applets/notifications/components/HeadingButtons.qml
+--- a/applets/notifications/components/HeadingButtons.qml
++++ b/applets/notifications/components/HeadingButtons.qml
+@@ -144,7 +144,8 @@
+     PlasmaComponents3.ToolButton {
+         id: configureButton
+         icon.name: "configure"
+-        visible: headingButtons.modelInterface.configurable
++        // popups dismiss on click, timeout, middle-click or swipe; keep the buttons in the history only
++        visible: headingButtons.modelInterface.configurable && headingButtons.modelInterface.inHistory
+ 
+         display: PlasmaComponents3.AbstractButton.IconOnly
+         text: headingButtons.modelInterface.configureActionLabel || i18nd("plasma_applet_org.kde.plasma.notifications", "Configure")
+@@ -177,7 +178,7 @@
+ 
+     PlasmaComponents3.ToolButton {
+         id: closeButton
+-        visible: headingButtons.modelInterface.closable
++        visible: headingButtons.modelInterface.closable && headingButtons.modelInterface.inHistory
+         icon.name: "window-close"
+ 
+         display: PlasmaComponents3.AbstractButton.IconOnly
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/NotificationHeader.qml b/applets/notifications/components/NotificationHeader.qml
+--- a/applets/notifications/components/NotificationHeader.qml
++++ b/applets/notifications/components/NotificationHeader.qml
+@@ -16,7 +16,8 @@
+     property ModelInterface modelInterface: ModelInterface {}
+     property alias closeButtonTooltip: headingButtons.closeButtonTooltip
+ 
+-    spacing: Kirigami.Units.smallSpacing
++    // more space between the app icon and name in popups; the history keeps the compact gap
++    spacing: notificationHeading.modelInterface.inHistory ? Kirigami.Units.smallSpacing : Kirigami.Units.largeSpacing
+ 
+     Kirigami.Icon {
+         id: applicationIconItem
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
+--- a/applets/notifications/delegates/DelegatePopup.qml
++++ b/applets/notifications/delegates/DelegatePopup.qml
+@@ -22,6 +22,9 @@
+ BaseDelegate {
+     id: delegateRoot
+ 
++    // more space between the notification's icon/image and its text
++    columnSpacing: Kirigami.Units.largeSpacing
++
+     Layout.preferredWidth: (footerLoader.item as Item)?.implicitWidth ?? -1
+ 
+     body: bodyLabel
+@@ -99,6 +102,7 @@
+ 
+     Components.Summary {
+         id: summary
++        font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.3 // larger than stock (level 4 is about 1.1)
+         // Base layout intentionally has no row spacing, so add top padding here when needed
+         Layout.topMargin: delegateRoot.hasBodyText || icon.visible ? Kirigami.Units.smallSpacing : 0
+         Layout.fillWidth: true
+@@ -132,7 +136,7 @@
+         Layout.row: summary.visible ? 3 : 2
+         Layout.column: delegateRoot.__firstColumn
+         Layout.columnSpan: icon.visible ? 1 : 2
+-        Layout.maximumHeight: Kirigami.Units.gridUnit * delegateRoot.modelInterface.maximumLineCount
++        Layout.maximumHeight: Kirigami.Units.gridUnit * 1.2 * delegateRoot.modelInterface.maximumLineCount // as many lines, at the larger size
+         // The body doesn't need to influence the implicit width in any way, this avoids a binding loop
+         implicitWidth: -1
+         implicitHeight: scroll.implicitHeight
+@@ -153,6 +157,7 @@
+ 
+             Components.Body {
+                 id: bodyLabel
++                font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.2 // larger than stock
+                 width: scroll.width - scroll.PlasmaComponents3.ScrollBar.vertical.width
+                 modelInterface: delegateRoot.modelInterface
+                 Accessible.ignored: true // ignore HTML body in favor of Accessible.description on delegateRoot
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunner/CMakeLists.txt
+--- a/krunner/CMakeLists.txt
++++ b/krunner/CMakeLists.txt
+@@ -15,6 +15,13 @@
+ 
+ add_executable(krunner ${krunner_SRCS})
+ 
++# relative pointer motion for dragging the floating window (the protocol file is a copy from wayland-protocols)
++if (Qt6_VERSION VERSION_GREATER_EQUAL "6.8.0")
++    set(private_code_option "PRIVATE_CODE")
++endif()
++qt6_generate_wayland_protocol_client_sources(krunner ${private_code_option}
++    FILES ${CMAKE_CURRENT_SOURCE_DIR}/relative-pointer-unstable-v1.xml)
++
+ ecm_add_qml_module(krunner URI "org.kde.krunner.private.view" QML_FILES qml/RunCommand.qml DEPENDENCIES org.kde.plasma.core)
+ 
+ target_link_libraries(krunner PRIVATE
+@@ -29,6 +36,8 @@
+     KF6::Runner
+     PW::KWorkspace
+     LayerShellQt::Interface
++    Qt::WaylandClient
++    Wayland::Client
+ )
+ target_compile_definitions(krunner PRIVATE -DPROJECT_VERSION="${PROJECT_VERSION}")
+ 
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -21,6 +21,20 @@
+@@ -21,6 +21,19 @@
      id: root
  
      required property RunnerWindow runnerWindow
@@ -145,16 +196,23 @@ diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kru
 +        anchors.fill: parent
 +        z: -1
 +        cursorShape: pressed ? Qt.ClosedHandCursor : Qt.ArrowCursor
-+        property point pressPos
-+        onPressed: mouse => pressPos = Qt.point(mouse.x, mouse.y)
-+        // the window moves under the pointer, so the offset from the press point is the step to move by
-+        onPositionChanged: mouse => root.runnerWindow.moveFloatingBy(mouse.x - pressPos.x, mouse.y - pressPos.y)
-+        onReleased: root.runnerWindow.saveFloatingPosition()
++        // the window follows the pointer itself (positions in it lag behind its moves)
++        onPressed: mouse => root.runnerWindow.startFloatingDrag(mouse.x, mouse.y)
++        onReleased: mouse => root.runnerWindow.endFloatingDrag(mouse.x, mouse.y)
++        onCanceled: root.runnerWindow.endFloatingDrag(NaN, NaN)
 +    }
      property string query
      property string singleRunner
      property bool showHistory: false
-@@ -131,14 +145,22 @@
+@@ -74,6 +87,7 @@
+                     }
+                 }
+             } else {
++                resultsScrollView.foldShut() // so it unfolds again next time, not finish folding then
+                 if (root.runnerWindow.retainPriorSearch) {
+                     root.priorSearch = root.query
+                 }
+@@ -131,14 +145,33 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -162,7 +220,7 @@ diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kru
 -            Layout.maximumWidth: Kirigami.Units.gridUnit * 25
 +            Layout.minimumWidth: Kirigami.Units.gridUnit * 40
 +            Layout.maximumWidth: Kirigami.Units.gridUnit * 40
-+            font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.3
++            font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.6
 +            rightActions: [] // no clear button (Ctrl+A then Backspace clears)
 +            focusSequences: [] // no Ctrl+F shortcut, so no "Ctrl+F" tooltip on hover (the field always has focus)
 +            // borderless, like macOS Spotlight: the query sits directly on the glass
@@ -171,6 +229,17 @@ diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kru
 +            leftPadding: effectiveHorizontalAlignment === TextInput.AlignRight ? Kirigami.Units.largeSpacing : _iconWidth + Kirigami.Units.largeSpacing
 +            topPadding: Kirigami.Units.largeSpacing
 +            bottomPadding: Kirigami.Units.largeSpacing
++            // a bigger search icon to go with the bigger text (SearchField sizes its icon for normal labels
++            // and doesn't expose it); _iconWidth, and so the padding above, follows its size
++            Component.onCompleted: {
++                for (const child of children) {
++                    if (child instanceof Kirigami.Icon && child.source === "search") {
++                        child.roundToIconSize = false; // else drawn at the next standard size down (22)
++                        child.implicitWidth = Qt.binding(() => Math.round(Kirigami.Units.iconSizes.smallMedium * 1.25));
++                        child.implicitHeight = Qt.binding(() => Math.round(Kirigami.Units.iconSizes.smallMedium * 1.25));
++                    }
++                }
++            }
  
              activeFocusOnPress: true
              placeholderText: results.singleRunner ? i18nc("Textfield placeholder text, query specific KRunner plugin",
@@ -180,7 +249,7 @@ diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kru
  
              QQC2.Label {
                  id: fadedTextCompletion
-@@ -157,6 +179,7 @@
+@@ -157,6 +190,7 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -188,7 +257,7 @@ diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kru
                  color: parent.color
                  focus: false
                  z: -1
-@@ -301,6 +324,7 @@
+@@ -301,6 +335,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -196,26 +265,30 @@ diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kru
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -314,11 +338,28 @@
+@@ -314,11 +349,30 @@
      }
  
      PlasmaComponents3.ScrollView {
+-        visible: results.count > 0
+-        enabled: visible
++        id: resultsScrollView
 +        // no scrollbars (keyboard and wheel still scroll); none flashes while the results unfold
 +        QQC2.ScrollBar.vertical.policy: QQC2.ScrollBar.AlwaysOff
 +        QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
-         visible: results.count > 0
-         enabled: visible
++        // stays shown while it folds away, so the window shrinks smoothly too
++        visible: results.count > 0 || shownHeight > 0
++        enabled: results.count > 0
          Layout.fillWidth: true
          Layout.fillHeight: true
 -        Layout.maximumHeight: Math.max(listView.contentHeight, results.contentHeight)
 +        // Drop-down: the results area (and the window, which follows its size) unfolds smoothly
-+        // from nothing as results arrive, and keeps easing as more results come in.
-+        readonly property real fullHeight: Math.max(listView.contentHeight, results.contentHeight)
++        // from nothing as results arrive, eases as their number changes and folds away when they go.
++        readonly property real fullHeight: results.count > 0 ? Math.max(listView.contentHeight, results.contentHeight) : 0
 +        property real shownHeight: 0
 +        onFullHeightChanged: shownHeight = fullHeight
-+        onVisibleChanged: {
-+            unfold.enabled = visible;
-+            shownHeight = visible ? fullHeight : 0;
++        function foldShut() {
++            unfold.enabled = false;
++            shownHeight = 0;
 +            unfold.enabled = true;
 +        }
 +        Behavior on shownHeight {
@@ -226,7 +299,7 @@ diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kru
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -347,6 +388,9 @@
+@@ -347,6 +401,9 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -236,20 +309,216 @@ diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kru
          Layout.fillWidth: true
          Layout.fillHeight: true
          Layout.maximumHeight: listView.contentHeight
-diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view.cpp
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/relative-pointer-unstable-v1.xml b/krunner/relative-pointer-unstable-v1.xml
+--- a/krunner/relative-pointer-unstable-v1.xml
++++ b/krunner/relative-pointer-unstable-v1.xml
+@@ -0,0 +1,136 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="relative_pointer_unstable_v1">
++
++  <copyright>
++    Copyright © 2014      Jonas Ådahl
++    Copyright © 2015      Red Hat Inc.
++
++    Permission is hereby granted, free of charge, to any person obtaining a
++    copy of this software and associated documentation files (the "Software"),
++    to deal in the Software without restriction, including without limitation
++    the rights to use, copy, modify, merge, publish, distribute, sublicense,
++    and/or sell copies of the Software, and to permit persons to whom the
++    Software is furnished to do so, subject to the following conditions:
++
++    The above copyright notice and this permission notice (including the next
++    paragraph) shall be included in all copies or substantial portions of the
++    Software.
++
++    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++    DEALINGS IN THE SOFTWARE.
++  </copyright>
++
++  <description summary="protocol for relative pointer motion events">
++    This protocol specifies a set of interfaces used for making clients able to
++    receive relative pointer events not obstructed by barriers (such as the
++    monitor edge or other pointer barriers).
++
++    To start receiving relative pointer events, a client must first bind the
++    global interface "wp_relative_pointer_manager" which, if a compositor
++    supports relative pointer motion events, is exposed by the registry. After
++    having created the relative pointer manager proxy object, the client uses
++    it to create the actual relative pointer object using the
++    "get_relative_pointer" request given a wl_pointer. The relative pointer
++    motion events will then, when applicable, be transmitted via the proxy of
++    the newly created relative pointer object. See the documentation of the
++    relative pointer interface for more details.
++
++    Warning! The protocol described in this file is experimental and backward
++    incompatible changes may be made. Backward compatible changes may be added
++    together with the corresponding interface version bump. Backward
++    incompatible changes are done by bumping the version number in the protocol
++    and interface names and resetting the interface version. Once the protocol
++    is to be declared stable, the 'z' prefix and the version number in the
++    protocol and interface names are removed and the interface version number is
++    reset.
++  </description>
++
++  <interface name="zwp_relative_pointer_manager_v1" version="1">
++    <description summary="get relative pointer objects">
++      A global interface used for getting the relative pointer object for a
++      given pointer.
++    </description>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy the relative pointer manager object">
++	Used by the client to notify the server that it will no longer use this
++	relative pointer manager object.
++      </description>
++    </request>
++
++    <request name="get_relative_pointer">
++      <description summary="get a relative pointer object">
++	Create a relative pointer interface given a wl_pointer object. See the
++	wp_relative_pointer interface for more details.
++      </description>
++      <arg name="id" type="new_id" interface="zwp_relative_pointer_v1"/>
++      <arg name="pointer" type="object" interface="wl_pointer"/>
++    </request>
++  </interface>
++
++  <interface name="zwp_relative_pointer_v1" version="1">
++    <description summary="relative pointer object">
++      A wp_relative_pointer object is an extension to the wl_pointer interface
++      used for emitting relative pointer events. It shares the same focus as
++      wl_pointer objects of the same seat and will only emit events when it has
++      focus.
++    </description>
++
++    <request name="destroy" type="destructor">
++      <description summary="release the relative pointer object"/>
++    </request>
++
++    <event name="relative_motion">
++      <description summary="relative pointer motion">
++	Relative x/y pointer motion from the pointer of the seat associated with
++	this object.
++
++	A relative motion is in the same dimension as regular wl_pointer motion
++	events, except they do not represent an absolute position. For example,
++	moving a pointer from (x, y) to (x', y') would have the equivalent
++	relative motion (x' - x, y' - y). If a pointer motion caused the
++	absolute pointer position to be clipped by for example the edge of the
++	monitor, the relative motion is unaffected by the clipping and will
++	represent the unclipped motion.
++
++	This event also contains non-accelerated motion deltas. The
++	non-accelerated delta is, when applicable, the regular pointer motion
++	delta as it was before having applied motion acceleration and other
++	transformations such as normalization.
++
++	Note that the non-accelerated delta does not represent 'raw' events as
++	they were read from some device. Pointer motion acceleration is device-
++	and configuration-specific and non-accelerated deltas and accelerated
++	deltas may have the same value on some devices.
++
++	Relative motions are not coupled to wl_pointer.motion events, and can be
++	sent in combination with such events, but also independently. There may
++	also be scenarios where wl_pointer.motion is sent, but there is no
++	relative motion. The order of an absolute and relative motion event
++	originating from the same physical motion is not guaranteed.
++
++	If the client needs button events or focus state, it can receive them
++	from a wl_pointer object of the same seat that the wp_relative_pointer
++	object is associated with.
++      </description>
++      <arg name="utime_hi" type="uint"
++	   summary="high 32 bits of a 64 bit timestamp with microsecond granularity"/>
++      <arg name="utime_lo" type="uint"
++	   summary="low 32 bits of a 64 bit timestamp with microsecond granularity"/>
++      <arg name="dx" type="fixed"
++	   summary="the x component of the motion vector"/>
++      <arg name="dy" type="fixed"
++	   summary="the y component of the motion vector"/>
++      <arg name="dx_unaccel" type="fixed"
++	   summary="the x component of the unaccelerated motion vector"/>
++      <arg name="dy_unaccel" type="fixed"
++	   summary="the y component of the unaccelerated motion vector"/>
++    </event>
++  </interface>
++
++</protocol>
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view.cpp
 --- a/krunner/view.cpp
 +++ b/krunner/view.cpp
-@@ -93,7 +93,8 @@
+@@ -26,12 +26,55 @@
+ #include <KX11Extras>
+ 
+ #include <LayerShellQt/Window>
++#include <QWaylandClientExtensionTemplate>
+ #include <algorithm>
+ #include <qnamespace.h>
+ 
+ #include "appadaptor.h"
++#include "qwayland-relative-pointer-unstable-v1.h"
+ #include "x11windowscreenrelativepositioner.h"
+ 
++class RelativePointerManager : public QWaylandClientExtensionTemplate<RelativePointerManager>, public QtWayland::zwp_relative_pointer_manager_v1
++{
++public:
++    RelativePointerManager()
++        : QWaylandClientExtensionTemplate(1)
++    {
++        initialize();
++    }
++    ~RelativePointerManager() override
++    {
++        if (isActive()) {
++            destroy();
++        }
++    }
++};
++
++class RelativePointer : public QtWayland::zwp_relative_pointer_v1
++{
++public:
++    RelativePointer(::zwp_relative_pointer_v1 *pointer, ::wl_pointer *forPointer, std::function<void(QPointF)> onMotion)
++        : zwp_relative_pointer_v1(pointer)
++        , forPointer(forPointer)
++        , m_onMotion(std::move(onMotion))
++    {
++    }
++    ~RelativePointer() override
++    {
++        destroy();
++    }
++    ::wl_pointer *const forPointer;
++
++protected:
++    void zwp_relative_pointer_v1_relative_motion(uint32_t, uint32_t, wl_fixed_t dx, wl_fixed_t dy, wl_fixed_t, wl_fixed_t) override
++    {
++        m_onMotion(QPointF(wl_fixed_to_double(dx), wl_fixed_to_double(dy)));
++    }
++
++private:
++    std::function<void(QPointF)> m_onMotion;
++};
++
+ KCONFIGGROUP_DECLARE_ENUM_QOBJECT(View, HistoryBehavior)
+ 
+ View::View(PlasmaQuick::SharedQmlEngine *engine, QWindow *)
+@@ -93,7 +136,8 @@
  {
      if (m_floating) {
          const QRect r = screen()->availableGeometry();
 -        return QMargins({0, r.height() / 3, 0, 0});
 +        // Top edge as a fraction of the screen height (krunnerrc [General] FloatingTop, stock 1/3)
-+        return QMargins({0, int(r.height() * m_floatTop), 0, 0});
++        return QMargins({0, qRound(r.height() * m_floatTop), 0, 0});
      } else {
          return {}; // Zeros
      }
-@@ -145,6 +146,8 @@
+@@ -145,6 +189,8 @@
  
  void View::loadConfig()
  {
@@ -258,7 +527,15 @@ diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view.
      setFreeFloating(m_config.readEntry("FreeFloating", false));
      setRetainPriorSearch(m_config.readEntry("RetainPriorSearch", true));
      setPinned(m_stateData.readEntry("Pinned", false));
-@@ -187,11 +190,10 @@
+@@ -157,6 +203,7 @@
+         KX11Extras::setOnAllDesktops(winId(), true);
+     }
+     QQuickWindow::showEvent(event);
++    ensureRelativePointer();
+     requestActivate();
+     if (KWindowSystem::isPlatformX11()) {
+         KX11Extras::forceActiveWindow(winId());
+@@ -187,11 +234,10 @@
  
      if (KWindowSystem::isPlatformWayland()) {
          auto layerWindow = LayerShellQt::Window::get(this);
@@ -271,7 +548,7 @@ diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view.
          if (m_floating) {
              layerWindow->setScreen(shownOnScreen);
          } else {
-@@ -209,6 +211,47 @@
+@@ -209,6 +255,110 @@
      }
  }
  
@@ -286,7 +563,7 @@ diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view.
 +    QMargins layerMargins = margins();
 +    if (m_floating && m_floatCenterX != 0.5) {
 +        const int screenWidth = screen()->availableGeometry().width();
-+        layerMargins.setLeft(std::clamp(int(screenWidth * m_floatCenterX - width() / 2.0), 0, std::max(0, screenWidth - width())));
++        layerMargins.setLeft(std::clamp(qRound(screenWidth * m_floatCenterX - width() / 2.0), 0, std::max(0, screenWidth - width())));
 +        layerWindow->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop | LayerShellQt::Window::AnchorLeft));
 +    } else {
 +        layerWindow->setAnchors(LayerShellQt::Window::AnchorTop);
@@ -294,21 +571,84 @@ diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view.
 +    layerWindow->setMargins(layerMargins);
 +}
 +
-+void View::moveFloatingBy(qreal dx, qreal dy)
++QPointF View::floatingTopLeft()
 +{
 +    const QRect r = screen()->availableGeometry();
-+    if (!m_floating || !KWindowSystem::isPlatformWayland() || r.width() <= 0 || r.height() <= 0) {
-+        return;
-+    }
-+    m_floatCenterX = std::clamp(m_floatCenterX + dx / r.width(), 0.0, 1.0);
-+    m_floatTop = std::clamp(m_floatTop + dy / r.height(), 0.0, 0.9);
-+    applyFloatingMargins();
-+    requestUpdate(); // commit the new margins promptly
++    return {std::clamp(r.width() * m_floatCenterX - width() / 2.0, 0.0, std::max(0.0, qreal(r.width() - width()))), r.height() * m_floatTop};
 +}
 +
-+void View::saveFloatingPosition()
++// Moves the floating window to a top-left position (kept on screen) and stores it as fractions.
++void View::moveFloatingTo(QPointF topLeft)
 +{
-+    if (!m_floating) {
++    const QRect r = screen()->availableGeometry();
++    if (r.width() <= 0 || r.height() <= 0) {
++        return;
++    }
++    const qreal left = std::clamp(topLeft.x(), 0.0, std::max(0.0, qreal(r.width() - width())));
++    const qreal top = std::clamp(topLeft.y(), 0.0, std::max(0.0, qreal(r.height() - height())));
++    m_floatCenterX = (left + width() / 2.0) / r.width();
++    m_floatTop = top / r.height();
++    applyFloatingMargins();
++    update(); // margins only take effect with a commit, so render a frame even if nothing changed
++}
++
++// A relative pointer for the current wl_pointer, kept while KRunner runs so no motion is missed at a press.
++void View::ensureRelativePointer()
++{
++    if (!KWindowSystem::isPlatformWayland()) {
++        return;
++    }
++    auto wayland = qGuiApp->nativeInterface<QNativeInterface::QWaylandApplication>();
++    ::wl_pointer *pointer = wayland ? wayland->pointer() : nullptr;
++    if (!pointer || (m_relativePointer && m_relativePointer->forPointer == pointer)) {
++        return;
++    }
++    if (!m_relativePointerManager) {
++        m_relativePointerManager = std::make_unique<RelativePointerManager>();
++    }
++    if (!m_relativePointerManager->isActive()) {
++        return;
++    }
++    m_relativePointer = std::make_unique<RelativePointer>(m_relativePointerManager->get_relative_pointer(pointer), pointer, [this](QPointF delta) {
++        if (m_dragging) {
++            m_dragFollowed = true;
++            // the cursor stops at the screen edge but relative motion doesn't; stop with it, so the
++            // window comes back with the cursor
++            const QRect r = screen()->geometry();
++            const QPointF press = m_dragStart + m_dragPress;
++            const QPointF pointer = press + m_dragOffset + delta;
++            m_dragOffset = QPointF(std::clamp(pointer.x(), 0.0, r.width() - 1.0), std::clamp(pointer.y(), 0.0, r.height() - 1.0)) - press;
++            moveFloatingTo(m_dragStart + m_dragOffset);
++        }
++    });
++}
++
++void View::startFloatingDrag(qreal x, qreal y)
++{
++    if (!m_floating || !KWindowSystem::isPlatformWayland()) {
++        return;
++    }
++    ensureRelativePointer();
++    m_dragging = true;
++    m_dragFollowed = false;
++    m_dragStart = floatingTopLeft();
++    m_dragOffset = {};
++    m_dragPress = {x, y};
++}
++
++void View::endFloatingDrag(qreal x, qreal y)
++{
++    if (!m_dragging) {
++        return;
++    }
++    m_dragging = false;
++    if (!m_dragFollowed && qIsFinite(x) && qIsFinite(y)) {
++        // no relative motion (compositor without the protocol): the window stayed put, so the release
++        // position in it is the whole move
++        m_dragOffset = QPointF(x, y) - m_dragPress;
++        moveFloatingTo(m_dragStart + m_dragOffset);
++    }
++    if (m_dragOffset.isNull()) {
 +        return;
 +    }
 +    m_config.writeEntry("FloatingTop", m_floatTop);
@@ -319,27 +659,57 @@ diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view.
  void View::toggleDisplay()
  {
      if (isVisible() && !QGuiApplication::focusWindow() && KWindowSystem::isPlatformX11()) {
-diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 --- a/krunner/view.h
 +++ b/krunner/view.h
-@@ -47,6 +47,10 @@
+@@ -12,6 +12,7 @@
+ #include <KSharedConfig>
+ #include <PlasmaActivities/Consumer>
+ #include <QQuickView>
++#include <memory>
+ #include <qqmlregistration.h>
+ 
+ #include <PlasmaQuick/PlasmaWindow>
+@@ -21,6 +22,8 @@
+ 
+ class X11WindowScreenRelativePositioner;
+ class ViewPrivate;
++class RelativePointerManager;
++class RelativePointer;
+ 
+ class View : public PlasmaQuick::PlasmaWindow
+ {
+@@ -47,6 +50,11 @@
  
      void positionOnScreen();
  
-+    // Dragging the floating window (from QML): shift it by a pointer offset, then remember the spot
-+    Q_INVOKABLE void moveFloatingBy(qreal dx, qreal dy);
-+    Q_INVOKABLE void saveFloatingPosition();
++    // Dragging the floating window (from QML, with the pointer position in the window). In between,
++    // the window follows the pointer's relative motion; the spot is remembered.
++    Q_INVOKABLE void startFloatingDrag(qreal x, qreal y);
++    Q_INVOKABLE void endFloatingDrag(qreal x, qreal y);
 +
      bool freeFloating() const;
      void setFreeFloating(bool floating);
  
-@@ -106,6 +110,9 @@
+@@ -106,6 +114,21 @@
      void writeHistory();
      QPoint m_customPos;
      QMargins margins();
 +    void applyFloatingMargins();
++    QPointF floatingTopLeft();
++    void moveFloatingTo(QPointF topLeft);
++    void ensureRelativePointer();
 +    double m_floatTop = 1.0 / 3.0; // top edge, fraction of the screen height (krunnerrc FloatingTop)
 +    double m_floatCenterX = 0.5; // horizontal centre, fraction of the width (krunnerrc FloatingCenterX)
++    // Wayland clients only see pointer positions relative to their own window, which lag behind the
++    // moves they request, so the drag follows relative pointer motion instead.
++    std::unique_ptr<RelativePointerManager> m_relativePointerManager;
++    std::unique_ptr<RelativePointer> m_relativePointer;
++    bool m_dragging = false;
++    bool m_dragFollowed = false; // relative motion arrived during this drag
++    QPointF m_dragStart; // window top-left when the drag started
++    QPointF m_dragOffset; // pointer motion since then
++    QPointF m_dragPress; // pointer position in the window at the press
      PlasmaQuick::SharedQmlEngine *m_engine;
      KConfigGroup m_config;
      KConfigGroup m_stateData;
