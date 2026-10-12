@@ -15,15 +15,15 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 
-R = 18                  # corner radius (logical px); also the corner tile size
-MARGIN = 14             # padding between the frame edge and the content (clears the corner curve)
-SHADOW = 30             # how far the shadow reaches beyond the frame
-SHADOW_ALPHA = 0.26
-FILL_TRANSLUCENT = 0.50  # glass tint over KWin's blur
+R = 26                  # corner radius (logical px); also the corner tile size
+MARGIN = 12             # padding between the frame edge and the content
+SHADOW = 40             # how far the shadow reaches beyond the frame
+SHADOW_ALPHA = 0.24
+FILL_TRANSLUCENT = 0.40  # glass tint over KWin's blur
 FILL_OPAQUE = 0.94       # compositing without blur
-RIM = {"top": 0.30, "side": 0.13, "bottom": 0.09}    # 1px specular edge (white)
-GLOW = {"top": 0.11, "side": 0.045, "bottom": 0.05}  # inner light band, fading inwards
-GLOW_DEPTH = 11          # px the inner band reaches into the glass
+RIM = {"top": 0.34, "side": 0.18, "bottom": 0.12}    # 1px specular edge (white), visible all round
+GLOW = {"top": 0.12, "side": 0.05, "bottom": 0.06}   # inner light band, fading inwards
+GLOW_DEPTH = 14          # px the inner band reaches into the glass
 
 C = R
 K = 32                   # edge/centre tile length (stretched)
@@ -270,13 +270,13 @@ LE_R = 10
 def lineedit_svg():
     ff = LE_R + 2  # the focus halo sits 2px outside the field
     parts = [
-        glass_frame("base", 0, 0, LE_R, fill=0.075, rim=0.11),
+        glass_frame("base", 0, 0, LE_R, fill=0.06, rim=0.08),
         margins("base", 200, 0, 6, 6, 9, 9),
-        glass_frame("hover", 0, 60, LE_R, rim=0.22),
+        glass_frame("hover", 0, 60, LE_R, rim=0.16),
         margins("hover", 200, 60, 0, 0, 0, 0),
-        glass_frame("focus", 0, 120, LE_R, rim=0.38),
+        glass_frame("focus", 0, 120, LE_R, rim=0.28),
         margins("focus", 200, 120, 0, 0, 0, 0),
-        glass_frame("focusframe", 0, 180, ff, rim=0.10, rim_w=2),
+        glass_frame("focusframe", 0, 180, ff, rim=0.06, rim_w=2),
         margins("focusframe", 200, 180, 2, 2, 2, 2),
         '<rect id="hint-focus-over-base" x="220" y="0" width="2" height="2" fill="#f60"/>',
         '<rect id="hint-stretch-borders" x="220" y="6" width="2" height="2" fill="#f60"/>',
@@ -285,13 +285,13 @@ def lineedit_svg():
 
 
 # List highlights (KRunner results, Kickoff, menus in popups): frosted pills instead of blue.
-VI_R = 8
+VI_R = 12
 def viewitem_svg():
     parts = [
         glass_frame("normal", 0, 0, VI_R),
-        glass_frame("hover", 0, 50, VI_R, fill=0.07, rim=0.06),
-        glass_frame("selected", 0, 100, VI_R, fill=0.13, rim=0.14),
-        glass_frame("selected+hover", 0, 150, VI_R, fill=0.17, rim=0.18),
+        glass_frame("hover", 0, 50, VI_R, fill=0.06),
+        glass_frame("selected", 0, 100, VI_R, fill=0.12),
+        glass_frame("selected+hover", 0, 150, VI_R, fill=0.15),
         '<rect id="hint-stretch-borders" x="60" y="0" width="2" height="2" fill="#f60"/>',
     ]
     return standalone(parts, 80, 200)

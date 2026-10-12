@@ -4,6 +4,10 @@ set -e
 
 # KRunner: floating in the middle of the screen instead of hanging from the top edge
 kwriteconfig6 --file krunnerrc --group General --key FreeFloating true
+# Where it floats (needs the plasma-workspace patch): top edge at 20% of the screen height, centre at
+# 62% of the width. Tweak freely; KRunner picks changes up on its next start (kquitapp6 krunner).
+kwriteconfig6 --file krunnerrc --group General --key FloatingTop 0.2
+kwriteconfig6 --file krunnerrc --group General --key FloatingCenterX 0.62
 
 # KRunner plugins: no browser history/tabs flood, no help plugin (hides the "?" button)
 kwriteconfig6 --file krunnerrc --group Plugins --key browserhistoryEnabled false

@@ -27,6 +27,8 @@ for key in browserhistoryEnabled browsertabsEnabled helprunnerEnabled; do
 done
 kwriteconfig6 --file krunnerrc --group Plugins --group Favorites --key plugins --delete
 kwriteconfig6 --file krunnerrc --group General --key FreeFloating --delete
+kwriteconfig6 --file krunnerrc --group General --key FloatingTop --delete
+kwriteconfig6 --file krunnerrc --group General --key FloatingCenterX --delete
 kwriteconfig6 --file kdeglobals --group "KDE Control Module Restrictions" --key kcm_krunnersettings --delete
 kquitapp6 krunner >/dev/null 2>&1 || true
 

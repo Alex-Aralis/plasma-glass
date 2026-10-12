@@ -4,10 +4,10 @@
 #   session.sh krunner QUERY
 #   session.sh dialog
 MODE="$1"; shift
-SOCK="wl-plasma-glass-preview-$$"
+SOCK="$PREVIEW_SOCK"  # chosen by run_session, which also points the bus's services at it
 export XDG_CONFIG_HOME="$WORK/cfg"
 
-kwin_wayland --virtual --width "$WIDTH" --height "$HEIGHT" --scale "$SCALE" --socket "$SOCK" \
+env -u WAYLAND_DISPLAY kwin_wayland --virtual --width "$WIDTH" --height "$HEIGHT" --scale "$SCALE" --socket "$SOCK" \
     --no-lockscreen --no-global-shortcuts >"$WORK/kwin.log" 2>&1 &
 KWIN=$!
 for _ in $(seq 100); do [ -S "$XDG_RUNTIME_DIR/$SOCK" ] && break; sleep 0.1; done
@@ -22,7 +22,7 @@ case "$MODE" in
         krunner >"$WORK/app.log" 2>&1 &
         sleep 2
         qdbus6 org.kde.krunner /App org.kde.krunner.App.query "$1"
-        sleep 4  # let results (including the semantic search service) arrive
+        sleep 8  # let results arrive (the semantic search service can be slow while the CPU is busy)
         ;;
     dialog)
         qml6 "$HERE/qml/dialog.qml" >"$WORK/app.log" 2>&1 &

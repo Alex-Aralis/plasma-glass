@@ -64,7 +64,11 @@ prepare() {
 # run_session MODE ARGS... : run session.sh on a private bus with the private config and data.
 # ~/.local/share stays readable (after the private dir) for installed styles, KRunner plugins and
 # D-Bus service files. EMBEDSEARCH_NO_REINDEX keeps a D-Bus-activated search service read-only.
+# Services the private bus starts inherit its environment, so point them at the virtual display and
+# drop X11: nothing from the preview (a wallet or portal prompt, say) can open on your real screen.
 run_session() {
+    PREVIEW_SOCK="wl-plasma-glass-preview-$$"
+    env -u DISPLAY -u XAUTHORITY WAYLAND_DISPLAY="$PREVIEW_SOCK" PREVIEW_SOCK="$PREVIEW_SOCK" \
     XDG_DATA_HOME="$WORK/data" \
     XDG_DATA_DIRS="$HOME/.local/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}" \
     EMBEDSEARCH_NO_REINDEX=1 WORK="$WORK" HERE="$HERE" \

@@ -10,8 +10,9 @@ notification cruft trimmed.
 - **Liquid Glass Plasma Style.** Translucent popups over KWin's blur: 18 px corners, a light rim along
   the top, a soft shadow, glassy search fields, list highlights and scrollbars. Everything else
   falls back to Breeze, and colours follow your colour scheme.
-- **Trimmed KRunner and notifications.** KRunner floats mid-screen, is wider, uses larger text and
-  compact section headers, and has no help, settings, pin or clear buttons. Notification popups lose
+- **Trimmed KRunner and notifications.** KRunner floats where you put it (two `krunnerrc` keys), is
+  wider, and types straight onto the glass in larger text, with no input box, like Spotlight. It uses
+  compact section headers and has no help, settings, pin or clear buttons. Notification popups lose
   their settings and close buttons and show a pointer when clicking them opens something.
 
 ## Install
@@ -96,7 +97,10 @@ milou is rebuilt. If a future Plasma version changes the patched lines, that bui
 patch step until the patch is refreshed.
 
 - `plasma-workspace-tweaks.patch`
-  - KRunner: wider (40 grid units), 1.3x search text, no pin or clear button
+  - KRunner: wider (40 grid units), 1.3x search text, borderless search field, no pin or clear button
+  - KRunner position when floating: `krunnerrc [General] FloatingTop` (top edge as a fraction of
+    the screen height; stock is 1/3) and `FloatingCenterX` (horizontal centre as a fraction of the
+    width; stock is 0.5)
   - notification popups: no settings or close buttons (the history keeps them), header padding
     fixed, pointer cursor when the popup is clickable. Popups still close on click, timeout,
     middle-click or swipe

@@ -64,7 +64,7 @@ diff -ru a/applets/notifications/NotificationPopup.qml b/applets/notifications/N
 diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -131,8 +131,10 @@
+@@ -131,8 +131,14 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -74,10 +74,14 @@ diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 +            Layout.maximumWidth: Kirigami.Units.gridUnit * 40
 +            font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.3
 +            rightActions: [] // no clear button (Ctrl+A then Backspace clears)
++            // borderless, like macOS Spotlight: the query sits directly on the glass
++            background: Item {}
++            topPadding: Kirigami.Units.largeSpacing
++            bottomPadding: Kirigami.Units.largeSpacing
  
              activeFocusOnPress: true
              placeholderText: results.singleRunner ? i18nc("Textfield placeholder text, query specific KRunner plugin",
-@@ -157,6 +159,7 @@
+@@ -157,6 +163,7 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -85,7 +89,7 @@ diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
                  color: parent.color
                  focus: false
                  z: -1
-@@ -301,6 +304,7 @@
+@@ -301,6 +308,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -93,3 +97,41 @@ diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
+diff -ru a/krunner/view.cpp b/krunner/view.cpp
+--- a/krunner/view.cpp
++++ b/krunner/view.cpp
+@@ -93,7 +93,9 @@
+ {
+     if (m_floating) {
+         const QRect r = screen()->availableGeometry();
+-        return QMargins({0, r.height() / 3, 0, 0});
++        // Top edge as a fraction of the screen height (krunnerrc [General] FloatingTop, stock 1/3)
++        const double top = std::clamp(m_config.readEntry("FloatingTop", 1.0 / 3.0), 0.0, 0.9);
++        return QMargins({0, int(r.height() * top), 0, 0});
+     } else {
+         return {}; // Zeros
+     }
+@@ -187,11 +189,21 @@
+ 
+     if (KWindowSystem::isPlatformWayland()) {
+         auto layerWindow = LayerShellQt::Window::get(this);
+-        layerWindow->setAnchors(LayerShellQt::Window::AnchorTop);
++        // Horizontal centre as a fraction of the screen width (krunnerrc [General] FloatingCenterX,
++        // stock 0.5 = centred). Off-centre means anchoring left and computing the left margin.
++        const double centerX = std::clamp(m_config.readEntry("FloatingCenterX", 0.5), 0.0, 1.0);
++        QMargins layerMargins = margins();
++        if (m_floating && centerX != 0.5) {
++            const int screenWidth = shownOnScreen->availableGeometry().width();
++            layerMargins.setLeft(std::clamp(int(screenWidth * centerX - width() / 2.0), 0, std::max(0, screenWidth - width())));
++            layerWindow->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop | LayerShellQt::Window::AnchorLeft));
++        } else {
++            layerWindow->setAnchors(LayerShellQt::Window::AnchorTop);
++        }
+         layerWindow->setLayer(LayerShellQt::Window::LayerTop);
+         layerWindow->setScope(u"krunner"_s);
+         layerWindow->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityOnDemand);
+-        layerWindow->setMargins(margins());
++        layerWindow->setMargins(layerMargins);
+         if (m_floating) {
+             layerWindow->setScreen(shownOnScreen);
+         } else {
