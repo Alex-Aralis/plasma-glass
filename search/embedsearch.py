@@ -448,6 +448,7 @@ def serve():
             super().__init__("org.kde.krunner1")
             self.seq = 0
             self.matches = {}  # match id -> path, for Run
+            self.session_over = False
             self.token = ""
 
         @method()
@@ -461,7 +462,9 @@ def serve():
 
         @method()
         def Teardown(self):
-            self.matches.clear()
+            # KRunner ends the session as its window hides, which can be just before it sends Run for the
+            # clicked result, so the matches are only forgotten when the next session starts
+            self.session_over = True
 
         @method()
         def SetActivationToken(self, token: "s"):
@@ -469,6 +472,9 @@ def serve():
 
         @method()
         async def Match(self, query: "s") -> "a(sssida{sv})":
+            if self.session_over:
+                self.matches.clear()
+                self.session_over = False
             self.seq += 1
             mine = self.seq
             LAST_QUERY[0] = time.monotonic()
@@ -503,14 +509,19 @@ def serve():
         def Run(self, match_id: "s", action_id: "s"):
             path = self.matches.get(match_id)
             if not path:
+                log(f"run {action_id or 'open'}: unknown match {match_id!r} ({len(self.matches)} known)")
                 return
+            log(f"run {action_id or 'open'}: {path}")
             env = dict(os.environ, XDG_ACTIVATION_TOKEN=self.token) if self.token else None
-            if action_id == "folder":
-                launch(["dolphin", "--select", path], env)
-            elif action_id == "copy":
-                launch(["qdbus6", "org.kde.klipper", "/klipper", "setClipboardContents", path])
-            else:
-                launch(["xdg-open", path], env)
+            try:  # D-Bus would swallow the exception
+                if action_id == "folder":
+                    launch(["dolphin", "--select", path], env)
+                elif action_id == "copy":
+                    launch(["qdbus6", "org.kde.klipper", "/klipper", "setClipboardContents", path])
+                else:
+                    launch(["xdg-open", path], env)
+            except OSError as e:
+                log(f"run {action_id or 'open'} failed: {e}")
             self.token = ""
 
     def reindex_loop():
