@@ -13,7 +13,8 @@ notification cruft trimmed.
 - **Trimmed KRunner and notifications.** KRunner floats where you put it (two `krunnerrc` keys), is
   wider, and types straight onto the glass in larger text, with no input box, like Spotlight. It uses
   compact section headers and has no help, settings, pin or clear buttons. Notification popups lose
-  their settings and close buttons and show a pointer when clicking them opens something.
+  their settings and close buttons and the countdown bar, and show a pointer when clicking them
+  opens something.
 
 ## Install
 

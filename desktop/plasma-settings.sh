@@ -18,6 +18,9 @@ kwriteconfig6 --file krunnerrc --group Plugins --key helprunnerEnabled false
 kwriteconfig6 --file krunnerrc --group Plugins --group Favorites --key plugins \
     "krunner_sessions,krunner_powerdevil,krunner_systemsettings,krunner_services"
 
+# Notification popups: no countdown bar along the top
+kwriteconfig6 --file plasmanotifyrc --group Notifications --key ShowPopupTimeout false --notify
+
 # Hides KRunner's settings (gear) button. Side effect: the KRunner page in System Settings is hidden
 # too; remove this key from ~/.config/kdeglobals to get it back.
 kwriteconfig6 --file kdeglobals --group "KDE Control Module Restrictions" --key kcm_krunnersettings false

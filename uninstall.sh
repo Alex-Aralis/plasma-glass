@@ -31,6 +31,7 @@ kwriteconfig6 --file krunnerrc --group General --key FreeFloating --delete
 kwriteconfig6 --file krunnerrc --group General --key FloatingTop --delete
 kwriteconfig6 --file krunnerrc --group General --key FloatingCenterX --delete
 kwriteconfig6 --file kdeglobals --group "KDE Control Module Restrictions" --key kcm_krunnersettings --delete
+kwriteconfig6 --file plasmanotifyrc --group Notifications --key ShowPopupTimeout --delete --notify
 kquitapp6 krunner >/dev/null 2>&1 || true
 
 cat <<'EOF'
