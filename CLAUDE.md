@@ -70,6 +70,15 @@ docs are in README.md; this file covers how to work on it.
 - **Layer-shell margins only apply on a commit.** layer-shell-qt's `setMargins` just sends
   `set_margin`; `requestUpdate()` doesn't render an unchanged scene, so nothing commits. Use
   `QQuickWindow::update()`.
+- **KWin compositing on NVIDIA misplaces a resizing layer-shell window for a frame:** it applies
+  the new size before the new buffer, so on each step of the results' unfold KRunner's old frame
+  showed at the new size (pushed down when growing, up and clipped when shrinking): jumps and
+  ghosts. Not with KWin on the iGPU, and not when KRunner renders in software
+  (`QT_QUICK_BACKEND=software`, CPU shm buffers); KRunner on the iGPU still glitched once. install.sh
+  adds that as a `plasma-krunner.service` drop-in when KWin's GL vendor is NVIDIA. Found by
+  capturing frames from the preview KWin at ~150 fps: start it with
+  `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1` and call `org.kde.KWin.ScreenShot2.CaptureActiveScreen`
+  in a loop (dbus-fast: the `h` argument is the index into `unix_fds`; raw BGRA, format 6).
 - **`Kirigami.Icon` rounds to standard sizes** (`roundToIconSize`): ask for 28 px and you get 22.
 - **QQuickWindow sees every press as accepted after delivery**, even on empty space. Handle input
   in QML, as the KRunner drag area does (a MouseArea under the content).
@@ -113,7 +122,8 @@ docs are in README.md; this file covers how to work on it.
   gamma were applied twice (a 190 background blurred to about 138): darker glass and a dark fringe
   on the corner arcs (whole-pixel blur region under anti-aliased edges). It was gone with blur
   unloaded, on the iGPU monitors, and everywhere once KWin composited on NVIDIA, so it only hits
-  iGPU-rendered frames shown on the NVIDIA card. The preview can't reproduce it (one GPU).
+  iGPU-rendered frames shown on the NVIDIA card. The preview can't reproduce it (one GPU). With KWin
+  on NVIDIA, KRunner renders in software (see the rules above).
 
 ## Open items
 

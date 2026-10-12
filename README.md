@@ -70,6 +70,7 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 | `~/.local/share/krunner/dbusplugins/`, `~/.local/share/dbus-1/services/`, `~/.config/systemd/user/` | KRunner plugin and the service that runs it |
 | `~/.local/share/plasma/desktoptheme/liquid-glass/` | the Plasma Style (`generate.py` draws it) |
 | `krunnerrc`, `kdeglobals` | settings from [`desktop/plasma-settings.sh`](desktop/plasma-settings.sh) |
+| `~/.config/systemd/user/plasma-krunner.service.d/plasma-glass-software-render.conf` | only when KWin composites on an NVIDIA GPU: KRunner renders in software (KWin there shows a resizing window's old frame at the new size, so the results' unfold jumped) |
 | `/etc/portage/patches/kde-plasma/{plasma-workspace,milou}/` | the QML patches (root) |
 
 `plasma-settings.sh` sets a KDE restriction to hide KRunner's settings button. As a side effect,

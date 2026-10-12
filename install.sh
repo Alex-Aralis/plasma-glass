@@ -117,6 +117,18 @@ fi
 if [ "$DO_SETTINGS" = 1 ]; then
     say "KRunner / Plasma settings"
     sh "$REPO/desktop/plasma-settings.sh"
+    # When KWin composites on an NVIDIA GPU, it shows a resizing layer-shell window's old frame at the
+    # new size for one frame, so KRunner's results jumped and left ghosts as they unfolded. KRunner's
+    # software renderer (CPU-drawn shared-memory buffers) doesn't trigger that, and costs little.
+    dropin="$CONF/systemd/user/plasma-krunner.service.d/plasma-glass-software-render.conf"
+    if qdbus6 org.kde.KWin /KWin org.kde.KWin.supportInformation 2>/dev/null | grep -q '^OpenGL vendor string: NVIDIA'; then
+        mkdir -p "$(dirname "$dropin")"
+        printf '[Service]\nEnvironment=QT_QUICK_BACKEND=software\n' > "$dropin"
+        echo "KWin composites on NVIDIA: KRunner uses software rendering ($dropin)"
+    else
+        rm -f "$dropin"
+    fi
+    systemctl --user daemon-reload
 fi
 
 kquitapp6 krunner >/dev/null 2>&1 || true  # KRunner picks everything up on its next start
