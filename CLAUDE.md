@@ -115,5 +115,11 @@ docs are in README.md; this file covers how to work on it.
   the results list takes presses), so Meta+drag (KWin's move modifier from kwinrc) works anywhere,
   through an overlay MouseArea that refuses presses without the modifier. KWin passes Meta+click
   to layer-shell windows. Measured on the virtual display; needs a real-hand test after the rebuild.
+- **KWin's window shortcuts died during preview work (main box, 2026-10-12):** Alt+F4, Meta+Q and
+  Meta+arrows did nothing, while Alt+Tab and KRunner's Meta+Space still worked. kglobalaccel still
+  mapped the keys to the right KWin actions, owned its bus name since boot and had no conflicts; a
+  relogin fixed it. The user saw the same during earlier desktop dev, so suspect the preview
+  sessions (virtual KWin, private bus). Cause unknown; if it recurs, check whether
+  `globalShortcutPressed` signals reach `/component/kwin` (dbus-monitor) before relogging.
 - **Remember password:** the laptop's ksshaskpass passphrase wasn't saved to KWallet yet (tick it
   at login).
