@@ -1,6 +1,7 @@
 #!/bin/sh
 # Screenshot of a system tray popup in a real plasmashell, and the QML warnings plasmashell logged.
 #   tools/preview/popup.sh OUT.png [APPLET]            APPLET: volume (default), clipboard, ...
+#   tools/preview/popup.sh OUT.png notify              the sample notifications (desktop/test-notifications.sh)
 #   PANEL=mine tools/preview/popup.sh OUT.png [APPLET]  your own panels and tray instead (any tray applet)
 # (see common.sh for STYLE, WALLPAPER, WIDTH, ...). plasmashell runs with a generated panel (a system
 # tray holding volume and clipboard; floating and thickness as your first panel) on a plain desktop, or
@@ -17,6 +18,11 @@ rm -rf "$WORK/cache" "$WORK/state" && mkdir -p "$WORK/cache" "$WORK/state" "$WOR
 
 if [ "${PANEL:-}" = mine ]; then
     cp "$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc" "$WORK/cfg/"
+fi
+if [ "$APPLET" = notify ]; then
+    [ "${PANEL:-}" = mine ] || cp "$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc" "$WORK/cfg/"
+    cp "$HOME/.config/plasmanotifyrc" "$WORK/cfg/" 2>/dev/null || true
+elif [ "${PANEL:-}" = mine ]; then
     # the tray applet's group, e.g. [Containments][4][Applets][9][Applets][12]: give it a shortcut
     group=$(awk -v p="plugin=org.kde.plasma.$APPLET" '/^\[/{h=$0} $0 == p && h ~ /\]\[Applets\]\[[0-9]+\]\[Applets\]\[[0-9]+\]$/{print h; exit}' \
             "$WORK/cfg/plasma-org.kde.plasma.desktop-appletsrc")
@@ -114,7 +120,7 @@ cat >"$WORK/dbus.conf" <<CFG
 CFG
 
 DBUS_CONFIG="$WORK/dbus.conf" XDG_CACHE_HOME="$WORK/cache" XDG_STATE_HOME="$WORK/state" \
-    run_session popup "activate widget $id"
+    run_session popup "$([ "$APPLET" = notify ] && echo notify || echo "activate widget $id")"
 # QML warnings while plasmashell ran, then the ones it logged while quitting (full log: $WORK/app.log)
 pattern='Binding loop|TypeError|ReferenceError|\.qml:[0-9]+'
 running=$(grep -E "$pattern" "$WORK/app-running.log" || true)

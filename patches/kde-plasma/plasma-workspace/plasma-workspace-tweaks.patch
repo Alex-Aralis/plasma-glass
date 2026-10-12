@@ -130,7 +130,29 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
      Layout.preferredWidth: (footerLoader.item as Item)?.implicitWidth ?? -1
  
      body: bodyLabel
-@@ -99,6 +102,7 @@
+@@ -31,11 +34,13 @@
+ 
+     Accessible.role: Accessible.Notification
+ 
+-    readonly property int __firstColumn: modelInterface.urgency === NotificationManager.Notifications.CriticalUrgency ? 1 : 0
++    // no stripe column for critical notifications (the stripe is hidden below)
++    readonly property int __firstColumn: 0
+ 
+     PlasmaExtras.PlasmoidHeading {
+         id: heading
+         topInset: 0
++        background.visible: false // the app name sits on the glass, no header band or line
+         Layout.fillWidth: true
+         Layout.columnSpan: delegateRoot.__firstColumn + 2
+         bottomPadding: 0
+@@ -94,11 +99,13 @@
+         implicitWidth: 4
+         height: parent.height
+         color: Kirigami.Theme.neutralTextColor
+-        visible: delegateRoot.modelInterface.urgency === NotificationManager.Notifications.CriticalUrgency
++        // no coloured stripe down the edge of critical popups: their icon and staying open say enough
++        visible: false
+     }
  
      Components.Summary {
          id: summary
@@ -138,7 +160,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
          // Base layout intentionally has no row spacing, so add top padding here when needed
          Layout.topMargin: delegateRoot.hasBodyText || icon.visible ? Kirigami.Units.smallSpacing : 0
          Layout.fillWidth: true
-@@ -132,7 +136,7 @@
+@@ -132,7 +139,7 @@
          Layout.row: summary.visible ? 3 : 2
          Layout.column: delegateRoot.__firstColumn
          Layout.columnSpan: icon.visible ? 1 : 2
@@ -147,7 +169,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
          // The body doesn't need to influence the implicit width in any way, this avoids a binding loop
          implicitWidth: -1
          implicitHeight: scroll.implicitHeight
-@@ -153,6 +157,7 @@
+@@ -153,6 +160,7 @@
  
              Components.Body {
                  id: bodyLabel
@@ -184,7 +206,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunne
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -21,6 +21,19 @@
+@@ -21,6 +21,36 @@
      id: root
  
      required property RunnerWindow runnerWindow
@@ -201,10 +223,27 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        onReleased: mouse => root.runnerWindow.endFloatingDrag(mouse.x, mouse.y)
 +        onCanceled: root.runnerWindow.endFloatingDrag(NaN, NaN)
 +    }
++    // Modifier+drag anywhere moves the window, as KWin does for other windows (KWin can't move this
++    // layer-shell window itself). Over the content, so it only takes presses with the modifier held.
++    property Item modifierDragArea: MouseArea {
++        parent: root.parent
++        anchors.fill: parent
++        z: 1000
++        cursorShape: pressed ? Qt.SizeAllCursor : undefined // unset, so the content's cursors show
++        onPressed: mouse => {
++            if ((mouse.modifiers & root.runnerWindow.moveModifier) === 0) {
++                mouse.accepted = false;
++                return;
++            }
++            root.runnerWindow.startFloatingDrag(mouse.x, mouse.y);
++        }
++        onReleased: mouse => root.runnerWindow.endFloatingDrag(mouse.x, mouse.y)
++        onCanceled: root.runnerWindow.endFloatingDrag(NaN, NaN)
++    }
      property string query
      property string singleRunner
      property bool showHistory: false
-@@ -74,6 +87,7 @@
+@@ -74,6 +104,7 @@
                      }
                  }
              } else {
@@ -212,7 +251,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
                  if (root.runnerWindow.retainPriorSearch) {
                      root.priorSearch = root.query
                  }
-@@ -131,14 +145,33 @@
+@@ -131,14 +162,33 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -249,7 +288,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              QQC2.Label {
                  id: fadedTextCompletion
-@@ -157,6 +190,7 @@
+@@ -157,6 +207,7 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -257,7 +296,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
                  color: parent.color
                  focus: false
                  z: -1
-@@ -301,6 +335,7 @@
+@@ -301,6 +352,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -265,7 +304,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -314,11 +349,30 @@
+@@ -314,11 +366,30 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -299,7 +338,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -347,6 +401,9 @@
+@@ -347,6 +418,9 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -548,7 +587,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
          if (m_floating) {
              layerWindow->setScreen(shownOnScreen);
          } else {
-@@ -209,6 +255,110 @@
+@@ -209,6 +255,116 @@
      }
  }
  
@@ -623,6 +662,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
 +    });
 +}
 +
++int View::moveModifier() const
++{
++    const QString key = KConfigGroup(KSharedConfig::openConfig(u"kwinrc"_s), u"MouseBindings"_s).readEntry("CommandAllKey", u"Meta"_s);
++    return key == u"Alt"_s ? Qt::AltModifier : Qt::MetaModifier;
++}
++
 +void View::startFloatingDrag(qreal x, qreal y)
 +{
 +    if (!m_floating || !KWindowSystem::isPlatformWayland()) {
@@ -679,7 +724,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  
  class View : public PlasmaQuick::PlasmaWindow
  {
-@@ -47,6 +50,11 @@
+@@ -47,6 +50,15 @@
  
      void positionOnScreen();
  
@@ -687,11 +732,15 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 +    // the window follows the pointer's relative motion; the spot is remembered.
 +    Q_INVOKABLE void startFloatingDrag(qreal x, qreal y);
 +    Q_INVOKABLE void endFloatingDrag(qreal x, qreal y);
++    // KWin's window-move modifier (kwinrc [MouseBindings] CommandAllKey: Meta or Alt), so modifier+drag
++    // moves KRunner as it moves other windows
++    Q_PROPERTY(int moveModifier READ moveModifier CONSTANT)
++    int moveModifier() const;
 +
      bool freeFloating() const;
      void setFreeFloating(bool floating);
  
-@@ -106,6 +114,21 @@
+@@ -106,6 +118,21 @@
      void writeHistory();
      QPoint m_customPos;
      QMargins margins();

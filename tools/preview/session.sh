@@ -54,21 +54,29 @@ JS
         for _ in $(seq 100); do qdbus6 org.kde.plasmashell >/dev/null 2>&1 && break; sleep 0.1; done
         sleep 6  # panel, tray and the popups plasmashell preloads
         spectacle -b -n -f -o "$WORK/shots/bg.png" >/dev/null 2>&1
-        qdbus6 org.kde.kglobalaccel /component/plasmashell org.kde.kglobalaccel.Component.invokeShortcut "$1" \
-            || echo "could not invoke '$1'" >&2
-        sleep 2
+        if [ "$1" = notify ]; then  # the sample notifications from desktop/test-notifications.sh
+            sh "$HERE/../../desktop/test-notifications.sh" all
+            sleep 3
+        else
+            qdbus6 org.kde.kglobalaccel /component/plasmashell org.kde.kglobalaccel.Component.invokeShortcut "$1" \
+                || echo "could not invoke '$1'" >&2
+            sleep 2
+        fi
         ;;
 esac
 spectacle -b -n -f -o "$WORK/shots/app.png" >/dev/null 2>&1
 cp "$WORK/app.log" "$WORK/app-running.log"  # what the app logged before it was asked to quit
 
-kill $KWIN 2>/dev/null
 # Services activated on this private bus (portals, keyring, activity manager...) outlive it unless
-# stopped; stop every process attached to it except this script and its caller.
+# stopped, so stop every process attached to it except KWin, this script and its caller. Then KWin,
+# with SIGKILL: the virtual KWin segfaults on SIGTERM, and each crash starts DrKonqi on your real
+# desktop.
 for pid in $(pgrep -u "$(id -u)"); do
-    { [ "$pid" = "$$" ] || [ "$pid" = "$PPID" ]; } && continue
+    { [ "$pid" = "$$" ] || [ "$pid" = "$PPID" ] || [ "$pid" = "$KWIN" ]; } && continue
     { tr '\0' '\n' < "/proc/$pid/environ"; } 2>/dev/null | grep -qxF "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" \
         && kill "$pid" 2>/dev/null
 done
 [ -z "${SHELL_PID:-}" ] || wait "$SHELL_PID"  # plasmashell logs while it tears down; let it finish
+kill -KILL $KWIN 2>/dev/null
+wait $KWIN 2>/dev/null
 exit 0

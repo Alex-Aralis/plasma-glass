@@ -58,6 +58,7 @@ QtObject {
     property bool helpEnabled: false
     property bool retainPriorSearch: true
     property int historyBehavior: 1
+    property int moveModifier: Qt.MetaModifier
     signal activityChanged(string activity)
     signal showHistoryChanged()
     function startFloatingDrag(x, y) {}
@@ -141,6 +142,7 @@ if [ -n "$PW" ]; then
     load_qml "notifications HeadingButtons.qml" "$PW/applets/notifications/components/HeadingButtons.qml" compile
     # the popup window (with DraggableDelegate and the popup delegate) needs plasmashell to run; compile it
     load_qml "notifications NotificationPopup.qml" "$PW/applets/notifications/NotificationPopup.qml" compile
+    load_qml "notifications DelegatePopup.qml" "$PW/applets/notifications/delegates/DelegatePopup.qml" compile
 fi
 [ -n "$MI" ] && load_qml "milou ResultsView.qml (+ ResultDelegate.qml)" "$MI/lib/ResultsView.qml"
 

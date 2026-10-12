@@ -88,6 +88,8 @@ docs are in README.md; this file covers how to work on it.
   inherit the mask.
 - **OpenVINO telemetry is opt-out:** `import openvino` sends a Google Analytics event through a
   spawned process unless `~/intel/openvino_telemetry` contains `0` (install.sh writes it).
+- **KRunner sends Teardown before Run** when a result is clicked (it ends the session as the
+  window hides), so a D-Bus runner must keep its matches until the next session's Match.
 - **Shell:** `grep` may be ugrep (`$` mid-pattern differs). Never nest a here-doc whose body
   contains its own delimiter.
 
@@ -104,8 +106,9 @@ docs are in README.md; this file covers how to work on it.
 
 - **KRunner drag-to-move** was rewritten to follow relative pointer motion and measured on the
   virtual display (exact final position, one even step per frame, clamped at the screen edge). It
-  still needs a real-hand test after the rebuild. Only the 12 px glass rim starts a drag: the query
-  field spans the full width and the results list takes presses for flicking, so there are no other
-  empty spots.
+  works by hand (rim). The 12 px rim is the only empty spot (the query field spans the full width,
+  the results list takes presses), so Meta+drag (KWin's move modifier from kwinrc) works anywhere,
+  through an overlay MouseArea that refuses presses without the modifier. KWin passes Meta+click
+  to layer-shell windows. Measured on the virtual display; needs a real-hand test after the rebuild.
 - **Remember password:** the laptop's ksshaskpass passphrase wasn't saved to KWallet yet (tick it
   at login).
