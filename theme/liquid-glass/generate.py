@@ -65,14 +65,29 @@ def frame(x0, prefix, fill_opacity, glass=True, mask=False):
     bg = 'fill="#000"' if mask else f'class="ColorScheme-Background" style="fill:currentColor;fill-opacity:{fill_opacity}"'
     pieces = []
 
-    def corner(name, ox, oy, cx, cy, sweep_start, sweep_end, rim, glow):
-        # quarter disc centred on (cx, cy) inside a C x C tile
+    def corner(name, ox, oy, cx, cy, sweep_start, sweep_end, rim, edge):
+        # quarter disc centred on (cx, cy) inside a C x C tile; edge: "top" or "bottom"
         disc = f'M{cx},{cy} L{sweep_start[0]},{sweep_start[1]} A{C},{C} 0 0 1 {sweep_end[0]},{sweep_end[1]} Z'
         body = f'<path d="{disc}" {bg}/>'
         if glass and not mask:
+            # Inner glow: a radial band at the weaker neighbouring edge's strength, plus the stronger
+            # edge's extra as that edge's own straight band, so the corner meets both edge tiles
+            # without a step (one radial band at the top's strength left one where it met the side).
+            side, other = GLOW["side"], GLOW[edge]
+            base = min(side, other)
             gid = f"{prefix}g-{name}"
-            stops = [(0, "#fff", 0), ((C - GLOW_DEPTH) / C, "#fff", 0)] + ease(glow, (C - GLOW_DEPTH) / C, (C - 1) / C, reverse=True)
+            start = (C - 1 - GLOW_DEPTH) / C  # same falloff as the edges: from 1 px in, GLOW_DEPTH deep
+            stops = [(0, "#fff", 0), (start, "#fff", 0)] + ease(base, start, (C - 1) / C, reverse=True)
             body += f'<path d="{disc}" fill="{gradient("radial", gid, stops, cx=cx, cy=cy, r=C)}"/>'
+            gy = 1 if edge == "top" else C - 1  # where the edge bands start, 1 px inside the frame
+            gx = 1 if "left" in name else C - 1
+            dy = GLOW_DEPTH if edge == "top" else -GLOW_DEPTH
+            dx = GLOW_DEPTH if "left" in name else -GLOW_DEPTH
+            for strength, axis, suffix in ((other, (0, gy, 0, gy + dy), "h"), (side, (gx, 0, gx + dx, 0), "v")):
+                if strength > base:
+                    extra = ease((strength - base) / (1 - base), 0, 1)  # composites to `strength` at the edge
+                    x1, y1, x2, y2 = axis
+                    body += f'<path d="{disc}" fill="{gradient("linear", gid + suffix, extra, x1=x1, y1=y1, x2=x2, y2=y2)}"/>'
             # 1px rim: ring between radius C-1 and C, as a filled shape
             (sx, sy), (ex, ey) = sweep_start, sweep_end
             ix, iy = cx + (sx - cx) * (C - 1) / C, cy + (sy - cy) * (C - 1) / C
@@ -85,10 +100,10 @@ def frame(x0, prefix, fill_opacity, glass=True, mask=False):
         pieces.append(tile(prefix + name, x0 + ox, oy, C, C, body))
 
     # corner centres sit at the tile's inner corner
-    corner("topleft", 0, 0, C, C, (0, C), (C, 0), (RIM["side"], RIM["top"]), GLOW["top"])
-    corner("topright", C + K, 0, 0, C, (0, 0), (C, C), (RIM["top"], RIM["side"]), GLOW["top"])
-    corner("bottomright", C + K, C + K, 0, 0, (C, 0), (0, C), (RIM["side"], RIM["bottom"]), GLOW["bottom"])
-    corner("bottomleft", 0, C + K, C, 0, (C, C), (0, 0), (RIM["bottom"], RIM["side"]), GLOW["bottom"])
+    corner("topleft", 0, 0, C, C, (0, C), (C, 0), (RIM["side"], RIM["top"]), "top")
+    corner("topright", C + K, 0, 0, C, (0, 0), (C, C), (RIM["top"], RIM["side"]), "top")
+    corner("bottomright", C + K, C + K, 0, 0, (C, 0), (0, C), (RIM["side"], RIM["bottom"]), "bottom")
+    corner("bottomleft", 0, C + K, C, 0, (C, C), (0, 0), (RIM["bottom"], RIM["side"]), "bottom")
 
     def edge(name, ox, oy, w, h, side, rim_rect, glow_axis):
         body = f'<rect width="{w}" height="{h}" {bg}/>'
@@ -112,6 +127,7 @@ def frame(x0, prefix, fill_opacity, glass=True, mask=False):
 def shadow(x0):
     """Soft shadow outside the frame only, so the glass itself is never darkened from below."""
     pieces = []
+
     ring0 = R / (R + SHADOW)
     ring = [(0, "#000", 0), (ring0 - 1e-4, "#000", 0)] + ease(SHADOW_ALPHA, ring0, 1, color="#000", power=2.4)
     edge = ease(SHADOW_ALPHA, 0, 1, color="#000", power=2.4)
