@@ -97,7 +97,7 @@ docs are in README.md; this file covers how to work on it.
 
 - **Laptop (t14):** i5-1245U, Iris Xe (Gen12.3), `intel-compute-runtime:legacy` (works on Gen12
   despite Gentoo's note). GPU f16 runs about 2,000 tokens/s for indexing and about 40 ms per query.
-- **Main box:** i9-14900K, UHD 770 (Raptor Lake-S GT1, Gen12, drives KDE) plus an RTX 2080 Ti.
+- **Main box:** i9-14900K, UHD 770 (Raptor Lake-S GT1, Gen12) plus an RTX 2080 Ti.
   `install-system.sh` picks `:legacy` from `lspci`. OpenVINO lists the NVIDIA card as a GPU too
   (through `nvidia.icd`; it's plain `GPU` when the Intel runtime is missing), and it can't compile
   the f16 model. `embedsearch.intel_gpu()` picks the device with `vendor=0x8086`. The UHD 770 is
@@ -106,12 +106,14 @@ docs are in README.md; this file covers how to work on it.
   can't run the model on the 2080 Ti at all (no Intel-only conversion kernels there, even in f32); a
   CUDA backend (ONNX Runtime) was considered and left out. `MAKEOPTS="-j32 -l32"`; plasma-workspace
   rebuilds in about 6 min.
-  Monitors: DP-4 (main, 2560x1440) is on the NVIDIA card (`card1`); DP-1 and HDMI-A-1 are on the
-  iGPU, where KWin composites. On DP-4, KWin's blur darkens what's behind a window as if gamma were
-  applied twice (a 190 background blurs to about 138): the glass is darker there and the corner
-  arcs get a dark fringe, since the blur region is whole pixels and the arcs' anti-aliased pixels
-  show the darkened background. Gone with blur unloaded, and on the iGPU monitors. The preview
-  can't reproduce it (one GPU, even with `KWIN_ENV` putting KWin on Mesa/Intel).
+  Monitors: DP-4 (main, 2560x1440 @ 240 Hz) is on the NVIDIA card (`card1`); DP-1 and HDMI-A-1
+  are on the iGPU. KWin composites on the NVIDIA card since 2026-10-12
+  (`/etc/environment.d/20-kde-gpu.conf`: `KWIN_DRM_DEVICES=/dev/dri/card1:/dev/dri/card0`; it was
+  `card0:card1`). With KWin on the iGPU, its blur darkened what's behind a window on DP-4 as if
+  gamma were applied twice (a 190 background blurred to about 138): darker glass and a dark fringe
+  on the corner arcs (whole-pixel blur region under anti-aliased edges). It was gone with blur
+  unloaded, on the iGPU monitors, and everywhere once KWin composited on NVIDIA, so it only hits
+  iGPU-rendered frames shown on the NVIDIA card. The preview can't reproduce it (one GPU).
 
 ## Open items
 
