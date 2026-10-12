@@ -19,6 +19,7 @@ fi
 case "$(kreadconfig6 --file plasmarc --group Theme --key name)" in
     liquid-glass*) plasma-apply-desktoptheme default ;;
 esac
+rm -f "$HOME/.local/bin/plasma-glass-test-notifications" "$DATA/applications/plasma-glass-test-notifications.desktop"
 rm -rf "$DATA/plasma/desktoptheme/liquid-glass" "$DATA/plasma/desktoptheme/liquid-glass-light" \
        "${XDG_CACHE_HOME:-$HOME/.cache}"/plasma_theme_liquid-glass*.kcache
 

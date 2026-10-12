@@ -101,6 +101,12 @@ if [ "$DO_STYLE" = 1 ]; then
     esac
     rm -f "${XDG_CACHE_HOME:-$HOME/.cache}"/plasma_theme_liquid-glass*.kcache
     plasma-apply-desktoptheme "$STYLE"
+    # "Test Notifications" launcher (KRunner / start menu; right-click for single kinds) to check popups
+    install -D -m 755 "$REPO/desktop/test-notifications.sh" "$HOME/.local/bin/plasma-glass-test-notifications"
+    mkdir -p "$DATA/applications"
+    sed "s|@BIN@|$HOME/.local/bin/plasma-glass-test-notifications|g" "$REPO/desktop/test-notifications.desktop.in" \
+        > "$DATA/applications/plasma-glass-test-notifications.desktop"
+    kbuildsycoca6 >/dev/null 2>&1 || true
 fi
 
 if [ "$DO_SETTINGS" = 1 ]; then

@@ -73,6 +73,10 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 that also hides the KRunner page in System Settings. Delete `kcm_krunnersettings` from
 `~/.config/kdeglobals` to get it back.
 
+To look at notification popups, open **Test Notifications** from KRunner or the start menu, or pin
+it to the panel. It sends a clickable one, a long one that scrolls, one with an image and a critical
+one. Right-click it to send a single kind, or run `plasma-glass-test-notifications [kind]`.
+
 ## Tweaking the style
 
 The style is drawn by [`theme/liquid-glass/generate.py`](theme/liquid-glass/generate.py). Corner

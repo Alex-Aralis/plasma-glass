@@ -1,0 +1,26 @@
+[Desktop Entry]
+Type=Application
+Name=Test Notifications
+GenericName=plasma-glass
+Comment=Show sample notifications to check the popup style
+Icon=preferences-desktop-notification
+Exec=@BIN@ all
+Categories=Settings;DesktopSettings;
+Keywords=notification;test;popup;glass;
+Actions=basic;long;image;critical;
+
+[Desktop Action basic]
+Name=Normal notification
+Exec=@BIN@ basic
+
+[Desktop Action long]
+Name=Long notification (scrolls)
+Exec=@BIN@ long
+
+[Desktop Action image]
+Name=Notification with an image
+Exec=@BIN@ image
+
+[Desktop Action critical]
+Name=Critical notification
+Exec=@BIN@ critical
