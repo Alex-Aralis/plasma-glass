@@ -60,13 +60,41 @@ QtObject {
     property int historyBehavior: 1
     signal activityChanged(string activity)
     signal showHistoryChanged()
+    function moveFloatingBy(dx, dy) {}
+    function saveFloatingPosition() {}
 }
 EOF
 cat > "$STUBS/plasma/applet/org/kde/plasma/notifications/qmldir" <<'EOF'
 module plasma.applet.org.kde.plasma.notifications
 singleton Globals 1.0 Globals.qml
+singleton DragHelper 1.0 DragHelper.qml
+singleton InputDisabler 1.0 InputDisabler.qml
+NotificationWindow 1.0 NotificationWindow.qml
+FileInfo 1.0 FileInfo.qml
+FileMenu 1.0 FileMenu.qml
+Thumbnailer 1.0 Thumbnailer.qml
 EOF
+N="$STUBS/plasma/applet/org/kde/plasma/notifications"
+printf 'pragma Singleton\nimport QtQuick\nQtObject { property bool dragActive; property size dragPixmapSize; function startDrag(p, u, x) {} }\n' > "$N/DragHelper.qml"
+printf 'pragma Singleton\nimport QtQuick\nQtObject { function makeTransparentForInput(item) {} }\n' > "$N/InputDisabler.qml"
+printf 'import QtQuick\nQtObject { property url url; property var modelInterface; signal actionTriggered(var action) }\n' > "$N/FileInfo.qml"
+printf 'import QtQuick\nQtObject { property url url; property var visualParent; property bool visible; signal actionTriggered(var action); function open(x, y) {} }\n' > "$N/FileMenu.qml"
+printf 'import QtQuick\nQtObject { property url url; property size size }\n' > "$N/Thumbnailer.qml"
 printf 'pragma Singleton\nimport QtQuick\nQtObject {}\n' > "$STUBS/plasma/applet/org/kde/plasma/notifications/Globals.qml"
+# the popup's C++ base (PlasmaQuick::PlasmaWindow + NotificationWindow): just the members QML sets or reads
+cat > "$STUBS/plasma/applet/org/kde/plasma/notifications/NotificationWindow.qml" <<'EOF'
+import QtQuick
+import QtQuick.Window
+Window {
+    property Item mainItem
+    property bool takeFocus
+    property bool isCritical
+    property int leftPadding
+    property int topPadding
+    property int rightPadding
+    property int bottomPadding
+}
+EOF
 cat > "$WORK/load.qml" <<'EOF'
 import QtQuick
 import org.kde.krunner.private.view
@@ -111,13 +139,8 @@ if [ -n "$PW" ]; then
     load_qml "notifications Body.qml" "$PW/applets/notifications/components/Body.qml"
     # needs a real notification model to instantiate, so compile only
     load_qml "notifications HeadingButtons.qml" "$PW/applets/notifications/components/HeadingButtons.qml" compile
-    # NotificationPopup's root is a C++ window type with many properties; check its syntax only
-    if command -v /usr/lib64/qt6/bin/qmllint >/dev/null && \
-       ! /usr/lib64/qt6/bin/qmllint "$PW/applets/notifications/NotificationPopup.qml" 2>&1 | grep -q -i -E 'syntax error|parse error|Expected token'; then
-        ok "notifications NotificationPopup.qml parses (needs plasmashell to load fully)"
-    else
-        bad "notifications NotificationPopup.qml has syntax errors"
-    fi
+    # the popup window (with DraggableDelegate and the popup delegate) needs plasmashell to run; compile it
+    load_qml "notifications NotificationPopup.qml" "$PW/applets/notifications/NotificationPopup.qml" compile
 fi
 [ -n "$MI" ] && load_qml "milou ResultsView.qml (+ ResultDelegate.qml)" "$MI/lib/ResultsView.qml"
 

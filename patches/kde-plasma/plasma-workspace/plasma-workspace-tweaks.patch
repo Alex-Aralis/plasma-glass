@@ -36,10 +36,56 @@ diff -ru a/applets/notifications/components/HeadingButtons.qml b/applets/notific
          icon.name: "window-close"
  
          display: PlasmaComponents3.AbstractButton.IconOnly
+diff -ru a/applets/notifications/components/NotificationHeader.qml b/applets/notifications/components/NotificationHeader.qml
+--- a/applets/notifications/components/NotificationHeader.qml
++++ b/applets/notifications/components/NotificationHeader.qml
+@@ -16,7 +16,8 @@
+     property ModelInterface modelInterface: ModelInterface {}
+     property alias closeButtonTooltip: headingButtons.closeButtonTooltip
+ 
+-    spacing: Kirigami.Units.smallSpacing
++    // more space between the app icon and name in popups; the history keeps the compact gap
++    spacing: notificationHeading.modelInterface.inHistory ? Kirigami.Units.smallSpacing : Kirigami.Units.largeSpacing
+ 
+     Kirigami.Icon {
+         id: applicationIconItem
+diff -ru a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
+--- a/applets/notifications/delegates/DelegatePopup.qml
++++ b/applets/notifications/delegates/DelegatePopup.qml
+@@ -22,6 +22,9 @@
+ BaseDelegate {
+     id: delegateRoot
+ 
++    // more space between the notification's icon/image and its text
++    columnSpacing: Kirigami.Units.largeSpacing
++
+     Layout.preferredWidth: (footerLoader.item as Item)?.implicitWidth ?? -1
+ 
+     body: bodyLabel
 diff -ru a/applets/notifications/NotificationPopup.qml b/applets/notifications/NotificationPopup.qml
 --- a/applets/notifications/NotificationPopup.qml
 +++ b/applets/notifications/NotificationPopup.qml
-@@ -121,7 +121,8 @@
+@@ -20,6 +20,8 @@
+ 
+     property int popupWidth
+     property bool showPopupTimeout
++    // extra room inside the glass, on top of the dialog margins every Plasma popup shares
++    readonly property int extraPadding: Kirigami.Units.largeSpacing
+ 
+     // Maximum width the popup can take to not break out of the screen geometry.
+     readonly property int availableWidth: NotificationsApplet.Globals.screenRect.width - NotificationsApplet.Globals.popupEdgeDistance * 2 - leftPadding - rightPadding
+@@ -61,8 +63,8 @@
+         id: focusListener
+         property bool wantsFocus: false
+ 
+-        implicitWidth: Math.min(Math.max(notificationPopup.minimumContentWidth, notificationItem.Layout.preferredWidth), Math.max(notificationPopup.minimumContentWidth, notificationPopup.maximumContentWidth))
+-        implicitHeight: notificationItem.implicitHeight
++        implicitWidth: Math.min(Math.max(notificationPopup.minimumContentWidth, notificationItem.Layout.preferredWidth), Math.max(notificationPopup.minimumContentWidth, notificationPopup.maximumContentWidth)) + 2 * notificationPopup.extraPadding
++        implicitHeight: notificationItem.implicitHeight + 2 * notificationPopup.extraPadding
+ 
+         acceptedButtons: Qt.AllButtons
+         hoverEnabled: true
+@@ -121,10 +123,13 @@
          DraggableDelegate {
              anchors {
                  fill: parent
@@ -47,9 +93,16 @@ diff -ru a/applets/notifications/NotificationPopup.qml b/applets/notifications/N
 +                // only the minimize button is shown in popups now; pull the header up only when it is
 +                topMargin: notificationPopup.modelInterface.dismissable ? -notificationPopup.topPadding : 0
              }
-             leftPadding: 0
-             rightPadding: 0
-@@ -149,6 +150,11 @@
+-            leftPadding: 0
+-            rightPadding: 0
++            leftPadding: notificationPopup.extraPadding
++            rightPadding: notificationPopup.extraPadding
++            topPadding: notificationPopup.extraPadding
++            bottomPadding: notificationPopup.extraPadding
+             hoverEnabled: true
+             draggable: notificationItem.modelInterface.notificationType != NotificationManager.Notifications.JobType
+             onDismissRequested: NotificationsApplet.Globals.popupNotificationsModel.close(NotificationsApplet.Globals.popupNotificationsModel.index(notificationItem.modelInterface.index, 0))
+@@ -149,6 +154,11 @@
                  }
              }
  
@@ -61,10 +114,47 @@ diff -ru a/applets/notifications/NotificationPopup.qml b/applets/notifications/N
              LayoutMirroring.enabled: Application.layoutDirection === Qt.RightToLeft
              LayoutMirroring.childrenInherit: true
  
+@@ -201,10 +211,11 @@
+                     maximumLineCount: 8
+                     bodyCursorShape: modelInterface.hasDefaultAction ? Qt.PointingHandCursor : 0
+ 
+-                    popupLeftPadding: notificationPopup.leftPadding
+-                    popupTopPadding: notificationPopup.topPadding
+-                    popupRightPadding: notificationPopup.rightPadding
+-                    popupBottomPadding: notificationPopup.bottomPadding
++                    // full-bleed parts (critical-urgency stripe) reach the frame edge through these
++                    popupLeftPadding: notificationPopup.leftPadding + notificationPopup.extraPadding
++                    popupTopPadding: notificationPopup.topPadding + notificationPopup.extraPadding
++                    popupRightPadding: notificationPopup.rightPadding + notificationPopup.extraPadding
++                    popupBottomPadding: notificationPopup.bottomPadding + notificationPopup.extraPadding
+ 
+                     // When notification is updated, restart hide timer
+                     onTimeChanged: {
 diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -131,14 +131,21 @@
+@@ -21,6 +21,20 @@
+     id: root
+ 
+     required property RunnerWindow runnerWindow
++
++    // Drag the floating window from any spot nothing else uses (the glass rim, headers, gaps). It sits
++    // under this layout, across the whole window, and the window remembers where it was left.
++    property Item dragArea: MouseArea {
++        parent: root.parent
++        anchors.fill: parent
++        z: -1
++        cursorShape: pressed ? Qt.ClosedHandCursor : Qt.ArrowCursor
++        property point pressPos
++        onPressed: mouse => pressPos = Qt.point(mouse.x, mouse.y)
++        // the window moves under the pointer, so the offset from the press point is the step to move by
++        onPositionChanged: mouse => root.runnerWindow.moveFloatingBy(mouse.x - pressPos.x, mouse.y - pressPos.y)
++        onReleased: root.runnerWindow.saveFloatingPosition()
++    }
+     property string query
+     property string singleRunner
+     property bool showHistory: false
+@@ -131,14 +145,22 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -74,6 +164,7 @@ diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 +            Layout.maximumWidth: Kirigami.Units.gridUnit * 40
 +            font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.3
 +            rightActions: [] // no clear button (Ctrl+A then Backspace clears)
++            focusSequences: [] // no Ctrl+F shortcut, so no "Ctrl+F" tooltip on hover (the field always has focus)
 +            // borderless, like macOS Spotlight: the query sits directly on the glass
 +            background: Item { z: -2 } // replaces the default background; z keeps it under the completion text
 +            // the removed background provided the gap between the search icon and the text
@@ -89,7 +180,7 @@ diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
  
              QQC2.Label {
                  id: fadedTextCompletion
-@@ -157,6 +164,7 @@
+@@ -157,6 +179,7 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -97,7 +188,7 @@ diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
                  color: parent.color
                  focus: false
                  z: -1
-@@ -301,6 +309,7 @@
+@@ -301,6 +324,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -105,7 +196,7 @@ diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -314,11 +323,28 @@
+@@ -314,11 +338,28 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -135,7 +226,7 @@ diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -347,6 +373,9 @@
+@@ -347,6 +388,9 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -148,38 +239,107 @@ diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 diff -ru a/krunner/view.cpp b/krunner/view.cpp
 --- a/krunner/view.cpp
 +++ b/krunner/view.cpp
-@@ -93,7 +93,9 @@
+@@ -93,7 +93,8 @@
  {
      if (m_floating) {
          const QRect r = screen()->availableGeometry();
 -        return QMargins({0, r.height() / 3, 0, 0});
 +        // Top edge as a fraction of the screen height (krunnerrc [General] FloatingTop, stock 1/3)
-+        const double top = std::clamp(m_config.readEntry("FloatingTop", 1.0 / 3.0), 0.0, 0.9);
-+        return QMargins({0, int(r.height() * top), 0, 0});
++        return QMargins({0, int(r.height() * m_floatTop), 0, 0});
      } else {
          return {}; // Zeros
      }
-@@ -187,11 +189,21 @@
+@@ -145,6 +146,8 @@
+ 
+ void View::loadConfig()
+ {
++    m_floatTop = std::clamp(m_config.readEntry("FloatingTop", 1.0 / 3.0), 0.0, 0.9);
++    m_floatCenterX = std::clamp(m_config.readEntry("FloatingCenterX", 0.5), 0.0, 1.0);
+     setFreeFloating(m_config.readEntry("FreeFloating", false));
+     setRetainPriorSearch(m_config.readEntry("RetainPriorSearch", true));
+     setPinned(m_stateData.readEntry("Pinned", false));
+@@ -187,11 +190,10 @@
  
      if (KWindowSystem::isPlatformWayland()) {
          auto layerWindow = LayerShellQt::Window::get(this);
 -        layerWindow->setAnchors(LayerShellQt::Window::AnchorTop);
-+        // Horizontal centre as a fraction of the screen width (krunnerrc [General] FloatingCenterX,
-+        // stock 0.5 = centred). Off-centre means anchoring left and computing the left margin.
-+        const double centerX = std::clamp(m_config.readEntry("FloatingCenterX", 0.5), 0.0, 1.0);
-+        QMargins layerMargins = margins();
-+        if (m_floating && centerX != 0.5) {
-+            const int screenWidth = shownOnScreen->availableGeometry().width();
-+            layerMargins.setLeft(std::clamp(int(screenWidth * centerX - width() / 2.0), 0, std::max(0, screenWidth - width())));
-+            layerWindow->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop | LayerShellQt::Window::AnchorLeft));
-+        } else {
-+            layerWindow->setAnchors(LayerShellQt::Window::AnchorTop);
-+        }
          layerWindow->setLayer(LayerShellQt::Window::LayerTop);
          layerWindow->setScope(u"krunner"_s);
          layerWindow->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityOnDemand);
 -        layerWindow->setMargins(margins());
-+        layerWindow->setMargins(layerMargins);
++        applyFloatingMargins();
          if (m_floating) {
              layerWindow->setScreen(shownOnScreen);
          } else {
+@@ -209,6 +211,47 @@
+     }
+ }
+ 
++// Layer-shell placement for the floating window: anchored to the top with a margin, and either centred
++// (stock) or anchored left with a margin that puts its centre at m_floatCenterX.
++void View::applyFloatingMargins()
++{
++    if (!KWindowSystem::isPlatformWayland()) {
++        return;
++    }
++    auto layerWindow = LayerShellQt::Window::get(this);
++    QMargins layerMargins = margins();
++    if (m_floating && m_floatCenterX != 0.5) {
++        const int screenWidth = screen()->availableGeometry().width();
++        layerMargins.setLeft(std::clamp(int(screenWidth * m_floatCenterX - width() / 2.0), 0, std::max(0, screenWidth - width())));
++        layerWindow->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop | LayerShellQt::Window::AnchorLeft));
++    } else {
++        layerWindow->setAnchors(LayerShellQt::Window::AnchorTop);
++    }
++    layerWindow->setMargins(layerMargins);
++}
++
++void View::moveFloatingBy(qreal dx, qreal dy)
++{
++    const QRect r = screen()->availableGeometry();
++    if (!m_floating || !KWindowSystem::isPlatformWayland() || r.width() <= 0 || r.height() <= 0) {
++        return;
++    }
++    m_floatCenterX = std::clamp(m_floatCenterX + dx / r.width(), 0.0, 1.0);
++    m_floatTop = std::clamp(m_floatTop + dy / r.height(), 0.0, 0.9);
++    applyFloatingMargins();
++    requestUpdate(); // commit the new margins promptly
++}
++
++void View::saveFloatingPosition()
++{
++    if (!m_floating) {
++        return;
++    }
++    m_config.writeEntry("FloatingTop", m_floatTop);
++    m_config.writeEntry("FloatingCenterX", m_floatCenterX);
++    m_config.sync();
++}
++
+ void View::toggleDisplay()
+ {
+     if (isVisible() && !QGuiApplication::focusWindow() && KWindowSystem::isPlatformX11()) {
+diff -ru a/krunner/view.h b/krunner/view.h
+--- a/krunner/view.h
++++ b/krunner/view.h
+@@ -47,6 +47,10 @@
+ 
+     void positionOnScreen();
+ 
++    // Dragging the floating window (from QML): shift it by a pointer offset, then remember the spot
++    Q_INVOKABLE void moveFloatingBy(qreal dx, qreal dy);
++    Q_INVOKABLE void saveFloatingPosition();
++
+     bool freeFloating() const;
+     void setFreeFloating(bool floating);
+ 
+@@ -106,6 +110,9 @@
+     void writeHistory();
+     QPoint m_customPos;
+     QMargins margins();
++    void applyFloatingMargins();
++    double m_floatTop = 1.0 / 3.0; // top edge, fraction of the screen height (krunnerrc FloatingTop)
++    double m_floatCenterX = 0.5; // horizontal centre, fraction of the width (krunnerrc FloatingCenterX)
+     PlasmaQuick::SharedQmlEngine *m_engine;
+     KConfigGroup m_config;
+     KConfigGroup m_stateData;
