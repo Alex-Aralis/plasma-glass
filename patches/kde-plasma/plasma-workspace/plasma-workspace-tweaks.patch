@@ -1,0 +1,95 @@
+diff -ru a/applets/notifications/components/Body.qml b/applets/notifications/components/Body.qml
+--- a/applets/notifications/components/Body.qml
++++ b/applets/notifications/components/Body.qml
+@@ -38,9 +38,7 @@
+ 
+     onClicked: modelInterface.bodyClicked()
+ 
+-    Binding {
+-        target: bodyLabel.modelInterface
+-        property: "bodyCursorShape"
+-        value: bodyLabel.cursorShape
+-    }
++    // Use the cursor the popup asks for (pointing hand when clicking opens something);
++    // otherwise SelectableLabel's default I-beam
++    cursorShape: modelInterface && modelInterface.bodyCursorShape ? modelInterface.bodyCursorShape : undefined
+ }
+diff -ru a/applets/notifications/components/HeadingButtons.qml b/applets/notifications/components/HeadingButtons.qml
+--- a/applets/notifications/components/HeadingButtons.qml
++++ b/applets/notifications/components/HeadingButtons.qml
+@@ -144,7 +144,8 @@
+     PlasmaComponents3.ToolButton {
+         id: configureButton
+         icon.name: "configure"
+-        visible: headingButtons.modelInterface.configurable
++        // popups dismiss on click, timeout, middle-click or swipe; keep the buttons in the history only
++        visible: headingButtons.modelInterface.configurable && headingButtons.modelInterface.inHistory
+ 
+         display: PlasmaComponents3.AbstractButton.IconOnly
+         text: headingButtons.modelInterface.configureActionLabel || i18nd("plasma_applet_org.kde.plasma.notifications", "Configure")
+@@ -177,7 +178,7 @@
+ 
+     PlasmaComponents3.ToolButton {
+         id: closeButton
+-        visible: headingButtons.modelInterface.closable
++        visible: headingButtons.modelInterface.closable && headingButtons.modelInterface.inHistory
+         icon.name: "window-close"
+ 
+         display: PlasmaComponents3.AbstractButton.IconOnly
+diff -ru a/applets/notifications/NotificationPopup.qml b/applets/notifications/NotificationPopup.qml
+--- a/applets/notifications/NotificationPopup.qml
++++ b/applets/notifications/NotificationPopup.qml
+@@ -121,7 +121,8 @@
+         DraggableDelegate {
+             anchors {
+                 fill: parent
+-                topMargin: notificationPopup.modelInterface.closable || notificationPopup.modelInterface.dismissable || notificationPopup.modelInterface.configurable ? -notificationPopup.topPadding : 0
++                // only the minimize button is shown in popups now; pull the header up only when it is
++                topMargin: notificationPopup.modelInterface.dismissable ? -notificationPopup.topPadding : 0
+             }
+             leftPadding: 0
+             rightPadding: 0
+@@ -149,6 +150,11 @@
+                 }
+             }
+ 
++            // pointing hand over the whole popup when clicking it opens something
++            HoverHandler {
++                cursorShape: notificationPopup.modelInterface.hasDefaultAction ? Qt.PointingHandCursor : Qt.ArrowCursor
++            }
++
+             LayoutMirroring.enabled: Application.layoutDirection === Qt.RightToLeft
+             LayoutMirroring.childrenInherit: true
+ 
+diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
+--- a/krunner/qml/RunCommand.qml
++++ b/krunner/qml/RunCommand.qml
+@@ -131,8 +131,10 @@
+             id: queryField
+             property bool allowCompletion: false
+ 
+-            Layout.minimumWidth: Kirigami.Units.gridUnit * 25
+-            Layout.maximumWidth: Kirigami.Units.gridUnit * 25
++            Layout.minimumWidth: Kirigami.Units.gridUnit * 40
++            Layout.maximumWidth: Kirigami.Units.gridUnit * 40
++            font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.3
++            rightActions: [] // no clear button (Ctrl+A then Backspace clears)
+ 
+             activeFocusOnPress: true
+             placeholderText: results.singleRunner ? i18nc("Textfield placeholder text, query specific KRunner plugin",
+@@ -157,6 +159,7 @@
+                 text: ""
+                 textFormat: Text.PlainText
+                 renderType: parent.renderType
++                font: parent.font
+                 color: parent.color
+                 focus: false
+                 z: -1
+@@ -301,6 +304,7 @@
+             }
+         }
+         PlasmaComponents3.ToolButton {
++            visible: false // hide the "Keep Open" pin button
+             checkable: true
+             checked: root.runnerWindow.pinned
+             onToggled: root.runnerWindow.pinned = checked

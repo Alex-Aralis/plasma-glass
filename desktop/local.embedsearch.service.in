@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=local.embedsearch
+Exec=@APP_DIR@/venv/bin/python -I @APP_DIR@/embedsearch.py serve
+SystemdService=embedsearch.service

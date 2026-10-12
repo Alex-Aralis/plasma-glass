@@ -1,0 +1,15 @@
+[Desktop Entry]
+Name=Semantic Search
+Comment=Finds documents by meaning with EmbeddingGemma 2 (Intel GPU)
+X-KDE-ServiceTypes=Plasma/Runner
+Type=Service
+Icon=edit-find
+X-KDE-PluginInfo-Name=embedsearch
+X-KDE-PluginInfo-Version=1.0
+X-KDE-PluginInfo-License=Apache-2.0
+X-KDE-PluginInfo-EnabledByDefault=true
+X-Plasma-API=DBus
+X-Plasma-DBusRunner-Service=local.embedsearch
+X-Plasma-DBusRunner-Path=/runner
+X-Plasma-Request-Actions-Once=true
+X-Plasma-Runner-Min-Letter-Count=4

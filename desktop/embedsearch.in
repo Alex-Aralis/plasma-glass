@@ -1,0 +1,2 @@
+#!/bin/sh
+exec @APP_DIR@/venv/bin/python -I @APP_DIR@/embedsearch.py "$@"

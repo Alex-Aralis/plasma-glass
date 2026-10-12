@@ -1,0 +1,15 @@
+[Unit]
+Description=EmbeddingGemma 2 semantic search for KRunner
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=dbus
+BusName=local.embedsearch
+ExecStart=@APP_DIR@/venv/bin/python -I @APP_DIR@/embedsearch.py serve
+Nice=10
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=graphical-session.target
