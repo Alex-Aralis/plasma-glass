@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 *.svgz
+theme/liquid-glass/*
+!theme/liquid-glass/generate.py
+theme/liquid-glass-light/

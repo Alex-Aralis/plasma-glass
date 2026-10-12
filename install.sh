@@ -16,19 +16,21 @@ STYLE_DIR="$DATA/plasma/desktoptheme/liquid-glass"
 EXPORT_VENV="${XDG_CACHE_HOME:-$HOME/.cache}/plasma-glass/export-venv"
 PYTHON="${PYTHON:-python3}"
 
-DO_SEARCH=1 DO_STYLE=1 DO_SETTINGS=1 REEXPORT=0 KEEP_EXPORT_VENV=0
+DO_SEARCH=1 DO_STYLE=1 DO_SETTINGS=1 REEXPORT=0 KEEP_EXPORT_VENV=0 STYLE=liquid-glass
 for arg in "$@"; do
     case "$arg" in
         --no-search) DO_SEARCH=0 ;;
         --no-style) DO_STYLE=0 ;;
         --no-settings) DO_SETTINGS=0 ;;
+        --light) STYLE=liquid-glass-light ;;
         --reexport) REEXPORT=1 ;;
         --keep-export-venv) KEEP_EXPORT_VENV=1 ;;
         -h|--help)
             cat <<EOF
 usage: ./install.sh [options]
   --no-search         skip the semantic search service and KRunner plugin
-  --no-style          skip the Liquid Glass Plasma Style
+  --no-style          skip the Liquid Glass Plasma Styles
+  --light             apply Liquid Glass Light instead of Liquid Glass (both get installed)
   --no-settings       skip the KRunner/Plasma settings (desktop/plasma-settings.sh)
   --reexport          re-export the model even if it is already installed
   --keep-export-venv  keep the PyTorch venv used for the model export (~3 GB)
@@ -90,15 +92,15 @@ if [ "$DO_SEARCH" = 1 ]; then
 fi
 
 if [ "$DO_STYLE" = 1 ]; then
-    say "Liquid Glass Plasma Style"
+    say "Liquid Glass Plasma Styles (applying $STYLE)"
     install -D -m 644 "$REPO/theme/liquid-glass/generate.py" "$STYLE_DIR/generate.py"
-    "$PYTHON" "$STYLE_DIR/generate.py"
-    # drop cached renders of an older version of the style, then apply it
-    if [ "$(kreadconfig6 --file plasmarc --group Theme --key name)" = liquid-glass ]; then
-        plasma-apply-desktoptheme default >/dev/null 2>&1 || true
-    fi
-    rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/plasma_theme_liquid-glass.kcache"
-    plasma-apply-desktoptheme liquid-glass
+    "$PYTHON" "$STYLE_DIR/generate.py"  # writes liquid-glass and liquid-glass-light
+    # drop cached renders of older versions of the styles, then apply one
+    case "$(kreadconfig6 --file plasmarc --group Theme --key name)" in
+        liquid-glass*) plasma-apply-desktoptheme default >/dev/null 2>&1 || true ;;
+    esac
+    rm -f "${XDG_CACHE_HOME:-$HOME/.cache}"/plasma_theme_liquid-glass*.kcache
+    plasma-apply-desktoptheme "$STYLE"
 fi
 
 if [ "$DO_SETTINGS" = 1 ]; then

@@ -16,10 +16,11 @@ else
     rm -rf "$DATA/embedsearch" "$CONF/embedsearch"
 fi
 
-if [ "$(kreadconfig6 --file plasmarc --group Theme --key name)" = liquid-glass ]; then
-    plasma-apply-desktoptheme default
-fi
-rm -rf "$DATA/plasma/desktoptheme/liquid-glass" "${XDG_CACHE_HOME:-$HOME/.cache}/plasma_theme_liquid-glass.kcache"
+case "$(kreadconfig6 --file plasmarc --group Theme --key name)" in
+    liquid-glass*) plasma-apply-desktoptheme default ;;
+esac
+rm -rf "$DATA/plasma/desktoptheme/liquid-glass" "$DATA/plasma/desktoptheme/liquid-glass-light" \
+       "${XDG_CACHE_HOME:-$HOME/.cache}"/plasma_theme_liquid-glass*.kcache
 
 # undo desktop/plasma-settings.sh
 for key in browserhistoryEnabled browsertabsEnabled helprunnerEnabled; do

@@ -3,8 +3,9 @@
 # appears on your screen, takes keyboard focus or changes your real settings.
 #
 # Environment:
-#   STYLE=repo         Plasma Style to preview: "repo" (default) generates theme/liquid-glass from this
-#                      checkout into the private data dir; anything else is an installed style id
+#   STYLE=repo         Plasma Style to preview: "repo" (default) or "repo-light" generate the Liquid Glass
+#                      styles from this checkout into the private data dir; anything else is an
+#                      installed style id
 #   WALLPAPER=path     background image (default: your desktop wallpaper, else Breeze's "Next")
 #   WIDTH/HEIGHT/SCALE virtual screen (default 1920x1200 at 1.1)
 
@@ -51,11 +52,12 @@ prepare() {
         [ -f "$HOME/.config/$f" ] && cp "$HOME/.config/$f" "$WORK/cfg/"
     done
     name="$STYLE"
-    if [ "$STYLE" = repo ]; then
-        d="$WORK/data/plasma/desktoptheme/liquid-glass"
-        mkdir -p "$d" && cp "$REPO/theme/liquid-glass/generate.py" "$d/" && python3 "$d/generate.py" >/dev/null
-        name=liquid-glass
-    fi
+    case "$STYLE" in
+        repo|repo-light)
+            d="$WORK/data/plasma/desktoptheme/liquid-glass"  # generate.py writes both styles from here
+            mkdir -p "$d" && cp "$REPO/theme/liquid-glass/generate.py" "$d/" && python3 "$d/generate.py" >/dev/null
+            name=liquid-glass; [ "$STYLE" = repo-light ] && name=liquid-glass-light ;;
+    esac
     kwriteconfig6 --file "$WORK/cfg/plasmarc" --group Theme --key name "$name"
     export WALLPAPER_FILE
     WALLPAPER_FILE=$(pick_wallpaper)

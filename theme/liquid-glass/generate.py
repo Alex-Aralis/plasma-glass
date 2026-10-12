@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Generates the Liquid Glass Plasma Style: Breeze everywhere, with glassy popups.
+"""Generates the Liquid Glass Plasma Styles: Breeze everywhere, with glassy popups.
+
+Two styles come out of one run: "Liquid Glass" (follows your colour scheme) next to this file, and
+"Liquid Glass Light" (bright frosted glass with its own light colours) in ../liquid-glass-light.
 
 Only dialogs/background is drawn here (KRunner, Kickoff, the calendar and other popups); every
 other element falls back to the default Breeze style. Base colours follow the active colour scheme.
@@ -267,16 +270,17 @@ def standalone(parts, width, height):
 
 # Search/text fields: translucent well with a hairline rim; brighter rim and a soft halo on focus.
 LE_R = 10
+FIELD = {"base_fill": 0.06, "base_rim": 0.08, "hover": 0.16, "focus": 0.28, "halo": 0.06}
 def lineedit_svg():
     ff = LE_R + 2  # the focus halo sits 2px outside the field
     parts = [
-        glass_frame("base", 0, 0, LE_R, fill=0.06, rim=0.08),
+        glass_frame("base", 0, 0, LE_R, fill=FIELD["base_fill"], rim=FIELD["base_rim"]),
         margins("base", 200, 0, 6, 6, 9, 9),
-        glass_frame("hover", 0, 60, LE_R, rim=0.16),
+        glass_frame("hover", 0, 60, LE_R, rim=FIELD["hover"]),
         margins("hover", 200, 60, 0, 0, 0, 0),
-        glass_frame("focus", 0, 120, LE_R, rim=0.28),
+        glass_frame("focus", 0, 120, LE_R, rim=FIELD["focus"]),
         margins("focus", 200, 120, 0, 0, 0, 0),
-        glass_frame("focusframe", 0, 180, ff, rim=0.06, rim_w=2),
+        glass_frame("focusframe", 0, 180, ff, rim=FIELD["halo"], rim_w=2),
         margins("focusframe", 200, 180, 2, 2, 2, 2),
         '<rect id="hint-focus-over-base" x="220" y="0" width="2" height="2" fill="#f60"/>',
         '<rect id="hint-stretch-borders" x="220" y="6" width="2" height="2" fill="#f60"/>',
@@ -286,48 +290,116 @@ def lineedit_svg():
 
 # List highlights (KRunner results, Kickoff, menus in popups): frosted pills instead of blue.
 VI_R = 12
+HIGHLIGHT = {"hover": 0.06, "selected": 0.12, "selected+hover": 0.15}
 def viewitem_svg():
     parts = [
         glass_frame("normal", 0, 0, VI_R),
-        glass_frame("hover", 0, 50, VI_R, fill=0.06),
-        glass_frame("selected", 0, 100, VI_R, fill=0.12),
-        glass_frame("selected+hover", 0, 150, VI_R, fill=0.15),
+        glass_frame("hover", 0, 50, VI_R, fill=HIGHLIGHT["hover"]),
+        glass_frame("selected", 0, 100, VI_R, fill=HIGHLIGHT["selected"]),
+        glass_frame("selected+hover", 0, 150, VI_R, fill=HIGHLIGHT["selected+hover"]),
         '<rect id="hint-stretch-borders" x="60" y="0" width="2" height="2" fill="#f60"/>',
     ]
     return standalone(parts, 80, 200)
 
 
-def write(rel, content):
-    p = HERE / rel
+# ---------------------------------------------------------------------------- variants
+
+# Plasma colours for the light style, on top of Breeze Light: macOS-like near-white glass and
+# near-black text. Only Plasma (panel, popups, KRunner) uses these; apps keep your colour scheme.
+LIGHT_COLORS = {
+    "Colors:Window": {"BackgroundNormal": "245,245,247", "BackgroundAlternate": "236,236,240", "ForegroundNormal": "29,29,31"},
+    "Colors:View": {"BackgroundNormal": "255,255,255", "BackgroundAlternate": "245,245,247", "ForegroundNormal": "29,29,31"},
+    "Colors:Button": {"BackgroundNormal": "250,250,252", "ForegroundNormal": "29,29,31"},
+    "Colors:Tooltip": {"BackgroundNormal": "245,245,247", "ForegroundNormal": "29,29,31"},
+    "Colors:Header": {"BackgroundNormal": "236,236,240", "BackgroundAlternate": "245,245,247", "ForegroundNormal": "29,29,31"},
+}
+
+VARIANTS = {
+    "liquid-glass": {
+        "name": "Liquid Glass",
+        "description": "Breeze with translucent, light-catching glass popups (follows your colour scheme)",
+        "settings": {},
+    },
+    "liquid-glass-light": {
+        "name": "Liquid Glass Light",
+        "description": "Bright frosted glass with dark text, like macOS in light mode",
+        "colors": LIGHT_COLORS,
+        "settings": {  # brighter, more opaque glass; strong white rims so edges read on light wallpapers
+            "FILL_TRANSLUCENT": 0.62, "FILL_OPAQUE": 0.97, "SHADOW_ALPHA": 0.18,
+            "RIM": {"top": 0.85, "side": 0.55, "bottom": 0.40},
+            "GLOW": {"top": 0.35, "side": 0.14, "bottom": 0.12},
+            "FIELD": {"base_fill": 0.05, "base_rim": 0.10, "hover": 0.18, "focus": 0.30, "halo": 0.06},
+            "HIGHLIGHT": {"hover": 0.05, "selected": 0.09, "selected+hover": 0.12},
+            "SB_SLIDER": 0.30, "SB_HOVER": 0.50, "SB_TRACK": 0.06,
+        },
+    },
+}
+
+
+def write(out, rel, content):
+    p = out / rel
     p.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(p, "wt", encoding="utf-8") as f:
         f.write(content)
 
 
-def main():
-    write("translucent/dialogs/background.svgz", svg(FILL_TRANSLUCENT))
-    write("dialogs/background.svgz", svg(FILL_OPAQUE))
-    write("opaque/dialogs/background.svgz", svg(1.0, glass=False))  # no compositing: no blur or shadow
-    write("solid/dialogs/background.svgz", svg(1.0, glass=False))
-    write("widgets/scrollbar.svgz", scrollbar_svg())
-    write("widgets/lineedit.svgz", lineedit_svg())
-    write("widgets/viewitem.svgz", viewitem_svg())
+def light_colors(overrides):
+    """Breeze Light's Plasma colours with the overrides applied, as KDE colour-scheme text."""
+    import configparser
+    cp = configparser.ConfigParser(interpolation=None)
+    cp.optionxform = str  # keys are case-sensitive
+    cp.read("/usr/share/plasma/desktoptheme/breeze-light/colors")
+    if not cp.sections():
+        raise SystemExit("Breeze Light's colours (/usr/share/plasma/desktoptheme/breeze-light/colors) not found")
+    for section, keys in overrides.items():
+        for k, v in keys.items():
+            cp[section][k] = v
+    from io import StringIO
+    buf = StringIO()
+    cp.write(buf, space_around_delimiters=False)
+    return buf.getvalue()
+
+
+def generate(style_id, variant):
+    out = HERE.parent / style_id
+    defaults = {k: globals()[k] for k in variant["settings"]}
+    globals().update(variant["settings"])
+    try:
+        write(out, "translucent/dialogs/background.svgz", svg(FILL_TRANSLUCENT))
+        write(out, "dialogs/background.svgz", svg(FILL_OPAQUE))
+        write(out, "opaque/dialogs/background.svgz", svg(1.0, glass=False))  # no compositing: no blur or shadow
+        write(out, "solid/dialogs/background.svgz", svg(1.0, glass=False))
+        write(out, "widgets/scrollbar.svgz", scrollbar_svg())
+        write(out, "widgets/lineedit.svgz", lineedit_svg())
+        write(out, "widgets/viewitem.svgz", viewitem_svg())
+    finally:
+        globals().update(defaults)
     meta = {
         "KPlugin": {
-            "Id": "liquid-glass",
-            "Name": "Liquid Glass",
-            "Description": "Breeze with translucent, light-catching glass popups",
+            "Id": style_id,
+            "Name": variant["name"],
+            "Description": variant["description"],
             "Authors": [{"Name": "Generated with Claude Code"}],
             "License": "LGPL-2.0-or-later",
-            "Version": "1.0",
+            "Version": "1.1",
         },
         "X-Plasma-API": "5.0",
     }
-    (HERE / "metadata.json").write_text(json.dumps(meta, indent=4) + "\n")
-    (HERE / "plasmarc").write_text(
+    (out / "metadata.json").write_text(json.dumps(meta, indent=4) + "\n")
+    (out / "plasmarc").write_text(
         "[Wallpaper]\ndefaultWallpaperTheme=Next\ndefaultFileSuffix=.png\ndefaultWidth=1920\ndefaultHeight=1080\n\n"
         "[AdaptiveTransparency]\nenabled=true\n")
-    print("wrote", HERE)
+    colors = out / "colors"
+    if "colors" in variant:
+        colors.write_text(light_colors(variant["colors"]))
+    elif colors.exists():
+        colors.unlink()  # no colours file: follow the system colour scheme
+    print("wrote", out)
+
+
+def main():
+    for style_id, variant in VARIANTS.items():
+        generate(style_id, variant)
 
 
 if __name__ == "__main__":
