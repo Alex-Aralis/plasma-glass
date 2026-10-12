@@ -16,6 +16,7 @@ docs are in README.md; this file covers how to work on it.
 | `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install |
 | `tools/check-patches.sh` | patches apply; patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
 | `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh`, `dialog.sh`, `elements.sh` |
+| `desktop/test-notifications.sh` | sample popups (clickable, long and scrolling, image, critical); installed as `plasma-glass-test-notifications` with a "Test Notifications" launcher |
 
 ## Dev loops
 
@@ -25,6 +26,9 @@ docs are in README.md; this file covers how to work on it.
 - **Patches:** `tools/patch-dev.sh setup`, edit under `~/.cache/plasma-glass/dev/b/<pkg>/`, then
   `refresh` and `check`, then `sudo tools/patch-dev.sh install`. After the build, run
   `systemctl --user restart plasma-plasmashell.service` (notifications) and `kquitapp6 krunner`.
+  For notification changes, run `plasma-glass-test-notifications` and check
+  `journalctl --user -u plasma-plasmashell.service` for QML errors. The real popups only appear in
+  plasmashell, so the user looks at them; `tools/preview/dialog.sh` only approximates them.
   milou rebuilds in about 2 min, plasma-workspace in about 25 min on the laptop.
 - **Search:** edit `search/embedsearch.py`, copy it to `~/.local/share/embedsearch/`, then
   `systemctl --user restart embedsearch`. Use `embedsearch search "q"` to test.
