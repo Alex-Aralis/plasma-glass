@@ -74,3 +74,12 @@ docs are in README.md; this file covers how to work on it.
   press-time position plus the total offset instead of incremental steps.
 - **Remember password:** the laptop's ksshaskpass passphrase wasn't saved to KWallet yet (tick it
   at login).
+- **Binding-loop warnings since Liquid Glass:** plasmashell now logs `PlasmoidHeading: Binding loop
+  detected for property "leftInset"` (volume and clipboard applet popups) on every start. There
+  were none on Breeze. `PlasmoidHeading` takes `leftInset` from the `widgets/plasmoidheading`
+  margins, and picks its enabled borders from whether its scene position touches the window edge.
+  Liquid Glass widened the dialog margins (MARGIN=12) but still falls back to Breeze's heading SVG,
+  which is sized for Breeze's margins. Likely fix: have generate.py emit `widgets/plasmoidheading`
+  with insets matching MARGIN, so the heading reaches the frame edge as in Breeze. Compare Breeze's
+  pieces with `STYLE=default tools/preview/elements.sh widgets/plasmoidheading ...`, then confirm
+  the warnings stop after a plasmashell restart.
