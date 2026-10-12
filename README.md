@@ -109,6 +109,12 @@ patch step until the patch is refreshed.
   instead of a 10-grid-unit column beside every row, and rows drop in (slide down and fade in,
   slightly staggered)
 
+Before changing a patch, run `tools/check-patches.sh` (10-30 s). It applies the patches to the
+source of your installed versions and loads the patched QML under Qt, with stubs for KRunner's and
+the notification applet's internal modules. That catches errors which only show when KRunner or
+plasmashell starts, such as assigning to a grouped property. It also syntax-checks the patched
+C++. `install-system.sh` runs it before installing anything.
+
 ## Uninstall
 
 ```sh

@@ -11,11 +11,12 @@
 set -eu
 
 REPO=$(cd "$(dirname "$0")" && pwd)
-RUNTIME=auto REBUILD=1
+RUNTIME=auto REBUILD=1 CHECKS=1
 for arg in "$@"; do
     case "$arg" in
         --runtime=*) RUNTIME=${arg#--runtime=} ;;
         --no-rebuild) REBUILD=0 ;;
+        --skip-checks) CHECKS=0 ;;
         -h|--help)
             cat <<EOF
 usage: sudo ./install-system.sh [options]
@@ -25,6 +26,8 @@ usage: sudo ./install-system.sh [options]
         current dev-libs/intel-compute-runtime         (Meteor Lake / Core Ultra, Arc and newer)
   --no-rebuild
         install the Portage patches but don't rebuild plasma-workspace and milou now
+  --skip-checks
+        don't run tools/check-patches.sh (patches apply, QML loads, C++ compiles) first
 EOF
             exit 0 ;;
         *) echo "unknown option: $arg (see --help)" >&2; exit 2 ;;
@@ -75,6 +78,10 @@ if [ "$RUNTIME" != skip ]; then
 fi
 
 # --- 2. Portage user patches ---------------------------------------------------------------------
+if [ "$CHECKS" = 1 ]; then
+    say "Checking the patches against your installed Plasma (about 10-30 s)"
+    sh "$REPO/tools/check-patches.sh" || die "patch checks failed; nothing was installed (override with --skip-checks)"
+fi
 say "Installing Portage user patches"
 for pkg in plasma-workspace milou; do
     dest=/etc/portage/patches/kde-plasma/$pkg
