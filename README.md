@@ -97,7 +97,8 @@ milou is rebuilt. If a future Plasma version changes the patched lines, that bui
 patch step until the patch is refreshed.
 
 - `plasma-workspace-tweaks.patch`
-  - KRunner: wider (40 grid units), 1.3x search text, borderless search field, no pin or clear button
+  - KRunner: wider (40 grid units), 1.3x search text, borderless search field, no pin or clear
+    button; the results area unfolds smoothly as results arrive (the window follows)
   - KRunner position when floating: `krunnerrc [General] FloatingTop` (top edge as a fraction of
     the screen height; stock is 1/3) and `FloatingCenterX` (horizontal centre as a fraction of the
     width; stock is 0.5)
@@ -105,7 +106,8 @@ patch step until the patch is refreshed.
     fixed, pointer cursor when the popup is clickable. Popups still close on click, timeout,
     middle-click or swipe
 - `milou-section-headers.patch`: KRunner result categories become small headers above each group
-  instead of a 10-grid-unit column beside every row
+  instead of a 10-grid-unit column beside every row, and rows drop in (slide down and fade in,
+  slightly staggered)
 
 ## Uninstall
 

@@ -97,6 +97,29 @@ diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
+@@ -318,7 +326,21 @@
+         enabled: visible
+         Layout.fillWidth: true
+         Layout.fillHeight: true
+-        Layout.maximumHeight: Math.max(listView.contentHeight, results.contentHeight)
++        // Drop-down: the results area (and the window, which follows its size) unfolds smoothly
++        // from nothing as results arrive, and keeps easing as more results come in.
++        readonly property real fullHeight: Math.max(listView.contentHeight, results.contentHeight)
++        property real shownHeight: 0
++        onFullHeightChanged: shownHeight = fullHeight
++        onVisibleChanged: {
++            unfold.enabled = visible;
++            shownHeight = visible ? fullHeight : 0;
++            unfold.enabled = true;
++        }
++        Behavior on shownHeight {
++            id: unfold
++            NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
++        }
++        Layout.maximumHeight: shownHeight
+         // This replaces the ColumnLayout spacing
+         Layout.topMargin: Kirigami.Units.smallSpacing
+ 
 diff -ru a/krunner/view.cpp b/krunner/view.cpp
 --- a/krunner/view.cpp
 +++ b/krunner/view.cpp

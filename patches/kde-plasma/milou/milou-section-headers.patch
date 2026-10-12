@@ -9,7 +9,7 @@
  import org.kde.milou as Milou
  
  ListView {
-@@ -39,6 +41,19 @@
+@@ -39,6 +41,39 @@
      section {
          criteria: ViewSection.FullString
          property: "category"
@@ -26,6 +26,26 @@
 +            elide: Text.ElideRight
 +            textFormat: Text.PlainText
 +        }
++    }
++
++    // Rows drop in: each new row slides down a little and fades in, a beat after the one above.
++    // displaced also restores opacity/scale, as Qt recommends, in case an add transition is cut short.
++    add: Transition {
++        id: dropIn
++        SequentialAnimation {
++            PropertyAction { property: "opacity"; value: 0 }
++            PauseAnimation { duration: Math.min(dropIn.ViewTransition.index, 8) * 18 }
++            ParallelAnimation {
++                NumberAnimation { property: "opacity"; to: 1; duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
++                NumberAnimation { property: "y"; from: dropIn.ViewTransition.destination.y - Kirigami.Units.gridUnit; duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
++            }
++        }
++    }
++    populate: dropIn
++    displaced: Transition {
++        NumberAnimation { properties: "x,y"; duration: Kirigami.Units.shortDuration; easing.type: Easing.OutCubic }
++        NumberAnimation { property: "opacity"; to: 1; duration: Kirigami.Units.shortDuration }
++        NumberAnimation { property: "scale"; to: 1; duration: Kirigami.Units.shortDuration }
      }
  
      // This is used to keep track if the user has pressed enter before
