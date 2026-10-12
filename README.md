@@ -98,7 +98,7 @@ patch step until the patch is refreshed.
 
 - `plasma-workspace-tweaks.patch`
   - KRunner: wider (40 grid units), 1.3x search text, borderless search field, no pin or clear
-    button; the results area unfolds smoothly as results arrive (the window follows)
+    button, no scrollbars; the results area unfolds smoothly as results arrive (the window follows)
   - KRunner position when floating: `krunnerrc [General] FloatingTop` (top edge as a fraction of
     the screen height; stock is 1/3) and `FloatingCenterX` (horizontal centre as a fraction of the
     width; stock is 0.5)
