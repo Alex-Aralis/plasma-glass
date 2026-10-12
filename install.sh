@@ -55,6 +55,11 @@ fill() {  # fill TEMPLATE DEST: substitute @APP_DIR@
 }
 
 if [ "$DO_SEARCH" = 1 ]; then
+    # OpenVINO sends a Google Analytics event on every import (and on model export) unless its consent
+    # file says 0. Opt out before anything imports it; an existing choice is kept.
+    mkdir -p "$HOME/intel"
+    [ -e "$HOME/intel/openvino_telemetry" ] || echo 0 > "$HOME/intel/openvino_telemetry"
+
     say "Search runtime ($APP_DIR/venv)"
     mkdir -p "$APP_DIR/model"
     [ -x "$APP_DIR/venv/bin/python" ] || "$PYTHON" -m venv "$APP_DIR/venv"

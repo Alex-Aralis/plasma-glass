@@ -14,6 +14,7 @@ import hashlib
 import html
 import os
 import re
+import signal
 import sqlite3
 import subprocess
 import sys
@@ -23,6 +24,25 @@ import tomllib
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+SIGNALS = {signal.SIGTERM, signal.SIGINT, signal.SIGHUP}
+
+
+def take_signals():
+    """Exit on SIGTERM/SIGINT/SIGHUP no matter what handlers native code installs. Intel's GPU compiler
+    (libigdfcl) installs a crash handler that longjmps into its compiler and leaves it in place, so a
+    later `systemctl stop` aborted with a core dump. The signals are blocked in every thread and taken
+    by one waiting thread instead, so no handler runs. Threads inherit the mask: call this first."""
+    signal.pthread_sigmask(signal.SIG_BLOCK, SIGNALS)
+
+    def wait():
+        sig = signal.sigwait(SIGNALS)
+        os._exit(0 if sig == signal.SIGTERM else 128 + sig)  # the index commits per batch
+    threading.Thread(target=wait, name="signals", daemon=True).start()
+
+
+if __name__ == "__main__":
+    take_signals()  # before numpy, which starts its threads on import
 
 import numpy as np
 import openvino as ov
@@ -232,6 +252,13 @@ def iter_files(cfg):
 
 
 # ---------------------------------------------------------------------------- index storage
+
+
+def launch(args, env=None):
+    """Start a program in its own session, with the signal mask and dispositions it would normally get."""
+    pid = os.posix_spawnp(args[0], args, os.environ if env is None else env, setsid=True,
+                          setsigmask=(), setsigdef=(signal.SIGPIPE, signal.SIGXFSZ))
+    threading.Thread(target=os.waitpid, args=(pid, 0), daemon=True).start()
 
 
 def connect():
@@ -479,12 +506,11 @@ def serve():
                 return
             env = dict(os.environ, XDG_ACTIVATION_TOKEN=self.token) if self.token else None
             if action_id == "folder":
-                subprocess.Popen(["dolphin", "--select", path], env=env, start_new_session=True)
+                launch(["dolphin", "--select", path], env)
             elif action_id == "copy":
-                subprocess.Popen(["qdbus6", "org.kde.klipper", "/klipper", "setClipboardContents", path],
-                                 start_new_session=True)
+                launch(["qdbus6", "org.kde.klipper", "/klipper", "setClipboardContents", path])
             else:
-                subprocess.Popen(["xdg-open", path], env=env, start_new_session=True)
+                launch(["xdg-open", path], env)
             self.token = ""
 
     def reindex_loop():

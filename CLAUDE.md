@@ -61,6 +61,13 @@ docs are in README.md; this file covers how to work on it.
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and
   transformers 5.19 or later. Installing `sentence-transformers[image,audio]` downgraded
   transformers once.
+- **Intel's GPU compiler hijacks signals.** `libigdfcl` (IGC, legacy runtime) installs a handler
+  that longjmps back into its compiler and leaves it in place after runtime kernel compiles, so a
+  later SIGTERM aborted the service with a core dump. `take_signals()` blocks TERM/INT/HUP before
+  numpy starts its threads and takes them with `sigwait`; launch apps with `launch()` so they don't
+  inherit the mask.
+- **OpenVINO telemetry is opt-out:** `import openvino` sends a Google Analytics event through a
+  spawned process unless `~/intel/openvino_telemetry` contains `0` (install.sh writes it).
 - **Shell:** `grep` may be ugrep (`$` mid-pattern differs). Never nest a here-doc whose body
   contains its own delimiter.
 

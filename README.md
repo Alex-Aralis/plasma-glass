@@ -65,6 +65,7 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 |---|---|
 | `~/.local/share/embedsearch/` | search service, its venv, the OpenVINO model, the index |
 | `~/.config/embedsearch/config.toml` | search settings |
+| `~/intel/openvino_telemetry` | `0`: opts out of OpenVINO's usage reporting to Google Analytics (sent on every import otherwise); an existing file is left alone |
 | `~/.local/share/krunner/dbusplugins/`, `~/.local/share/dbus-1/services/`, `~/.config/systemd/user/` | KRunner plugin and the service that runs it |
 | `~/.local/share/plasma/desktoptheme/liquid-glass/` | the Plasma Style (`generate.py` draws it) |
 | `krunnerrc`, `kdeglobals` | settings from [`desktop/plasma-settings.sh`](desktop/plasma-settings.sh) |
