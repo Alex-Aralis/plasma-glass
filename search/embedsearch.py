@@ -474,7 +474,9 @@ def serve():
         bus.export("/runner", Runner())
         await bus.request_name(BUS_NAME)
         log(f"KRunner runner on D-Bus as {BUS_NAME}")
-        threading.Thread(target=reindex_loop, daemon=True).start()
+        # set by tools/preview so a second instance never races the real service on the index
+        if not os.environ.get("EMBEDSEARCH_NO_REINDEX"):
+            threading.Thread(target=reindex_loop, daemon=True).start()
         await bus.wait_for_disconnect()
 
     asyncio.run(main())

@@ -81,6 +81,14 @@ the old ones and reapplies the style.
 Plasma sizes each piece by its bounding box, so the generator builds everything from fills inside
 exact tile rectangles. Strokes would make the box half a pixel bigger and leave visible gaps.
 
+To see edits before installing them, [`tools/preview/`](tools/preview/README.md) screenshots KRunner
+or a test dialog with the repo's version of the style. It runs on a virtual display, so nothing
+appears on your screen.
+
+```sh
+tools/preview/krunner.sh /tmp/krunner.png "some query"
+```
+
 ## Patches
 
 The patches were made against Plasma 6.7.5. Portage re-applies them whenever plasma-workspace or
