@@ -39,8 +39,9 @@ Python packages plus a 540 MB model).
 | Iris Xe and UHD (Tiger Lake to Raptor Lake, and older) | `intel-compute-runtime:legacy` (tested on Alder Lake) |
 | Meteor Lake / Core Ultra, Arc and newer | `intel-compute-runtime` |
 
-Override with `--runtime=legacy|current|skip`. A discrete NVIDIA GPU is fine: OpenVINO's GPU device
-uses only the Intel iGPU. Rebuilding plasma-workspace is a long compile. Use `--no-rebuild` to only
+Override with `--runtime=legacy|current|skip`. A discrete NVIDIA GPU is fine: OpenVINO lists it
+as a GPU too (through NVIDIA's OpenCL driver), but the search service picks the Intel one, and falls
+back to the CPU if the GPU can't run the model. Rebuilding plasma-workspace is a long compile. Use `--no-rebuild` to only
 install the patches and let them land with your next update.
 
 Both scripts are safe to re-run. `./install.sh --help` lists options for skipping parts.

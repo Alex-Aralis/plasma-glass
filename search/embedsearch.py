@@ -69,7 +69,8 @@ reindex_minutes = 15
 max_results = 5
 min_score = 0.45
 
-# "GPU" with "f16" is fastest here; falls back to CPU/f32 if the GPU is unavailable.
+# "GPU" (the Intel GPU) with "f16" is fastest here; falls back to CPU/f32 if the GPU is unavailable.
+# Other vendors' GPUs are skipped; an OpenVINO name like "GPU.1" picks a device explicitly.
 device = "GPU"
 precision = "f16"
 """
@@ -94,27 +95,53 @@ def log(*args):
 # ---------------------------------------------------------------------------- model
 
 
+def intel_gpu(core):
+    """OpenVINO's name for the Intel GPU ("GPU" or "GPU.N"), or None. OpenVINO also lists other
+    vendors' OpenCL GPUs (an NVIDIA card through its ICD), which can't run this model in f16."""
+    for d in core.available_devices:
+        try:
+            if d.startswith("GPU") and "vendor=0x8086" in str(core.get_property(d, "DEVICE_ARCHITECTURE")):
+                return d
+        except RuntimeError:
+            pass
+    return None
+
+
 class Embedder:
     """EmbeddingGemma 2 text encoder: tokenize, run the OpenVINO model, return unit vectors."""
 
     def __init__(self, cfg):
         core = ov.Core()
         device, precision = cfg["device"], cfg["precision"]
+        if device == "GPU":
+            device = intel_gpu(core)
         if device not in core.available_devices:
-            log(f"{device} not available, using CPU/f32")
+            log(f"{cfg['device']} not available, using CPU/f32")
             device, precision = "CPU", "f32"
         t = time.perf_counter()
-        self.compiled = core.compile_model(str(MODEL_XML), device, {
-            "INFERENCE_PRECISION_HINT": precision,
-            "PERFORMANCE_HINT": "LATENCY",
-            "CACHE_DIR": str(OV_CACHE),
-        })
+        try:
+            self.compiled = self._compile(core, device, precision)
+        except RuntimeError as e:
+            if device == "CPU":
+                raise
+            log(f"{device} can't run the model, using CPU/f32: {str(e).strip().splitlines()[-1]}")
+            device, precision = "CPU", "f32"
+            self.compiled = self._compile(core, device, precision)
         self.device = f"{device}/{precision}"
-        log(f"model ready on {self.device} in {time.perf_counter() - t:.1f} s")
+        log(f"model ready on {self.device} ({core.get_property(device, 'FULL_DEVICE_NAME')})"
+            f" in {time.perf_counter() - t:.1f} s")
         self.output = self.compiled.output(0)
         self.tok = Tokenizer.from_file(str(TOKENIZER_JSON))
         self.pad_id = self.tok.token_to_id("<pad>")
         self._local = threading.local()  # one infer request per thread
+
+    @staticmethod
+    def _compile(core, device, precision):
+        return core.compile_model(str(MODEL_XML), device, {
+            "INFERENCE_PRECISION_HINT": precision,
+            "PERFORMANCE_HINT": "LATENCY",
+            "CACHE_DIR": str(OV_CACHE),
+        })
 
     def _request(self):
         if not hasattr(self._local, "req"):

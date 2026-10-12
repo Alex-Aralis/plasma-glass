@@ -68,8 +68,10 @@ docs are in README.md; this file covers how to work on it.
 
 - **Laptop (t14):** i5-1245U, Iris Xe (Gen12.3), `intel-compute-runtime:legacy` (works on Gen12
   despite Gentoo's note). GPU f16 runs about 2,000 tokens/s for indexing and about 40 ms per query.
-- **Main box:** Gentoo, Intel iGPU (drives KDE) plus NVIDIA. `install-system.sh` picks the runtime
-  from `lspci`. OpenVINO's GPU device only uses Intel.
+- **Main box:** i9-14900K, UHD 770 (Raptor Lake-S GT1, Gen12, drives KDE) plus an RTX 2080 Ti.
+  `install-system.sh` picks `:legacy` from `lspci`. OpenVINO lists the NVIDIA card as a GPU too
+  (through `nvidia.icd`; it's plain `GPU` when the Intel runtime is missing), and it can't compile
+  the f16 model. `embedsearch.intel_gpu()` picks the device with `vendor=0x8086`.
 
 ## Open items
 

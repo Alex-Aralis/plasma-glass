@@ -118,7 +118,7 @@ kquitapp6 krunner >/dev/null 2>&1 || true  # KRunner picks everything up on its 
 
 if [ "$DO_SEARCH" = 1 ]; then
     say "Status"
-    if "$APP_DIR/venv/bin/python" -c 'import openvino as ov, sys; sys.exit("GPU" not in ov.Core().available_devices)' 2>/dev/null; then
+    if "$APP_DIR/venv/bin/python" -I -c "import sys; sys.path.insert(0, '$APP_DIR'); import embedsearch, openvino as ov; sys.exit(not embedsearch.intel_gpu(ov.Core()))" 2>/dev/null; then
         echo "Intel GPU visible to OpenVINO: search runs on the GPU (float16)."
     else
         warn "OpenVINO sees no Intel GPU, so search runs on the CPU (slower). Run: sudo ./install-system.sh"
