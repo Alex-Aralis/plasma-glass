@@ -64,7 +64,7 @@ diff -ru a/applets/notifications/NotificationPopup.qml b/applets/notifications/N
 diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -131,14 +131,19 @@
+@@ -131,14 +131,21 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -76,6 +76,8 @@ diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 +            rightActions: [] // no clear button (Ctrl+A then Backspace clears)
 +            // borderless, like macOS Spotlight: the query sits directly on the glass
 +            background: Item { z: -2 } // replaces the default background; z keeps it under the completion text
++            // the removed background provided the gap between the search icon and the text
++            leftPadding: effectiveHorizontalAlignment === TextInput.AlignRight ? Kirigami.Units.largeSpacing : _iconWidth + Kirigami.Units.largeSpacing
 +            topPadding: Kirigami.Units.largeSpacing
 +            bottomPadding: Kirigami.Units.largeSpacing
  
@@ -87,7 +89,7 @@ diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
  
              QQC2.Label {
                  id: fadedTextCompletion
-@@ -157,6 +162,7 @@
+@@ -157,6 +164,7 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -95,7 +97,7 @@ diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
                  color: parent.color
                  focus: false
                  z: -1
-@@ -301,6 +307,7 @@
+@@ -301,6 +309,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -103,7 +105,7 @@ diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -318,7 +325,21 @@
+@@ -318,7 +327,21 @@
          enabled: visible
          Layout.fillWidth: true
          Layout.fillHeight: true
