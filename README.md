@@ -110,7 +110,10 @@ patch step until the patch is refreshed.
 - `milou-section-headers.patch`: KRunner result categories become small headers above each group
   instead of a 10-grid-unit column beside every row
 
-Before changing a patch, run `tools/check-patches.sh` (10-30 s). It applies the patches to the
+To change a patch, use `tools/patch-dev.sh`. `setup` unpacks clean and patched copies of the sources
+for your installed versions. Edit the files, then `refresh` writes the patch files, `check` validates
+them and `sudo tools/patch-dev.sh install` rebuilds. Before any rebuild, run `tools/check-patches.sh`
+(10-30 s). It applies the patches to the
 source of your installed versions and loads the patched QML under Qt, with stubs for KRunner's and
 the notification applet's internal modules. That catches errors which only show when KRunner or
 plasmashell starts, such as assigning to a grouped property. It also syntax-checks the patched

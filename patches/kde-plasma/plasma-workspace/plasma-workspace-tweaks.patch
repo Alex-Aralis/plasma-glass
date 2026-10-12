@@ -1,4 +1,4 @@
-diff -ru a/applets/notifications/components/Body.qml b/applets/notifications/components/Body.qml
+diff -ru '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/Body.qml b/applets/notifications/components/Body.qml
 --- a/applets/notifications/components/Body.qml
 +++ b/applets/notifications/components/Body.qml
 @@ -38,9 +38,7 @@
@@ -14,7 +14,7 @@ diff -ru a/applets/notifications/components/Body.qml b/applets/notifications/com
 +    // otherwise SelectableLabel's default I-beam
 +    cursorShape: modelInterface && modelInterface.bodyCursorShape ? modelInterface.bodyCursorShape : undefined
  }
-diff -ru a/applets/notifications/components/HeadingButtons.qml b/applets/notifications/components/HeadingButtons.qml
+diff -ru '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/HeadingButtons.qml b/applets/notifications/components/HeadingButtons.qml
 --- a/applets/notifications/components/HeadingButtons.qml
 +++ b/applets/notifications/components/HeadingButtons.qml
 @@ -144,7 +144,8 @@
@@ -36,7 +36,7 @@ diff -ru a/applets/notifications/components/HeadingButtons.qml b/applets/notific
          icon.name: "window-close"
  
          display: PlasmaComponents3.AbstractButton.IconOnly
-diff -ru a/applets/notifications/components/NotificationHeader.qml b/applets/notifications/components/NotificationHeader.qml
+diff -ru '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/NotificationHeader.qml b/applets/notifications/components/NotificationHeader.qml
 --- a/applets/notifications/components/NotificationHeader.qml
 +++ b/applets/notifications/components/NotificationHeader.qml
 @@ -16,7 +16,8 @@
@@ -49,7 +49,7 @@ diff -ru a/applets/notifications/components/NotificationHeader.qml b/applets/not
  
      Kirigami.Icon {
          id: applicationIconItem
-diff -ru a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
+diff -ru '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
 --- a/applets/notifications/delegates/DelegatePopup.qml
 +++ b/applets/notifications/delegates/DelegatePopup.qml
 @@ -22,6 +22,9 @@
@@ -62,7 +62,7 @@ diff -ru a/applets/notifications/delegates/DelegatePopup.qml b/applets/notificat
      Layout.preferredWidth: (footerLoader.item as Item)?.implicitWidth ?? -1
  
      body: bodyLabel
-diff -ru a/applets/notifications/NotificationPopup.qml b/applets/notifications/NotificationPopup.qml
+diff -ru '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/NotificationPopup.qml b/applets/notifications/NotificationPopup.qml
 --- a/applets/notifications/NotificationPopup.qml
 +++ b/applets/notifications/NotificationPopup.qml
 @@ -20,6 +20,8 @@
@@ -130,7 +130,7 @@ diff -ru a/applets/notifications/NotificationPopup.qml b/applets/notifications/N
  
                      // When notification is updated, restart hide timer
                      onTimeChanged: {
-diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
+diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
 @@ -21,6 +21,20 @@
@@ -236,7 +236,7 @@ diff -ru a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
          Layout.fillWidth: true
          Layout.fillHeight: true
          Layout.maximumHeight: listView.contentHeight
-diff -ru a/krunner/view.cpp b/krunner/view.cpp
+diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view.cpp
 --- a/krunner/view.cpp
 +++ b/krunner/view.cpp
 @@ -93,7 +93,8 @@
@@ -319,7 +319,7 @@ diff -ru a/krunner/view.cpp b/krunner/view.cpp
  void View::toggleDisplay()
  {
      if (isVisible() && !QGuiApplication::focusWindow() && KWindowSystem::isPlatformX11()) {
-diff -ru a/krunner/view.h b/krunner/view.h
+diff -ru '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 --- a/krunner/view.h
 +++ b/krunner/view.h
 @@ -47,6 +47,10 @@

@@ -1,3 +1,34 @@
+diff -ru '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/ResultDelegate.qml
+--- a/lib/ResultDelegate.qml
++++ b/lib/ResultDelegate.qml
+@@ -32,7 +32,8 @@
+     property int activeAction: -1
+ 
+     property string typeText: sectionHasChanged ? ListView.section : ""
+-    property int categoryWidth: Kirigami.Units.gridUnit * 10
++    property int categoryWidth: 0 // categories are shown as section headers by ResultsView
++
+ 
+     required property int index
+     required property var model
+@@ -131,7 +132,7 @@
+             anchors.bottomMargin: Kirigami.Units.smallSpacing
+             imagePath: "widgets/line"
+             elementId: "horizontal-line"
+-            visible: resultDelegate.sectionHasChanged
++            visible: false && resultDelegate.sectionHasChanged
+                      && !resultDelegate.isCurrent
+                      && resultDelegate.index !== 0
+                      && resultDelegate.ListView.view.currentIndex !== (resultDelegate.index - indexModifier)
+@@ -145,6 +146,7 @@
+                 verticalCenter: labelWrapper.verticalCenter
+             }
+             width: resultDelegate.categoryWidth - Kirigami.Units.largeSpacing
++            visible: resultDelegate.categoryWidth > 0
+             opacity: 0.75
+             color: resultDelegate.down ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
+             elide: Text.ElideRight
+diff -ru '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultsView.qml b/lib/ResultsView.qml
 --- a/lib/ResultsView.qml
 +++ b/lib/ResultsView.qml
 @@ -10,6 +10,8 @@
@@ -29,32 +60,3 @@
      }
  
      // This is used to keep track if the user has pressed enter before
---- a/lib/ResultDelegate.qml
-+++ b/lib/ResultDelegate.qml
-@@ -32,7 +32,8 @@
-     property int activeAction: -1
- 
-     property string typeText: sectionHasChanged ? ListView.section : ""
--    property int categoryWidth: Kirigami.Units.gridUnit * 10
-+    property int categoryWidth: 0 // categories are shown as section headers by ResultsView
-+
- 
-     required property int index
-     required property var model
-@@ -131,7 +132,7 @@
-             anchors.bottomMargin: Kirigami.Units.smallSpacing
-             imagePath: "widgets/line"
-             elementId: "horizontal-line"
--            visible: resultDelegate.sectionHasChanged
-+            visible: false && resultDelegate.sectionHasChanged
-                      && !resultDelegate.isCurrent
-                      && resultDelegate.index !== 0
-                      && resultDelegate.ListView.view.currentIndex !== (resultDelegate.index - indexModifier)
-@@ -145,6 +146,7 @@
-                 verticalCenter: labelWrapper.verticalCenter
-             }
-             width: resultDelegate.categoryWidth - Kirigami.Units.largeSpacing
-+            visible: resultDelegate.categoryWidth > 0
-             opacity: 0.75
-             color: resultDelegate.down ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
-             elide: Text.ElideRight
