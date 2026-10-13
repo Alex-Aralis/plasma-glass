@@ -182,12 +182,20 @@ docs are in README.md; this file covers how to work on it.
   `KEYS="33:1500" SECONDS_CAPTURED=5 BOTTOMS=1` holds F for 1.5 s and prints the bottom edge of every
   frame.
 - **KRunner's lists run into the window's bottom padding** when they don't fit, so rows are cut at
-  the glass's edge, not 12 px above it: `Layout.bottomMargin: -bottomPadding` with the same added to
-  the preferred and maximum heights (the layout's own height doesn't change), `bottomMargin` on the
-  ListView so the last row ends where it did, and `ApplyRange` with `preferredHighlightEnd` so the
-  keyboard keeps the current row clear of the edge. A ScrollView is a Pane, which takes every press
-  inside it, so the bottom rim no longer drags the window while results show (fine: the user only
-  drags with Meta). Check with `HEIGHT=560 tools/preview/krunner.sh`, where 15 results overflow.
+  the glass's edge, not 12 px above it: the ScrollView reaches into the padding
+  (`Layout.bottomMargin: -bottomPadding`, the same added to its preferred and maximum heights, so the
+  layout's height doesn't change), its `bottomPadding` keeps the ListView itself at the old size, and
+  the ListView draws rows on into the padding with `displayMarginEnd` (rows there aren't culled) and
+  `clip` off, set in `Component.onCompleted` because Plasma's ScrollView forces `clip: true` on its
+  list with a Binding that writes once at completion. ListView's own scrolling then works as before.
+  The first try made the ListView taller with `bottomMargin` and kept the current row clear with
+  `highlightRangeMode: ApplyRange`, but with a highlight range `QQuickItemView::trackedPositionChanged`
+  ignores section headers (only the no-range path adds `sectionSize`), so when results arrived in
+  batches and row 0 was made current again, its header hid under the divider until the unfold ended.
+  Reproduce: `HEIGHT=560 SCALE=1.1 KEYS="33 - 103 - 108 -" tools/preview/unfold.sh` (Up wraps to the
+  last row, Down back to row 0) and look at `shots/app.png`. A ScrollView is a Pane, which takes every
+  press inside it, so the bottom rim doesn't drag the window while results show (fine: the user
+  only drags with Meta).
 - **KRunner's indexing bar comes from the search service over D-Bus.** embedsearch exports
   `local.embedsearch.Indexer` at `/indexer` with a `Progress` property (share of files done while
   `update_index` runs, from the embedding batches, at most 4 updates a second; -1 otherwise), and

@@ -425,7 +425,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -313,12 +421,99 @@
+@@ -313,12 +421,102 @@
          }
      }
  
@@ -521,26 +521,28 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        Layout.preferredHeight: shownHeight + overhang
 +        Layout.maximumHeight: shownHeight + overhang
 +        // Results that don't fit run on to the glass's bottom edge, through the window's padding below
-+        // the layout; the list keeps that much space after its last row, so at the end of it, and when
-+        // everything fits, the rows sit where they did.
++        // the layout: this view reaches into it, but the list keeps its size above it (bottomPadding)
++        // and only draws its rows on into it (displayMarginEnd), so the last row and the row the
++        // keyboard moves to stay clear of the edge, as before. (A highlight range for that lost
++        // ListView's care for section headers: the first one hid under the divider.)
 +        readonly property real overhang: root.runnerWindow.bottomPadding
 +        Layout.bottomMargin: -overhang
++        bottomPadding: overhang
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -327,6 +522,11 @@
+@@ -327,6 +525,10 @@
              queryString: root.query
              queryField: queryField
              singleRunner: root.singleRunner
-+            bottomMargin: resultsScrollView.overhang
-+            // the keyboard (and hovering a row half under the edge) brings the current row clear of it
-+            highlightRangeMode: ListView.ApplyRange
-+            preferredHighlightBegin: 0
-+            preferredHighlightEnd: height - bottomMargin
++            displayMarginEnd: resultsScrollView.overhang
++            // the ScrollView clips, at the glass's edge (set once Plasma's ScrollView has made its list
++            // clip, with a Binding that only writes when the component completes)
++            Component.onCompleted: clip = false
  
              Keys.onEscapePressed: {
                  root.runnerWindow.visible = false
-@@ -347,9 +547,17 @@
+@@ -347,9 +549,18 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -553,20 +555,19 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 -        Layout.maximumHeight: listView.contentHeight
 +        // to the glass's bottom edge, like the results
 +        readonly property real overhang: root.runnerWindow.bottomPadding
++        bottomPadding: overhang
 +        Layout.preferredHeight: listView.contentHeight + overhang
 +        Layout.maximumHeight: listView.contentHeight + overhang
 +        Layout.bottomMargin: -overhang
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
          visible: root.query.length === 0 && listView.count > 0
-@@ -358,6 +566,10 @@
+@@ -358,6 +569,8 @@
  
          ListView {
              id: listView // needs this id so the delegate can access it
-+            bottomMargin: historyScrollView.overhang
-+            highlightRangeMode: ListView.ApplyRange
-+            preferredHighlightBegin: 0
-+            preferredHighlightEnd: height - bottomMargin
++            displayMarginEnd: historyScrollView.overhang
++            Component.onCompleted: clip = false
              keyNavigationWraps: true
              highlight: PlasmaExtras.Highlight {}
              highlightMoveDuration: 0
