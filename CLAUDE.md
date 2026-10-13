@@ -252,7 +252,9 @@ docs are in README.md; this file covers how to work on it.
   can't run the model on the 2080 Ti at all (no Intel-only conversion kernels there, even in f32); a
   CUDA backend (ONNX Runtime) was considered and left out. `MAKEOPTS="-j32 -l32"`; plasma-workspace
   rebuilds in about 6 min. GCC 16 segfaulted once (2026-10-12, an internal compiler error on a
-  generated qmltyperegistrations file that had compiled minutes before); the retry built fine.
+  generated qmltyperegistrations file that had compiled minutes before); the retry built fine. A
+  second one came the same evening (23:58, a segfault in `mangle_decl` on
+  `kcms/kfontinst/dbus/FontInst.cpp`, untouched by the patches, which had built three times that day).
   Microcode is 0x137 (Intel's Raptor Lake instability fixes) and no machine checks were logged; if
   random compiler crashes come back, suspect the CPU (13th/14th-gen Vmin degradation).
   Monitors: DP-4 (main, 2560x1440 @ 240 Hz) is on the NVIDIA card (`card1`); DP-1 and HDMI-A-1
