@@ -168,10 +168,11 @@ class Embedder:
             self._local.req = self.compiled.create_infer_request()
         return self._local.req
 
-    def embed(self, texts, batch_size=16, max_tokens=1024, pause=None):
+    def embed(self, texts, batch_size=16, max_tokens=1024, pause=None, progress=None):
         """Embed texts (prompts already applied). Returns float32 array (n, 768), unit length.
 
-        pause, if given, is called before each batch (used to let interactive queries go first).
+        pause, if given, is called before each batch (used to let interactive queries go first);
+        progress, after each one, with the number of texts embedded so far.
         """
         encs = self.tok.encode_batch(texts)
         ids = [e.ids[:max_tokens] for e in encs]
@@ -189,6 +190,8 @@ class Embedder:
                 input_ids[row, : len(ids[i])] = ids[i]
                 mask[row, : len(ids[i])] = 1
             out[idx] = req.infer({"input_ids": input_ids, "attention_mask": mask})[self.output]
+            if progress:
+                progress(b + len(idx))
         out /= np.linalg.norm(out, axis=1, keepdims=True).clip(min=1e-9)  # f16 leaves it slightly off 1
         return out
 
@@ -285,8 +288,20 @@ def bump_version(db):
                (str(index_version(db) + 1),))
 
 
-def update_index(emb, cfg, flush_chunks=64):
-    """Embed new/changed files, drop deleted ones. Safe to interrupt: progress is committed per batch."""
+def update_index(emb, cfg, flush_chunks=64, progress=None):
+    """Embed new/changed files, drop deleted ones. Safe to interrupt: progress is committed per batch.
+
+    progress, if given, is called with the share of the files done (0-1) while there are any to index,
+    then with None.
+    """
+    try:
+        _update_index(emb, cfg, flush_chunks, progress or (lambda share: None))
+    finally:
+        if progress:
+            progress(None)
+
+
+def _update_index(emb, cfg, flush_chunks, progress):
     db = connect()
     known = {p: (m, s) for p, m, s in db.execute("SELECT path, mtime, size FROM files")}
     todo, seen = [], set()
@@ -310,6 +325,7 @@ def update_index(emb, cfg, flush_chunks=64):
         return
     total_chars = 0
     log(f"indexing {len(todo)} new/changed files ({len(removed)} removed) on {emb.device}")
+    progress(0.0)
 
     pending, n_pending, done, t0, n_embedded = [], 0, 0, time.perf_counter(), 0
 
@@ -320,7 +336,8 @@ def update_index(emb, cfg, flush_chunks=64):
         need =[(f, k) for f, item in enumerate(pending) for k, h in enumerate(item["hashes"])
                 if item["vecs"][k] is None]
         if need:
-            vecs = emb.embed([pending[f]["prompts"][k] for f, k in need], batch_size=4, pause=wait_while_searching)
+            vecs = emb.embed([pending[f]["prompts"][k] for f, k in need], batch_size=4, pause=wait_while_searching,
+                             progress=lambda n: progress((done + len(pending) * n / len(need)) / len(todo)))
             for (f, k), v in zip(need, vecs):
                 pending[f]["vecs"][k] = v.astype(np.float16).tobytes()
             n_embedded += len(need)
@@ -335,6 +352,7 @@ def update_index(emb, cfg, flush_chunks=64):
         bump_version(db)
         db.commit()
         done += len(pending)
+        progress(done / len(todo))
         rate = n_embedded / (time.perf_counter() - t0)
         log(f"  {done}/{len(todo)} files, {n_embedded} chunks embedded ({rate:.1f} chunks/s)")
         pending, n_pending = [], 0
@@ -434,7 +452,8 @@ ICONS = {".pdf": "application-pdf", ".md": "text-markdown", ".docx": "x-office-d
 def serve():
     from dbus_fast import Variant
     from dbus_fast.aio import MessageBus
-    from dbus_fast.service import ServiceInterface, method
+    from dbus_fast.constants import PropertyAccess
+    from dbus_fast.service import ServiceInterface, dbus_property, method
 
     cfg = load_config()
     emb = Embedder(cfg)
@@ -524,11 +543,37 @@ def serve():
                 log(f"run {action_id or 'open'} failed: {e}")
             self.token = ""
 
-    def reindex_loop():
+    class Indexer(ServiceInterface):
+        """For KRunner's indexing bar: Progress is the share of the files done (0-1) while new or
+        changed files are being indexed, -1 otherwise."""
+
+        def __init__(self):
+            super().__init__(BUS_NAME + ".Indexer")
+            self.progress = -1.0
+
+        @dbus_property(access=PropertyAccess.READ)
+        def Progress(self) -> "d":
+            return self.progress
+
+        def set_progress(self, value):
+            if value != self.progress:
+                self.progress = value
+                self.emit_properties_changed({"Progress": value})
+
+    def reindex_loop(indexer, loop):
         reindex_emb = emb  # same compiled model; each thread gets its own infer request
+        last = [0.0]
+
+        def report(share):  # from this thread to the bus, at most 4 times a second while it goes on
+            now = time.monotonic()
+            if share is not None and share > 0 and now - last[0] < 0.25:
+                return
+            last[0] = now
+            loop.call_soon_threadsafe(indexer.set_progress, -1.0 if share is None else share)
+
         while True:
             try:
-                update_index(reindex_emb, load_config())
+                update_index(reindex_emb, load_config(), progress=report)
             except Exception as e:
                 log(f"indexing failed: {e!r}")
             time.sleep(cfg["reindex_minutes"] * 60)
@@ -536,11 +581,13 @@ def serve():
     async def main():
         bus = await MessageBus().connect()
         bus.export("/runner", Runner())
+        indexer = Indexer()
+        bus.export("/indexer", indexer)
         await bus.request_name(BUS_NAME)
         log(f"KRunner runner on D-Bus as {BUS_NAME}")
         # set by tools/preview so a second instance never races the real service on the index
         if not os.environ.get("EMBEDSEARCH_NO_REINDEX"):
-            threading.Thread(target=reindex_loop, daemon=True).start()
+            threading.Thread(target=reindex_loop, args=(indexer, asyncio.get_running_loop()), daemon=True).start()
         await bus.wait_for_disconnect()
 
     asyncio.run(main())

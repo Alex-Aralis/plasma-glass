@@ -188,6 +188,14 @@ docs are in README.md; this file covers how to work on it.
   keyboard keeps the current row clear of the edge. A ScrollView is a Pane, which takes every press
   inside it, so the bottom rim no longer drags the window while results show (fine: the user only
   drags with Meta). Check with `HEIGHT=560 tools/preview/krunner.sh`, where 15 results overflow.
+- **KRunner's indexing bar comes from the search service over D-Bus.** embedsearch exports
+  `local.embedsearch.Indexer` at `/indexer` with a `Progress` property (share of files done while
+  `update_index` runs, from the embedding batches, at most 4 updates a second; -1 otherwise), and
+  KRunner's View follows its PropertiesChanged signal (`indexingProgress`; -1 too when the service
+  goes away). Preview: `INDEXING="DELAY DURATION"` in krunner.sh or unfold.sh starts
+  `tools/preview/fake-indexer.py` in the preview session (it owns `local.embedsearch`, so semantic
+  matches fail there with an UnknownMethod error). The bar's slide measured with
+  `INDEXING="4.5 2" KEYS="-" SECONDS_CAPTURED=4.5 BOTTOMS=1 tools/preview/unfold.sh`.
 - **`Kirigami.Icon` rounds to standard sizes** (`roundToIconSize`): ask for 28 px and you get 22.
 - **QQuickWindow sees every press as accepted after delivery**, even on empty space. Handle input
   in QML, as the KRunner drag area does (a MouseArea under the content).

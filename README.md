@@ -110,7 +110,11 @@ build stops at the patch step until the patch is refreshed.
   - KRunner: wider (40 grid units), 1.6x search text with a larger search icon, borderless search
     field, no pin or clear button, no scrollbars; the results area unfolds smoothly as results arrive
     and folds away when they go (the window follows); while a search takes more than half a second, a
-    band of light sweeps across the glass instead of a spinner (none with animations turned off)
+    band of light sweeps across the glass instead of a spinner (none with animations turned off); a
+    thin line under the search field, as in Spotlight; results that don't fit run on to the glass's
+    bottom edge; while the semantic search service indexes new or changed files, "Indexing…" and a
+    progress bar under the search field (from the service's `local.embedsearch` `/indexer` D-Bus
+    object, property `Progress`: 0-1 while indexing, -1 otherwise)
   - KRunner position when floating: drag it by the glass rim, or anywhere with KWin's window-move
     modifier held (Meta unless changed in kwinrc), like other windows; the window follows the
     pointer's relative motion, so it stays under the pointer, onto other monitors too (it moves there

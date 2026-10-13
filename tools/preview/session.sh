@@ -7,6 +7,8 @@
 #   session.sh unfold QUERY    KRunner; capture frames while results for QUERY unfold, then fold
 #   session.sh drag QUERY      KRunner with results for QUERY, then FAKEINPUT < DRAG_INPUT, while a KWin
 #                              script logs KRunner's frame geometry and output (kwin.log, "KRUNNER" lines)
+# Any mode: INDEXING="DELAY DURATION" starts a stand-in search service (fake-indexer.py) that reports
+# indexing progress for DURATION seconds after DELAY.
 MODE="$1"; shift
 SOCK="$PREVIEW_SOCK"  # chosen by run_session, which also points the bus's services at it
 export XDG_CONFIG_HOME="$WORK/cfg"
@@ -34,6 +36,13 @@ if [ "$MODE" != popup ]; then  # plasmashell draws its own wallpaper
     qml6 "$HERE/qml/wallpaper.qml" -- "$WALLPAPER_FILE" >"$WORK/wallpaper.log" 2>&1 &
     sleep 1.5
     spectacle -b -n -f -o "$WORK/shots/bg.png" >/dev/null 2>&1
+fi
+
+# INDEXING="DELAY DURATION": a stand-in for the search service reports indexing progress
+if [ -n "${INDEXING:-}" ]; then
+    # shellcheck disable=SC2086
+    "$TOOL_PYTHON" -I "$HERE/fake-indexer.py" $INDEXING >"$WORK/indexer.log" 2>&1 &
+    sleep 0.5
 fi
 
 case "$MODE" in

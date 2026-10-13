@@ -18,7 +18,7 @@ WALLPAPER="$WORK/flat.png" prepare
 kwriteconfig6 --file "$WORK/cfg/krunnerrc" --group General --key FloatingCenterX 0.5
 kwriteconfig6 --file "$WORK/cfg/krunnerrc" --group General --key FloatingTop 0.2
 rm -rf "$WORK/frames" && mkdir -p "$WORK/frames"
-export KRUNNER_ENV="${KRUNNER_ENV:-}" KWIN_ENV="${KWIN_ENV:-}" QUERY2="${QUERY2:-}" REFRESH="${REFRESH:-}" SECONDS_CAPTURED="${SECONDS_CAPTURED:-2.6}"
+export INDEXING="${INDEXING:-}" KRUNNER_ENV="${KRUNNER_ENV:-}" KWIN_ENV="${KWIN_ENV:-}" QUERY2="${QUERY2:-}" REFRESH="${REFRESH:-}" SECONDS_CAPTURED="${SECONDS_CAPTURED:-2.6}"
 # KEYS="33 33 33 - 14": type these evdev key codes instead (- pauses 600 ms), 120 ms apart; 33:1500
 # holds the key for 1.5 s (KRunner repeats it). SECONDS_CAPTURED: how long to capture (default 2.6).
 if [ -n "${KEYS:-}" ]; then

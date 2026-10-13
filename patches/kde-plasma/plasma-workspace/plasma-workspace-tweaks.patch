@@ -206,7 +206,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunne
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -21,6 +21,84 @@
+@@ -21,6 +21,94 @@
      id: root
  
      required property RunnerWindow runnerWindow
@@ -274,24 +274,34 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +            PauseAnimation { duration: 250 }
 +        }
 +    }
-+    // A line between the query and the results, as wide as the result rows, as in Spotlight. It fades
-+    // in over the first few pixels of the unfold and out over the last ones.
-+    property Item divider: Rectangle {
++    // Lines under the query and under the indexing bar, as wide as the result rows, as in Spotlight.
++    // Each fades in over the first few pixels of what unfolds below it and out over the last ones.
++    component Divider: Rectangle {
++        required property Item above // the line sits in the gap under it
++        required property real below // height of what's shown under it
 +        parent: root.parent
 +        x: root.x
 +        width: root.width
 +        height: 1
-+        y: Math.round(root.y + queryRow.y + queryRow.height + (Kirigami.Units.smallSpacing - height) / 2)
++        y: Math.round(root.y + above.y + above.height + (Kirigami.Units.smallSpacing - height) / 2)
 +        color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.15)
-+        readonly property real listHeight: resultsScrollView.visible ? resultsScrollView.shownHeight
-+                                         : historyScrollView.visible ? historyScrollView.height : 0
-+        opacity: Math.min(1, listHeight / Kirigami.Units.gridUnit)
++        opacity: Math.min(1, below / Kirigami.Units.gridUnit)
 +        visible: opacity > 0
++    }
++    readonly property real listHeight: resultsScrollView.visible ? resultsScrollView.shownHeight
++                                     : historyScrollView.visible ? historyScrollView.height : 0
++    property Item queryDivider: Divider {
++        above: queryRow
++        below: root.listHeight + indexingBar.shownHeight
++    }
++    property Item indexingDivider: Divider {
++        above: indexingBar
++        below: indexingBar.visible ? Math.min(root.listHeight, indexingBar.shownHeight) : 0
 +    }
      property string query
      property string singleRunner
      property bool showHistory: false
-@@ -62,6 +140,13 @@
+@@ -62,6 +150,13 @@
      Connections {
          target: root.runnerWindow
          function onVisibleChanged() {
@@ -305,7 +315,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              if (root.runnerWindow.visible) {
                  queryField.forceActiveFocus();
                  listView.currentIndex = -1
-@@ -74,6 +159,7 @@
+@@ -74,6 +169,7 @@
                      }
                  }
              } else {
@@ -313,7 +323,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
                  if (root.runnerWindow.retainPriorSearch) {
                      root.priorSearch = root.query
                  }
-@@ -98,6 +184,7 @@
+@@ -98,6 +194,7 @@
      }
      
      RowLayout {
@@ -321,7 +331,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          Layout.alignment: Qt.AlignTop
          PlasmaComponents3.ToolButton {
              visible: root.runnerWindow.helpEnabled
-@@ -131,14 +218,33 @@
+@@ -131,14 +228,33 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -358,7 +368,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              QQC2.Label {
                  id: fadedTextCompletion
-@@ -157,35 +263,26 @@
+@@ -157,35 +273,26 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -407,7 +417,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              }
  
              function focusCurrentListView() {
-@@ -301,6 +398,7 @@
+@@ -301,6 +408,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -415,9 +425,70 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -314,11 +412,38 @@
+@@ -313,12 +421,99 @@
+         }
      }
  
++    // While the semantic search service indexes new or changed files: "Indexing…" and a bar under
++    // the query, as in Spotlight. It slides open and shut (the window follows its height).
++    Item {
++        id: indexingBar
++        readonly property bool indexing: root.runnerWindow.indexingProgress >= 0
++        property real shownHeight: indexing ? indexingContent.implicitHeight : 0
++        Behavior on shownHeight {
++            NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
++        }
++        visible: shownHeight > 0
++        clip: true
++        Layout.fillWidth: true
++        Layout.preferredHeight: shownHeight
++        Layout.topMargin: Kirigami.Units.smallSpacing // room for the line above
++
++        // the bar's fill: follows the progress, and fills up when indexing ends, as the bar slides shut
++        property real fill: Math.max(0, root.runnerWindow.indexingProgress)
++        Behavior on fill {
++            id: fillGrows
++            NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
++        }
++        Connections {
++            target: root.runnerWindow
++            function onIndexingProgressChanged() {
++                const progress = root.runnerWindow.indexingProgress;
++                fillGrows.enabled = progress < 0 || progress >= indexingBar.fill; // a new run starts empty
++                indexingBar.fill = progress < 0 ? 1 : progress;
++                fillGrows.enabled = true;
++            }
++        }
++
++        RowLayout {
++            id: indexingContent
++            width: parent.width
++            spacing: Kirigami.Units.largeSpacing
++            PlasmaComponents3.Label {
++                text: i18nc("@info:status the semantic search service is indexing files", "Indexing…")
++                textFormat: Text.PlainText
++                leftPadding: Kirigami.Units.largeSpacing // with the section headers below
++                topPadding: Kirigami.Units.largeSpacing
++                bottomPadding: Kirigami.Units.largeSpacing
++                opacity: 0.8
++            }
++            Rectangle {
++                Layout.fillWidth: true
++                Layout.rightMargin: Kirigami.Units.largeSpacing
++                Layout.alignment: Qt.AlignVCenter
++                implicitHeight: Math.round(Kirigami.Units.gridUnit / 3)
++                radius: height / 2
++                color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.1)
++                Rectangle {
++                    height: parent.height
++                    width: Math.max(height, parent.width * indexingBar.fill) // a dot at the start
++                    radius: height / 2
++                    color: Kirigami.Theme.highlightColor
++                }
++            }
++        }
++    }
++
      PlasmaComponents3.ScrollView {
 -        visible: results.count > 0
 -        enabled: visible
@@ -457,7 +528,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -327,6 +452,11 @@
+@@ -327,6 +522,11 @@
              queryString: root.query
              queryField: queryField
              singleRunner: root.singleRunner
@@ -469,7 +540,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              Keys.onEscapePressed: {
                  root.runnerWindow.visible = false
-@@ -347,9 +477,17 @@
+@@ -347,9 +547,17 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -488,7 +559,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
          visible: root.query.length === 0 && listView.count > 0
-@@ -358,6 +496,10 @@
+@@ -358,6 +566,10 @@
  
          ListView {
              id: listView // needs this id so the delegate can access it
@@ -642,7 +713,20 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/relative-pointer-unstab
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view.cpp
 --- a/krunner/view.cpp
 +++ b/krunner/view.cpp
-@@ -26,12 +26,112 @@
+@@ -8,6 +8,12 @@
+ 
+ #include <QAction>
+ #include <QClipboard>
++#include <QDBusConnection>
++#include <QDBusMessage>
++#include <QDBusPendingCallWatcher>
++#include <QDBusPendingReply>
++#include <QDBusServiceWatcher>
++#include <QDBusVariant>
+ #include <QDebug>
+ #include <QGuiApplication>
+ #include <QPlatformSurfaceEvent>
+@@ -26,12 +32,112 @@
  #include <KX11Extras>
  
  #include <LayerShellQt/Window>
@@ -755,7 +839,15 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
  KCONFIGGROUP_DECLARE_ENUM_QOBJECT(View, HistoryBehavior)
  
  View::View(PlasmaQuick::SharedQmlEngine *engine, QWindow *)
-@@ -93,7 +193,8 @@
+@@ -66,6 +172,7 @@
+     Q_EMIT activityChanged(m_consumer.currentActivity());
+ 
+     loadConfig();
++    watchIndexer();
+ 
+     new AppAdaptor(this);
+     QDBusConnection::sessionBus().registerObject(u"/App"_s, this);
+@@ -93,7 +200,8 @@
  {
      if (m_floating) {
          const QRect r = screen()->availableGeometry();
@@ -765,7 +857,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      } else {
          return {}; // Zeros
      }
-@@ -119,7 +220,8 @@
+@@ -119,7 +227,8 @@
          displayWithClipboardContents();
      }
  
@@ -775,7 +867,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
          setVisible(false);
      }
  }
-@@ -145,6 +247,9 @@
+@@ -145,6 +254,9 @@
  
  void View::loadConfig()
  {
@@ -785,7 +877,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      setFreeFloating(m_config.readEntry("FreeFloating", false));
      setRetainPriorSearch(m_config.readEntry("RetainPriorSearch", true));
      setPinned(m_stateData.readEntry("Pinned", false));
-@@ -157,6 +262,7 @@
+@@ -157,6 +269,7 @@
          KX11Extras::setOnAllDesktops(winId(), true);
      }
      QQuickWindow::showEvent(event);
@@ -793,7 +885,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      requestActivate();
      if (KWindowSystem::isPlatformX11()) {
          KX11Extras::forceActiveWindow(winId());
-@@ -167,7 +273,15 @@
+@@ -167,7 +280,15 @@
  {
      const auto screens = QGuiApplication::screens();
      auto screenIt = screens.cend();
@@ -810,7 +902,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
          auto message = QDBusMessage::createMethodCall(u"org.kde.KWin"_s, u"/KWin"_s, u"org.kde.KWin"_s, u"activeOutputName"_s);
          QDBusReply<QString> reply = QDBusConnection::sessionBus().call(message);
          if (reply.isValid()) {
-@@ -187,11 +301,10 @@
+@@ -187,11 +308,10 @@
  
      if (KWindowSystem::isPlatformWayland()) {
          auto layerWindow = LayerShellQt::Window::get(this);
@@ -823,7 +915,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
          if (m_floating) {
              layerWindow->setScreen(shownOnScreen);
          } else {
-@@ -209,6 +322,203 @@
+@@ -209,6 +329,255 @@
      }
  }
  
@@ -917,6 +1009,58 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
 +            moveFloatingTo(topLeft - screen()->availableGeometry().topLeft());
 +        }
 +    });
++}
++
++static const QString s_indexerService = u"local.embedsearch"_s;
++static const QString s_indexerPath = u"/indexer"_s;
++static const QString s_indexerInterface = u"local.embedsearch.Indexer"_s;
++
++void View::watchIndexer()
++{
++    QDBusConnection bus = QDBusConnection::sessionBus();
++    bus.connect(s_indexerService,
++                s_indexerPath,
++                u"org.freedesktop.DBus.Properties"_s,
++                u"PropertiesChanged"_s,
++                this,
++                SLOT(indexerPropertiesChanged(QString, QVariantMap, QStringList)));
++    auto watcher = new QDBusServiceWatcher(s_indexerService, bus, QDBusServiceWatcher::WatchForOwnerChange, this);
++    connect(watcher, &QDBusServiceWatcher::serviceOwnerChanged, this, [this](const QString &, const QString &, const QString &owner) {
++        if (owner.isEmpty()) {
++            setIndexingProgress(-1); // gone, maybe in the middle of a run
++        } else {
++            fetchIndexingProgress();
++        }
++    });
++    fetchIndexingProgress();
++}
++
++void View::fetchIndexingProgress()
++{
++    QDBusMessage message = QDBusMessage::createMethodCall(s_indexerService, s_indexerPath, u"org.freedesktop.DBus.Properties"_s, u"Get"_s);
++    message << s_indexerInterface << u"Progress"_s;
++    message.setAutoStartService(false); // D-Bus activatable: don't start it just to ask
++    auto call = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message), this);
++    connect(call, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *call) {
++        call->deleteLater();
++        const QDBusPendingReply<QDBusVariant> reply = *call;
++        setIndexingProgress(reply.isValid() ? reply.value().variant().toDouble() : -1);
++    });
++}
++
++void View::indexerPropertiesChanged(const QString &interface, const QVariantMap &changed, const QStringList &)
++{
++    if (interface == s_indexerInterface && changed.contains(u"Progress"_s)) {
++        setIndexingProgress(changed.value(u"Progress"_s).toDouble());
++    }
++}
++
++void View::setIndexingProgress(qreal progress)
++{
++    if (progress != m_indexingProgress) {
++        m_indexingProgress = progress;
++        Q_EMIT indexingProgressChanged();
++    }
 +}
 +
 +int View::moveModifier() const
@@ -1050,7 +1194,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  
  class View : public PlasmaQuick::PlasmaWindow
  {
-@@ -47,6 +52,17 @@
+@@ -47,6 +52,25 @@
  
      void positionOnScreen();
  
@@ -1065,14 +1209,23 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 +        return m_changingScreen;
 +    }
 +
++    // Indexing progress of plasma-glass's semantic search service (local.embedsearch): 0-1 while it
++    // indexes new or changed files, -1 otherwise. RunCommand.qml shows a bar for it.
++    Q_PROPERTY(qreal indexingProgress READ indexingProgress NOTIFY indexingProgressChanged)
++    qreal indexingProgress() const
++    {
++        return m_indexingProgress;
++    }
++
      bool freeFloating() const;
      void setFreeFloating(bool floating);
  
-@@ -82,12 +98,16 @@
+@@ -82,12 +106,17 @@
      }
  
  Q_SIGNALS:
 +    void changingScreenChanged();
++    void indexingProgressChanged();
      void pinnedChanged();
      void helpEnabledChanged();
      void activityChanged(const QString &activity);
@@ -1085,7 +1238,17 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  
  public Q_SLOTS:
      void display();
-@@ -106,6 +126,31 @@
+@@ -97,6 +126,9 @@
+     void query(const QString &term);
+     void querySingleRunner(const QString &runnerName, const QString &term);
+ 
++private Q_SLOTS:
++    void indexerPropertiesChanged(const QString &interface, const QVariantMap &changed, const QStringList &invalidated);
++
+ protected Q_SLOTS:
+     void loadConfig();
+     void objectIncubated();
+@@ -106,6 +138,35 @@
      void writeHistory();
      QPoint m_customPos;
      QMargins margins();
@@ -1095,6 +1258,10 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 +    void moveToScreen(QScreen *screen, QPointF topLeft);
 +    void finishFloatingDrag(qreal x, qreal y);
 +    void ensureRelativePointer();
++    void watchIndexer();
++    void fetchIndexingProgress();
++    void setIndexingProgress(qreal progress);
++    qreal m_indexingProgress = -1;
 +    // KWin's window-move modifier (kwinrc [MouseBindings] CommandAllKey: Meta or Alt)
 +    int moveModifier() const;
 +    double m_floatTop = 1.0 / 3.0; // top edge, fraction of the screen height (krunnerrc FloatingTop)
