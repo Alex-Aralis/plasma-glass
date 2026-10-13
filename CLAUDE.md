@@ -136,6 +136,7 @@ docs are in README.md; this file covers how to work on it.
   frame's swap. Reproduce with `REFRESH=240000` (the preview KWin gets a 240 Hz custom mode through
   kscreen-doctor), `KWIN_ENV`/`KRUNNER_ENV` pointing EGL at Mesa, and `KEYS="33 33 33 14"` (typed
   with fakeinput) in `unfold.sh`: installed Qt 7 shifted frames in 4 of 10 runs, the fix 0 in 10.
+  Installed on the main box 2026-10-12.
   Left over: forcing `QSG_RENDER_LOOP=basic` on Mesa gives one frame shifted up about 6 px in most
   such runs (the buffer was allocated before polish resized the window); stock and patched alike,
   and no real setup uses that pairing (Mesa gets the threaded loop, NVIDIA the GUI-thread one).
