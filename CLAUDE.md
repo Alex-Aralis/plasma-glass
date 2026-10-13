@@ -181,6 +181,13 @@ docs are in README.md; this file covers how to work on it.
   results area sets `Layout.preferredHeight` to the animated height too. `unfold.sh` with
   `KEYS="33:1500" SECONDS_CAPTURED=5 BOTTOMS=1` holds F for 1.5 s and prints the bottom edge of every
   frame.
+- **KRunner's lists run into the window's bottom padding** when they don't fit, so rows are cut at
+  the glass's edge, not 12 px above it: `Layout.bottomMargin: -bottomPadding` with the same added to
+  the preferred and maximum heights (the layout's own height doesn't change), `bottomMargin` on the
+  ListView so the last row ends where it did, and `ApplyRange` with `preferredHighlightEnd` so the
+  keyboard keeps the current row clear of the edge. A ScrollView is a Pane, which takes every press
+  inside it, so the bottom rim no longer drags the window while results show (fine: the user only
+  drags with Meta). Check with `HEIGHT=560 tools/preview/krunner.sh`, where 15 results overflow.
 - **`Kirigami.Icon` rounds to standard sizes** (`roundToIconSize`): ask for 28 px and you get 22.
 - **QQuickWindow sees every press as accepted after delivery**, even on empty space. Handle input
   in QML, as the KRunner drag area does (a MouseArea under the content).

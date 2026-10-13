@@ -206,12 +206,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunne
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -21,6 +21,70 @@
+@@ -21,6 +21,84 @@
      id: root
  
      required property RunnerWindow runnerWindow
 +
-+    // Drag the floating window from any spot nothing else uses (the glass rim, headers, gaps). It sits
++    // Drag the floating window from any spot nothing else uses (the glass rim beside the content). It sits
 +    // under this layout, across the whole window, and the window remembers where it was left.
 +    // Modifier+drag anywhere is RunnerWindow's own (C++), so the content never sees that press.
 +    property Item dragArea: MouseArea {
@@ -274,10 +274,24 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +            PauseAnimation { duration: 250 }
 +        }
 +    }
++    // A line between the query and the results, as wide as the result rows, as in Spotlight. It fades
++    // in over the first few pixels of the unfold and out over the last ones.
++    property Item divider: Rectangle {
++        parent: root.parent
++        x: root.x
++        width: root.width
++        height: 1
++        y: Math.round(root.y + queryRow.y + queryRow.height + (Kirigami.Units.smallSpacing - height) / 2)
++        color: Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, 0.15)
++        readonly property real listHeight: resultsScrollView.visible ? resultsScrollView.shownHeight
++                                         : historyScrollView.visible ? historyScrollView.height : 0
++        opacity: Math.min(1, listHeight / Kirigami.Units.gridUnit)
++        visible: opacity > 0
++    }
      property string query
      property string singleRunner
      property bool showHistory: false
-@@ -62,6 +126,13 @@
+@@ -62,6 +140,13 @@
      Connections {
          target: root.runnerWindow
          function onVisibleChanged() {
@@ -291,7 +305,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              if (root.runnerWindow.visible) {
                  queryField.forceActiveFocus();
                  listView.currentIndex = -1
-@@ -74,6 +145,7 @@
+@@ -74,6 +159,7 @@
                      }
                  }
              } else {
@@ -299,7 +313,15 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
                  if (root.runnerWindow.retainPriorSearch) {
                      root.priorSearch = root.query
                  }
-@@ -131,14 +203,33 @@
+@@ -98,6 +184,7 @@
+     }
+     
+     RowLayout {
++        id: queryRow
+         Layout.alignment: Qt.AlignTop
+         PlasmaComponents3.ToolButton {
+             visible: root.runnerWindow.helpEnabled
+@@ -131,14 +218,33 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -336,7 +358,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              QQC2.Label {
                  id: fadedTextCompletion
-@@ -157,35 +248,26 @@
+@@ -157,35 +263,26 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -385,7 +407,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              }
  
              function focusCurrentListView() {
-@@ -301,6 +383,7 @@
+@@ -301,6 +398,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -393,7 +415,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -314,11 +397,33 @@
+@@ -314,11 +412,38 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -425,21 +447,58 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        }
 +        // the height it's shown at, whichever way it goes (a maximum alone let it snap when the
 +        // results shrank: the list's own height dropped at once)
-+        Layout.preferredHeight: shownHeight
-+        Layout.maximumHeight: shownHeight
++        Layout.preferredHeight: shownHeight + overhang
++        Layout.maximumHeight: shownHeight + overhang
++        // Results that don't fit run on to the glass's bottom edge, through the window's padding below
++        // the layout; the list keeps that much space after its last row, so at the end of it, and when
++        // everything fits, the rows sit where they did.
++        readonly property real overhang: root.runnerWindow.bottomPadding
++        Layout.bottomMargin: -overhang
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -347,6 +452,9 @@
+@@ -327,6 +452,11 @@
+             queryString: root.query
+             queryField: queryField
+             singleRunner: root.singleRunner
++            bottomMargin: resultsScrollView.overhang
++            // the keyboard (and hovering a row half under the edge) brings the current row clear of it
++            highlightRangeMode: ListView.ApplyRange
++            preferredHighlightBegin: 0
++            preferredHighlightEnd: height - bottomMargin
+ 
+             Keys.onEscapePressed: {
+                 root.runnerWindow.visible = false
+@@ -347,9 +477,17 @@
      }
  
      PlasmaComponents3.ScrollView {
++        id: historyScrollView
 +        // no scrollbars (keyboard and wheel still scroll); none flashes while the results unfold
 +        QQC2.ScrollBar.vertical.policy: QQC2.ScrollBar.AlwaysOff
 +        QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
          Layout.fillWidth: true
          Layout.fillHeight: true
-         Layout.maximumHeight: listView.contentHeight
+-        Layout.maximumHeight: listView.contentHeight
++        // to the glass's bottom edge, like the results
++        readonly property real overhang: root.runnerWindow.bottomPadding
++        Layout.preferredHeight: listView.contentHeight + overhang
++        Layout.maximumHeight: listView.contentHeight + overhang
++        Layout.bottomMargin: -overhang
+         // This replaces the ColumnLayout spacing
+         Layout.topMargin: Kirigami.Units.smallSpacing
+         visible: root.query.length === 0 && listView.count > 0
+@@ -358,6 +496,10 @@
+ 
+         ListView {
+             id: listView // needs this id so the delegate can access it
++            bottomMargin: historyScrollView.overhang
++            highlightRangeMode: ListView.ApplyRange
++            preferredHighlightBegin: 0
++            preferredHighlightEnd: height - bottomMargin
+             keyNavigationWraps: true
+             highlight: PlasmaExtras.Highlight {}
+             highlightMoveDuration: 0
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/relative-pointer-unstable-v1.xml b/krunner/relative-pointer-unstable-v1.xml
 --- a/krunner/relative-pointer-unstable-v1.xml
 +++ b/krunner/relative-pointer-unstable-v1.xml

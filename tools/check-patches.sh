@@ -63,6 +63,7 @@ QtObject {
     property bool retainPriorSearch: true
     property int historyBehavior: 1
     property bool changingScreen: false
+    property real bottomPadding: 12
     signal activityChanged(string activity)
     signal showHistoryChanged()
     function startFloatingDrag(x, y) {}
