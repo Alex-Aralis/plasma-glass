@@ -167,7 +167,7 @@ docs are in README.md; this file covers how to work on it.
   rebuilds in about 6 min.
   Monitors: DP-4 (main, 2560x1440 @ 240 Hz) is on the NVIDIA card (`card1`); DP-1 and HDMI-A-1
   are on the iGPU. KWin composited on the NVIDIA card for part of 2026-10-12 and is back on the
-  iGPU since then for bug 3 testing (`/etc/environment.d/20-kde-gpu.conf` and a
+  iGPU since then: the user chose to stay there and watch for bug 3 (`/etc/environment.d/20-kde-gpu.conf` and a
   `plasma-kwin_wayland.service` drop-in, `gpu.conf`, both `KWIN_DRM_DEVICES=/dev/dri/card0:/dev/dri/card1`). Changing that file needs a reboot: the systemd user manager reads environment.d
   only when it starts and outlives a relog while anything keeps the session open (tmux, the root
   terminal), and even `systemctl --user set-environment` was undone at the next login (the session
