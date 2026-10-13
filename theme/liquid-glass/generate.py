@@ -381,10 +381,11 @@ VARIANTS = {
         "name": "Liquid Glass Light",
         "description": "Bright frosted glass with dark text, like macOS in light mode",
         "colors": LIGHT_COLORS,
-        "settings": {  # brighter, more opaque glass; strong white rims so edges read on light wallpapers
+        "settings": {  # brighter, more opaque glass; white rims so edges read on light wallpapers, kept
+                       # even all round with little inner glow, so the glass looks flat, not bevelled
             "FILL_TRANSLUCENT": 0.62, "FILL_OPAQUE": 0.97, "SHADOW_ALPHA": 0.18,
-            "RIM": {"top": 0.85, "side": 0.55, "bottom": 0.40},
-            "GLOW": {"top": 0.35, "side": 0.14, "bottom": 0.12},
+            "RIM": {"top": 0.60, "side": 0.48, "bottom": 0.40},
+            "GLOW": {"top": 0.12, "side": 0.06, "bottom": 0.05},
             "FIELD": {"base_fill": 0.05, "base_rim": 0.10, "hover": 0.18, "focus": 0.30, "halo": 0.06},
             "HIGHLIGHT": {"hover": 0.05, "selected": 0.09, "selected+hover": 0.12},
             "SB_SLIDER": 0.30, "SB_HOVER": 0.50, "SB_TRACK": 0.06,
