@@ -206,7 +206,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunne
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -21,6 +21,36 @@
+@@ -21,6 +21,86 @@
      id: root
  
      required property RunnerWindow runnerWindow
@@ -240,10 +240,60 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        onReleased: mouse => root.runnerWindow.endFloatingDrag(mouse.x, mouse.y)
 +        onCanceled: root.runnerWindow.endFloatingDrag(NaN, NaN)
 +    }
++    // While a search takes a while: a band of light sweeps across the glass, under the content, instead
++    // of a spinner. The band is this rounded rectangle's gradient, so it keeps to the glass's corners
++    // at every size (a layer mask lagged behind the window while the results folded away).
++    property Item busyPulse: Rectangle {
++        id: busyPulse
++        parent: root.parent
++        anchors.fill: parent
++        z: -0.5 // over the glass, under the query and the results
++        radius: 26 // Liquid Glass's corner radius (generate.py R)
++        property bool active: false // set by queryTimer
++        property real progress: 0 // 0..1: the band from off the left edge to off the right one
++        // until the band is off the glass: a sweep under way when the search ends runs to the end
++        visible: pulseSweep.running || (progress > 0 && progress < 1)
++
++        readonly property real halfWidth: 0.2 // of the glass's width
++        readonly property real center: -halfWidth + progress * (1 + 2 * halfWidth)
++        // brighter on light glass, where a faint highlight would vanish
++        readonly property real peak: Kirigami.ColorUtils.brightnessForColor(Kirigami.Theme.backgroundColor) === Kirigami.ColorUtils.Light ? 0.5 : 0.2
++        // the band's opacity profile, a peak falling off linearly; stops at its corners reproduce it
++        // exactly, also where it's partly off the glass
++        function light(position: real): color {
++            return Qt.rgba(1, 1, 1, peak * Math.max(0, 1 - Math.abs(position - center) / halfWidth));
++        }
++        function onGlass(position: real): real {
++            return Math.min(1, Math.max(0, position));
++        }
++        gradient: Gradient {
++            orientation: Gradient.Horizontal
++            GradientStop { position: 0; color: busyPulse.light(0) }
++            GradientStop { readonly property real at: busyPulse.onGlass(busyPulse.center - busyPulse.halfWidth); position: at; color: busyPulse.light(at) }
++            GradientStop { readonly property real at: busyPulse.onGlass(busyPulse.center); position: at; color: busyPulse.light(at) }
++            GradientStop { readonly property real at: busyPulse.onGlass(busyPulse.center + busyPulse.halfWidth); position: at; color: busyPulse.light(at) }
++            GradientStop { position: 1; color: busyPulse.light(1) }
++        }
++        SequentialAnimation {
++            id: pulseSweep
++            running: busyPulse.active && Kirigami.Units.longDuration > 0 // reduced motion: no pulse
++            loops: Animation.Infinite
++            alwaysRunToEnd: true
++            NumberAnimation {
++                target: busyPulse
++                property: "progress"
++                from: 0
++                to: 1
++                duration: 1100
++                easing.type: Easing.InOutSine
++            }
++            PauseAnimation { duration: 250 }
++        }
++    }
      property string query
      property string singleRunner
      property bool showHistory: false
-@@ -62,6 +92,13 @@
+@@ -62,6 +142,13 @@
      Connections {
          target: root.runnerWindow
          function onVisibleChanged() {
@@ -257,7 +307,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              if (root.runnerWindow.visible) {
                  queryField.forceActiveFocus();
                  listView.currentIndex = -1
-@@ -74,6 +111,7 @@
+@@ -74,6 +161,7 @@
                      }
                  }
              } else {
@@ -265,7 +315,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
                  if (root.runnerWindow.retainPriorSearch) {
                      root.priorSearch = root.query
                  }
-@@ -131,14 +169,33 @@
+@@ -131,14 +219,33 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -302,7 +352,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              QQC2.Label {
                  id: fadedTextCompletion
-@@ -157,6 +214,7 @@
+@@ -157,35 +264,26 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -310,7 +360,48 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
                  color: parent.color
                  focus: false
                  z: -1
-@@ -301,6 +359,7 @@
+             }
+ 
+-            PlasmaComponents3.BusyIndicator {
+-                anchors {
+-                    right: parent.right
+-                    top: parent.top
+-                    bottom: parent.bottom
+-                    margins: Kirigami.Units.smallSpacing
+-                    rightMargin: height
++            // busy feedback (root.busyPulse) once a search has run for half a second
++            Timer {
++                id: queryTimer
++                property bool queryDisplay: false
++                running: results.querying
++                repeat: true
++                onRunningChanged: if (queryDisplay && !running) {
++                    queryDisplay = false
+                 }
+-
+-                Timer {
+-                    id: queryTimer
+-                    property bool queryDisplay: false
+-                    running: results.querying
+-                    repeat: true
+-                    onRunningChanged: if (queryDisplay && !running) {
+-                        queryDisplay = false
+-                    }
+-                    onTriggered: if (!queryDisplay) {
+-                        queryDisplay = true
+-                    }
+-                    interval: 500
++                onTriggered: if (!queryDisplay) {
++                    queryDisplay = true
+                 }
+-
+-                running: queryTimer.queryDisplay
++                interval: 500
++                onQueryDisplayChanged: root.busyPulse.active = queryDisplay
+             }
+ 
+             function focusCurrentListView() {
+@@ -301,6 +399,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -318,7 +409,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -314,11 +373,30 @@
+@@ -314,11 +413,30 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -352,7 +443,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -347,6 +425,9 @@
+@@ -347,6 +465,9 @@
      }
  
      PlasmaComponents3.ScrollView {

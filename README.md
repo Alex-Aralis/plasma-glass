@@ -109,7 +109,8 @@ build stops at the patch step until the patch is refreshed.
 - `plasma-workspace-tweaks.patch`
   - KRunner: wider (40 grid units), 1.6x search text with a larger search icon, borderless search
     field, no pin or clear button, no scrollbars; the results area unfolds smoothly as results arrive
-    and folds away when they go (the window follows)
+    and folds away when they go (the window follows); while a search takes more than half a second, a
+    band of light sweeps across the glass instead of a spinner (none with animations turned off)
   - KRunner position when floating: drag it by the glass rim, or anywhere with KWin's window-move
     modifier held (Meta unless changed in kwinrc), like other windows; the window follows the
     pointer's relative motion, so it stays under the pointer, onto other monitors too (it moves there

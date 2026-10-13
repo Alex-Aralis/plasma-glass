@@ -145,6 +145,13 @@ docs are in README.md; this file covers how to work on it.
   keeps the top edge in place. Found by capturing frames from the preview KWin at ~150 fps: start it
   with `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1` and call `org.kde.KWin.ScreenShot2.CaptureActiveScreen`
   in a loop (dbus-fast: the `h` argument is the index into `unix_fds`; raw BGRA, format 6).
+- **KRunner's busy pulse is a gradient, not a mask.** The band of light that replaces the spinner is the
+  gradient of a rounded Rectangle over the glass (stops moved by a 0..1 progress), so it keeps to the
+  corners at every size. A MultiEffect mask (the style's frame SVG, then a rounded Rectangle) let it
+  show past the corners while the results folded away. Animate a 0..1 property, not `x` with
+  `from`/`to` from sizes: those are fixed when the animation starts (the first try started at width 0
+  and slid from 0 to 0). The overlay stays visible until the band is off the glass, so a sweep under
+  way when the search ends finishes (`alwaysRunToEnd` alone doesn't, `running` drops at once).
 - **`Kirigami.Icon` rounds to standard sizes** (`roundToIconSize`): ask for 28 px and you get 22.
 - **QQuickWindow sees every press as accepted after delivery**, even on empty space. Handle input
   in QML, as the KRunner drag area does (a MouseArea under the content).
