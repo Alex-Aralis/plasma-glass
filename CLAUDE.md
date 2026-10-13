@@ -16,6 +16,7 @@ docs are in README.md; this file covers how to work on it.
 | `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc) |
 | `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` and `qt` build test copies |
 | `tools/check-patches.sh` | patches apply; patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
+| `tools/screenprobe/screen.sh` | probes on the real screens (small, never focused, ask first): `fps` measures Qt Quick frame rate and animation speed per screen, `glass` shows the style's glass over a grey square (screenshot or by eye) |
 | `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh`, `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`); `fakeinput.c` for pointer input |
 | `desktop/test-notifications.sh` | sample popups (clickable, long and scrolling, image, critical); installed as `plasma-glass-test-notifications` with a "Test Notifications" launcher |
 
@@ -63,6 +64,13 @@ docs are in README.md; this file covers how to work on it.
   glitched frame came from, run with `KRUNNER_ENV=WAYLAND_DEBUG=client` (the log is the preview's
   `app.log`, times in UTC) and line it up with the frames (`meta.json` has the capture's start
   time, `t0_wall`).
+- **Frame rates:** the virtual display runs at 60 Hz, so check refresh-rate behaviour on the real
+  screens with `tools/screenprobe/screen.sh fps X,Y [X,Y...]` (positions from `kscreen-doctor -o`;
+  `ENV="$(tools/patch-dev.sh qt)"` for a patched Qt, `QSG_RENDER_LOOP=basic` for the GUI-thread
+  loop). Main box with KWin on the iGPU, 2026-10-12: stock Qt Quick 62.5 fps on DP-4 (240 Hz) and
+  DP-1 (165 Hz); with the qtdeclarative patch 235-239 on DP-4, 165 on DP-1, 60 on HDMI-A-1
+  (threaded loop) and 183-194 on DP-4 with the GUI-thread loop. Always say before putting
+  windows on the user's screens.
 - **Search:** edit `search/embedsearch.py`, copy it to `~/.local/share/embedsearch/`, then
   `systemctl --user restart embedsearch`. Use `embedsearch search "q"` to test.
 
@@ -109,6 +117,16 @@ docs are in README.md; this file covers how to work on it.
   carried the shifted content (WAYLAND_DEBUG), so KWin showed what it got. Mesa clients get the
   threaded loop, which polishes before it takes the size (1-2 glitches remain there: a resize on
   the GUI thread after the sync). Not egl-wayland: v1 and v2 behaved the same.
+- **Qt Quick animated at 60 fps on faster screens** (fixed by `qtdeclarative-quick.patch` too). The
+  threaded loop's animation driver steps one frame of the *primary screen* per frame, and Qt's
+  primary on Wayland is simply the first output (HDMI-A-1, 60 Hz; QtWayland ignores KDE's output
+  order). On DP-4 frames came every 4-5 ms, "less than half" the expected 16.7, so Qt decided vsync
+  was broken and animated from a 16 ms timer (`QSG_INFO=1`: "determined to have broken vsync
+  throttling"). The GUI-thread loop (NVIDIA clients) uses QtCore's animation timer, 16 ms by
+  default. The patch makes each window track its screen's refresh rate: the threaded loop's driver
+  and fallback timer follow the fastest screen with an exposed window, its render-thread animator
+  drivers their window's screen, and the GUI-thread loop sets QtCore's timer interval the same way
+  (back to the defaults when nothing is shown). `QSG_USE_SIMPLE_ANIMATION_DRIVER=1` was the stopgap.
 - **CPU rendering (`QT_QUICK_BACKEND=software`) avoided that but stretched the old frame** in 3 of 4
   runs (text flicker), until the qtbase patch (below); also setting
   `QT_WAYLAND_DISABLED_INTERFACES=wp_viewporter,wp_fractional_scale_manager_v1` was clean (fractional
@@ -209,8 +227,8 @@ docs are in README.md; this file covers how to work on it.
      the size before polishing (6.11.2; check dev before reporting). The KWin bug report draft for
      this was wrong (KWin showed what it got); the user was told not to file it.
   3. Cross-GPU blur darkening: not reproducible on 2026-10-12 after a reboot, with KWin back on the
-     iGPU: a probe (`~/.cache/plasma-glass/bug3/`: a 190 grey band with an empty `PlasmaCore.Window`
-     on it, the style's glass and blur, placed by a KWin script, never focused) measured the glass at
+     iGPU: a probe (now `tools/screenprobe/screen.sh glass`: a 190 grey square with an empty
+     `PlasmaCore.Window` on it, the style's glass and blur, placed by a KWin script) measured the glass at
      129 (dark) and 225 (light) on DP-4 and DP-1 alike, the same as with KWin on NVIDIA, and the
      user saw no darker glass or corner fringe on DP-4. It was first seen in a KWin session up since
      10-09 (relogged 10-12 18:27), so it may build up over a long session or follow a monitor

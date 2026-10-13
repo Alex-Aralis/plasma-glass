@@ -128,11 +128,15 @@ build stops at the patch step until the patch is refreshed.
   It sent it as soon as the window resized, so the compositor showed the previous frame stretched to
   the new size for a frame (KRunner's text flickered while its results unfolded). Not fixed upstream
   as of Qt's dev branch (2026-10)
-- `qtdeclarative-quick.patch` (dev-qt/qtdeclarative, every Qt Quick app): Qt Quick's GUI-thread render
-  loop, which Qt uses whenever the GPU is NVIDIA, takes the window's size after polishing instead of
-  before. A window sized to its content resizes while polishing, so the frame after each resize was
-  drawn at the old size into the new, larger or smaller buffer and showed shifted (KRunner jumped and
-  left ghosts while its results unfolded)
+- `qtdeclarative-quick.patch` (dev-qt/qtdeclarative, every Qt Quick app):
+  - the GUI-thread render loop, which Qt uses whenever the GPU is NVIDIA, takes the window's size
+    after polishing instead of before. A window sized to its content resizes while polishing, so the
+    frame after each resize was drawn at the old size into the new, larger or smaller buffer and
+    showed shifted (KRunner jumped and left ghosts while its results unfolded)
+  - animations follow the refresh rate of the screen a window is on. Qt Quick took the primary
+    screen's (on Wayland the first output Qt sees, here a 60 Hz one), then took a 240 Hz screen's
+    faster frames for broken vsync and animated from a 16 ms timer: KRunner, Plasma's popups and every
+    Qt Quick app animated at 60 fps on 165 and 240 Hz monitors
 
 To change a patch, use `tools/patch-dev.sh`. `setup` unpacks clean and patched copies of the sources
 for your installed versions. Edit the files, then `refresh` writes the patch files, `check` validates
