@@ -90,6 +90,8 @@ if [ "$DO_SEARCH" = 1 ]; then
 
     say "KRunner plugin, D-Bus activation, systemd user service, embedsearch command"
     install -D -m 644 "$REPO/desktop/krunner-embedsearch.desktop" "$DATA/krunner/dbusplugins/embedsearch.desktop"
+    # "Index" launcher (KRunner / start menu): indexes now instead of at the next interval
+    install -D -m 644 "$REPO/desktop/embedsearch-index.desktop" "$DATA/applications/plasma-glass-index.desktop"
     fill "$REPO/desktop/local.embedsearch.service.in" "$DATA/dbus-1/services/local.embedsearch.service"
     fill "$REPO/desktop/embedsearch.service.in" "$CONF/systemd/user/embedsearch.service"
     fill "$REPO/desktop/embedsearch.in" "$HOME/.local/bin/embedsearch"
@@ -101,6 +103,7 @@ if [ "$DO_SEARCH" = 1 ]; then
     systemctl --user daemon-reload
     systemctl --user enable embedsearch.service
     systemctl --user restart embedsearch.service
+    kbuildsycoca6 >/dev/null 2>&1 || true
 fi
 
 if [ "$DO_STYLE" = 1 ]; then

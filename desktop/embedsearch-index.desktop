@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Index
+GenericName=Semantic Search
+Comment=Index new and changed documents for semantic search now
+Icon=edit-find
+Exec=qdbus6 local.embedsearch /indexer local.embedsearch.Indexer.Index
+Categories=Utility;
+Keywords=index;reindex;semantic;search;embedsearch;documents;

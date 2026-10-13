@@ -9,7 +9,8 @@ KEEP_INDEX=0
 systemctl --user disable --now embedsearch.service 2>/dev/null || true
 rm -f "$CONF/systemd/user/plasma-krunner.service.d/plasma-glass-software-render.conf"
 rm -f "$CONF/systemd/user/embedsearch.service" "$DATA/dbus-1/services/local.embedsearch.service" \
-      "$DATA/krunner/dbusplugins/embedsearch.desktop" "$HOME/.local/bin/embedsearch"
+      "$DATA/krunner/dbusplugins/embedsearch.desktop" "$HOME/.local/bin/embedsearch" \
+      "$DATA/applications/plasma-glass-index.desktop"
 systemctl --user daemon-reload
 if [ "$KEEP_INDEX" = 1 ]; then
     rm -rf "$DATA/embedsearch/venv" "$DATA/embedsearch/ov_cache"

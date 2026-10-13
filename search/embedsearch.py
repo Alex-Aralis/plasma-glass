@@ -292,10 +292,10 @@ def update_index(emb, cfg, flush_chunks=64, progress=None):
     """Embed new/changed files, drop deleted ones. Safe to interrupt: progress is committed per batch.
 
     progress, if given, is called with the share of the files done (0-1) while there are any to index,
-    then with None.
+    then with None. Returns the numbers of files indexed and removed.
     """
     try:
-        _update_index(emb, cfg, flush_chunks, progress or (lambda share: None))
+        return _update_index(emb, cfg, flush_chunks, progress or (lambda share: None))
     finally:
         if progress:
             progress(None)
@@ -322,7 +322,7 @@ def _update_index(emb, cfg, flush_chunks, progress):
     if not todo:
         if removed:
             log(f"removed {len(removed)} deleted files")
-        return
+        return 0, len(removed)
     total_chars = 0
     log(f"indexing {len(todo)} new/changed files ({len(removed)} removed) on {emb.device}")
     progress(0.0)
@@ -379,6 +379,7 @@ def _update_index(emb, cfg, flush_chunks, progress):
     flush()
     log(f"index up to date: {len(todo)} files, {total_chars / 1e6:.1f} MB text, "
         f"{n_embedded} chunks embedded in {time.perf_counter() - t0:.0f} s")
+    return len(todo), len(removed)
 
 
 class Index:
@@ -450,7 +451,7 @@ ICONS = {".pdf": "application-pdf", ".md": "text-markdown", ".docx": "x-office-d
 
 
 def serve():
-    from dbus_fast import Variant
+    from dbus_fast import Message, Variant
     from dbus_fast.aio import MessageBus
     from dbus_fast.constants import PropertyAccess
     from dbus_fast.service import ServiceInterface, dbus_property, method
@@ -543,13 +544,20 @@ def serve():
                 log(f"run {action_id or 'open'} failed: {e}")
             self.token = ""
 
+    index_now = threading.Event()  # set by Indexer.Index: run without waiting for the next interval
+
     class Indexer(ServiceInterface):
         """For KRunner's indexing bar: Progress is the share of the files done (0-1) while new or
-        changed files are being indexed, -1 otherwise."""
+        changed files are being indexed, -1 otherwise. Index() (the "Index" launcher) indexes now and
+        says so in a notification when it's done."""
 
         def __init__(self):
             super().__init__(BUS_NAME + ".Indexer")
             self.progress = -1.0
+
+        @method()
+        def Index(self):
+            index_now.set()
 
         @dbus_property(access=PropertyAccess.READ)
         def Progress(self) -> "d":
@@ -560,7 +568,16 @@ def serve():
                 self.progress = value
                 self.emit_properties_changed({"Progress": value})
 
-    def reindex_loop(indexer, loop):
+    async def notify(bus, summary, body):
+        await bus.call(Message(
+            destination="org.freedesktop.Notifications", path="/org/freedesktop/Notifications",
+            interface="org.freedesktop.Notifications", member="Notify", signature="susssasa{sv}i",
+            body=["Semantic Search", 0, "edit-find", summary, body, [], {}, -1]))
+
+    def files(n):
+        return f"{n} file" if n == 1 else f"{n} files"
+
+    def reindex_loop(indexer, loop, bus):
         reindex_emb = emb  # same compiled model; each thread gets its own infer request
         last = [0.0]
 
@@ -572,11 +589,18 @@ def serve():
             loop.call_soon_threadsafe(indexer.set_progress, -1.0 if share is None else share)
 
         while True:
+            asked = index_now.is_set()  # (a request during a run gets a run of its own afterwards)
+            index_now.clear()
             try:
-                update_index(reindex_emb, load_config(), progress=report)
+                indexed, removed = update_index(reindex_emb, load_config(), progress=report)
+                done = ([f"{files(indexed)} indexed"] if indexed else []) + ([f"{files(removed)} removed"] if removed else [])
+                summary, body = "Index up to date", ", ".join(done) or "No new or changed files"
             except Exception as e:
                 log(f"indexing failed: {e!r}")
-            time.sleep(cfg["reindex_minutes"] * 60)
+                summary, body = "Indexing failed", str(e)
+            if asked:
+                asyncio.run_coroutine_threadsafe(notify(bus, summary, body), loop)
+            index_now.wait(cfg["reindex_minutes"] * 60)
 
     async def main():
         bus = await MessageBus().connect()
@@ -587,7 +611,7 @@ def serve():
         log(f"KRunner runner on D-Bus as {BUS_NAME}")
         # set by tools/preview so a second instance never races the real service on the index
         if not os.environ.get("EMBEDSEARCH_NO_REINDEX"):
-            threading.Thread(target=reindex_loop, args=(indexer, asyncio.get_running_loop()), daemon=True).start()
+            threading.Thread(target=reindex_loop, args=(indexer, asyncio.get_running_loop(), bus), daemon=True).start()
         await bus.wait_for_disconnect()
 
     asyncio.run(main())

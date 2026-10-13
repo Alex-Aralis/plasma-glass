@@ -56,8 +56,10 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
   `systemctl --user restart embedsearch` after editing.
 - **Terminal:** `embedsearch search "query"` searches from the command line, `embedsearch status`
   shows what's indexed, and `journalctl --user -fu embedsearch` shows indexing progress.
-- **Updates:** new and changed files are picked up every 15 minutes. Identical text is only embedded
-  once, and renamed copies show once in results.
+- **Updates:** new and changed files are picked up every 15 minutes, or right away with the "Index"
+  launcher (KRunner or the app menu), which ends with a notification saying what it indexed. While
+  it indexes, KRunner shows a progress bar. Identical text is only embedded once, and renamed copies
+  show once in results.
 - **Results:** KRunner always shows the top five. Similarity scores can't reliably separate nonsense
   from real queries, so there's no cutoff.
 
