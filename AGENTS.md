@@ -174,6 +174,15 @@ docs are in README.md; this file covers how to work on it.
   dropped: slowing waves near the rim (a kink where it starts; tails along the rims when it piled up),
   shading on light glass (a white smear, then heavy relief), glitter specks. Designed in a lab copy of
   KRunner (a `PlasmaCore.Window` with the same layout), recorded on the virtual display.
+  It's drawn in passes, because KRunner shares the iGPU with KWin: `busywaves.frag` works out the
+  waves' slope and height at half resolution (an RGBA16F ShaderEffectSource), `busyfoil.frag` draws the
+  foil's shards once into a repeating tile, and `busyripple.frag` draws the rest at full resolution.
+  All in one full-resolution shader it cost 1.85 ms of GPU per frame (a 744x640 window; the content
+  alone is 0.27 ms), and in a real session KWin then missed DP-4 refreshes (208 fps, later about 60);
+  in passes it's 0.55 ms. A process's GPU time is in `/proc/PID/fdinfo` (`drm-engine-render`, once
+  per `drm-client-id`; KWin's isn't readable as a user). Frame pacing is in a `WAYLAND_DEBUG=client`
+  log: the time from `wl_surface.frame` to its `wl_callback.done` is KWin's, from the done to the
+  next commit the client's.
 - **Without shaders (software rendering) the busy pulse is a gradient, not a mask.** The band of light
   that stands in for the ripple is the gradient of a rounded Rectangle over the glass (stops moved by a
   0..1 progress), so it keeps to the corners at every size. A MultiEffect mask (the style's frame SVG, then a rounded Rectangle) let it
