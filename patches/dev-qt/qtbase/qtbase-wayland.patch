@@ -1,0 +1,87 @@
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/platforms/wayland/plugins/hardwareintegration/wayland-egl/qwaylandglcontext.cpp b/src/plugins/platforms/wayland/plugins/hardwareintegration/wayland-egl/qwaylandglcontext.cpp
+--- a/src/plugins/platforms/wayland/plugins/hardwareintegration/wayland-egl/qwaylandglcontext.cpp
++++ b/src/plugins/platforms/wayland/plugins/hardwareintegration/wayland-egl/qwaylandglcontext.cpp
+@@ -493,6 +493,12 @@
+         glFlush(); // Flush before waiting so we can swap more quickly when the frame event arrives
+         window->waitForFrameSync(100);
+     }
++    // The size of the buffer eglSwapBuffers() attaches: the driver picks up wl_egl_window_resize()
++    // between frames, so this can lag the window's geometry.
++    EGLint width = 0, height = 0;
++    if (eglQuerySurface(eglDisplay(), eglSurface, EGL_WIDTH, &width)
++        && eglQuerySurface(eglDisplay(), eglSurface, EGL_HEIGHT, &height))
++        window->setViewportDestinationForBuffer(QSize(width, height));
+     window->handleUpdate();
+     if (!eglSwapBuffers(eglDisplay(), eglSurface))
+         qCWarning(lcQpaWayland, "eglSwapBuffers failed with %#x, surface: %p", eglGetError(), eglSurface);
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/platforms/wayland/qwaylandwindow.cpp b/src/plugins/platforms/wayland/qwaylandwindow.cpp
+--- a/src/plugins/platforms/wayland/qwaylandwindow.cpp
++++ b/src/plugins/platforms/wayland/qwaylandwindow.cpp
+@@ -468,7 +468,12 @@
+ void QWaylandWindow::setGeometry_helper(const QRect &rect)
+ {
+     QPlatformWindow::setGeometry(rect);
+-    if (mViewport)
++    // The viewport destination applies with the next commit, which may still carry the previous
++    // buffer (a frame rendered before the resize, or no new buffer at all); the compositor would
++    // show that buffer stretched to the new size. So it goes out with the buffer it belongs to
++    // (attach(), and QWaylandGLContext::swapBuffers() for EGL). Vulkan presents through the
++    // driver, so it still gets it here.
++    if (mViewport && windowType() == Vulkan)
+         updateViewport();
+ 
+     if (mSubSurfaceWindow) {
+@@ -565,6 +570,18 @@
+         mViewport->setDestination(surfaceSize());
+ }
+ 
++/*!
++ * Sets the viewport destination for a buffer of \a bufferSize device pixels that is about to be
++ * attached, so the surface takes its new size together with the content drawn for it.
++ * Can be called from the render thread.
++ */
++void QWaylandWindow::setViewportDestinationForBuffer(const QSize &bufferSize)
++{
++    QReadLocker locker(&mSurfaceLock);
++    if (mViewport && !bufferSize.isEmpty())
++        mViewport->setDestination((QSizeF(bufferSize) / scale()).toSize());
++}
++
+ void QWaylandWindow::setGeometryFromApplyConfigure(const QPoint &globalPosition, const QSize &sizeWithMargins)
+ {
+     QMargins margins = clientSideMargins();
+@@ -751,6 +768,7 @@
+         Q_ASSERT(!buffer->committed());
+         handleUpdate();
+         buffer->setBusy(true);
++        setViewportDestinationForBuffer(buffer->size());
+         if (mSurface->version() >= WL_SURFACE_OFFSET_SINCE_VERSION) {
+             mSurface->offset(x, y);
+             mSurface->attach(buffer->buffer(), 0, 0);
+@@ -1547,10 +1565,12 @@
+     mScale = newScale;
+ 
+     if (mSurface) {
+-        if (mViewport)
+-            updateViewport();
+-        else if (mSurface->version() >= 3)
++        if (mViewport) {
++            if (windowType() == Vulkan) // other windows send it with the next buffer
++                updateViewport();
++        } else if (mSurface->version() >= 3) {
+             mSurface->set_buffer_scale(std::ceil(newScale));
++        }
+     }
+     ensureSize();
+ 
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/platforms/wayland/qwaylandwindow_p.h b/src/plugins/platforms/wayland/qwaylandwindow_p.h
+--- a/src/plugins/platforms/wayland/qwaylandwindow_p.h
++++ b/src/plugins/platforms/wayland/qwaylandwindow_p.h
+@@ -113,6 +113,7 @@
+     void applyConfigureWhenPossible(); //rename to possible?
+ 
+     void attach(QWaylandBuffer *buffer, int x, int y);
++    void setViewportDestinationForBuffer(const QSize &bufferSize);
+     void attachOffset(QWaylandBuffer *buffer);
+     QPoint attachOffset() const;
+ 

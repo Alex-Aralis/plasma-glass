@@ -24,7 +24,7 @@ On a Gentoo box with Plasma 6 and an Intel iGPU, clone the repo and run both par
 ```sh
 git clone git@github.com:Alex-Aralis/plasma-glass.git && cd plasma-glass
 ./install.sh                # as your user: search service, KRunner plugin, style, settings
-sudo ./install-system.sh    # as root: Intel GPU runtime, Portage patches, rebuilds plasma-workspace + milou
+sudo ./install-system.sh    # as root: Intel GPU runtime, Portage patches, rebuilds plasma-workspace, milou, qtbase
 systemctl --user restart plasma-plasmashell.service embedsearch; kquitapp6 krunner
 ```
 
@@ -42,8 +42,9 @@ Python packages plus a 540 MB model).
 
 Override with `--runtime=legacy|current|skip`. A discrete NVIDIA GPU is fine: OpenVINO lists it
 as a GPU too (through NVIDIA's OpenCL driver), but the search service picks the Intel one, and falls
-back to the CPU if the GPU can't run the model. Rebuilding plasma-workspace is a long compile. Use `--no-rebuild` to only
-install the patches and let them land with your next update.
+back to the CPU if the GPU can't run the model. Rebuilding plasma-workspace and qtbase are long compiles
+(only packages whose patch is new or changed are rebuilt). Use `--no-rebuild` to only install the
+patches and let them land with your next update, or `--no-qt` to leave Qt alone.
 
 Both scripts are safe to re-run. `./install.sh --help` lists options for skipping parts.
 
@@ -70,8 +71,8 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 | `~/.local/share/krunner/dbusplugins/`, `~/.local/share/dbus-1/services/`, `~/.config/systemd/user/` | KRunner plugin and the service that runs it |
 | `~/.local/share/plasma/desktoptheme/liquid-glass/` | the Plasma Style (`generate.py` draws it) |
 | `krunnerrc`, `kdeglobals` | settings from [`desktop/plasma-settings.sh`](desktop/plasma-settings.sh) |
-| `~/.config/systemd/user/plasma-krunner.service.d/plasma-glass-software-render.conf` | only when KWin composites on an NVIDIA GPU: KRunner renders in software and Qt skips viewporter/fractional scaling (otherwise a resizing KRunner shows its old frame at the new size, so the results' unfold jumped and flickered) |
-| `/etc/portage/patches/kde-plasma/{plasma-workspace,milou}/` | the QML patches (root) |
+| `~/.config/systemd/user/plasma-krunner.service.d/plasma-glass-software-render.conf` | only when KWin composites on an NVIDIA GPU: KRunner renders in software (otherwise a resizing KRunner shows its old frame shifted for a frame, so the results' unfold jumps); without the Qt patch, Qt also skips viewporter/fractional scaling |
+| `/etc/portage/patches/kde-plasma/{plasma-workspace,milou}/`, `/etc/portage/patches/dev-qt/qtbase/` | the patches (root) |
 
 `plasma-settings.sh` sets a KDE restriction to hide KRunner's settings button. As a side effect,
 that also hides the KRunner page in System Settings. Delete `kcm_krunnersettings` from
@@ -101,9 +102,9 @@ tools/preview/krunner.sh /tmp/krunner.png "some query"
 
 ## Patches
 
-The patches were made against Plasma 6.7.5. Portage re-applies them whenever plasma-workspace or
-milou is rebuilt. If a future Plasma version changes the patched lines, that build stops at the
-patch step until the patch is refreshed.
+The patches were made against Plasma 6.7.5 and Qt 6.11.2. Portage re-applies them whenever
+plasma-workspace, milou or qtbase is rebuilt. If a future version changes the patched lines, that
+build stops at the patch step until the patch is refreshed.
 
 - `plasma-workspace-tweaks.patch`
   - KRunner: wider (40 grid units), 1.6x search text with a larger search icon, borderless search
@@ -122,10 +123,17 @@ patch step until the patch is refreshed.
     middle-click or swipe
 - `milou-section-headers.patch`: KRunner result categories become small headers above each group
   instead of a 10-grid-unit column beside every row; result text 1.2x
+- `qtbase-wayland.patch` (dev-qt/qtbase, every Qt app): Qt's Wayland client sends a window's new
+  viewport size (`wp_viewporter`, used with fractional scaling) together with the buffer drawn for it.
+  It sent it as soon as the window resized, so the compositor showed the previous frame stretched to
+  the new size for a frame (KRunner's text flickered while its results unfolded). Not fixed upstream
+  as of Qt's dev branch (2026-10)
 
 To change a patch, use `tools/patch-dev.sh`. `setup` unpacks clean and patched copies of the sources
 for your installed versions. Edit the files, then `refresh` writes the patch files, `check` validates
-them and `sudo tools/patch-dev.sh install` rebuilds. Before any rebuild, run `tools/check-patches.sh`
+them and `sudo tools/patch-dev.sh install` rebuilds what changed. `tools/patch-dev.sh qt` builds
+just Qt's Wayland client from the edited qtbase and prints the environment that runs an app on it.
+Before any rebuild, run `tools/check-patches.sh`
 (10-30 s). It applies the patches to the
 source of your installed versions and loads the patched QML under Qt, with stubs for KRunner's and
 the notification applet's internal modules. That catches errors which only show when KRunner or

@@ -1,7 +1,8 @@
 # plasma-glass: notes for development
 
 Liquid Glass Plasma Styles, semantic KRunner search (EmbeddingGemma 2 on the Intel iGPU via OpenVINO)
-and Portage patches for KRunner, notification popups and milou. Gentoo, Plasma 6.7.5, Wayland. User
+and Portage patches for KRunner, notification popups, milou and Qt's Wayland client. Gentoo, Plasma
+6.7.5, Qt 6.11.2, Wayland. User
 docs are in README.md; this file covers how to work on it.
 
 ## Layout
@@ -11,9 +12,9 @@ docs are in README.md; this file covers how to work on it.
 | `search/embedsearch.py` | search service: indexer, KRunner D-Bus runner (`local.embedsearch`), CLI. Installed copy: `~/.local/share/embedsearch/` (service `embedsearch.service`) |
 | `search/export_model.py` | one-time PyTorch to OpenVINO export with a parity check (run by install.sh in a throwaway venv) |
 | `theme/liquid-glass/generate.py` | draws both styles (`liquid-glass`, `liquid-glass-light`) into `~/.local/share/plasma/desktoptheme/` |
-| `patches/kde-plasma/{plasma-workspace,milou}/*.patch` | Portage user patches, one per package |
+| `patches/kde-plasma/{plasma-workspace,milou}/*.patch`, `patches/dev-qt/qtbase/*.patch` | Portage user patches, one per package |
 | `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc) |
-| `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install |
+| `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` and `qt` build test copies |
 | `tools/check-patches.sh` | patches apply; patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
 | `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh`, `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`); `fakeinput.c` for pointer input |
 | `desktop/test-notifications.sh` | sample popups (clickable, long and scrolling, image, critical); installed as `plasma-glass-test-notifications` with a "Test Notifications" launcher |
@@ -36,12 +37,25 @@ docs are in README.md; this file covers how to work on it.
   `QML_IMPORT_PATH=~/.cache/plasma-glass/dev/qml KRUNNER=$(tools/patch-dev.sh krunner) tools/preview/krunner.sh /tmp/k.png "q"`.
   `tools/preview/fakeinput.c` (built by `common.sh`) sends pointer input to the preview's KWin, and a
   KWin script can print `frameGeometry` of each window, so drags can be measured, not just eyeballed.
+- **Qt's Wayland client without an emerge:** `tools/patch-dev.sh setup qtbase`, edit under
+  `~/.cache/plasma-glass/dev/b/qtbase/src/plugins/platforms/wayland/`, then `tools/patch-dev.sh qt`
+  (about 2 min the first time, then seconds) builds libQt6WaylandClient, the wayland platform
+  plugin and its EGL plugin, and prints the environment that loads them into one app:
+  `KRUNNER_ENV="$(tools/patch-dev.sh qt) QT_QUICK_BACKEND=software" tools/preview/unfold.sh`. The
+  build is configured from the installed qtbase's USE flags like the ebuild, and the tool refuses
+  to stage it unless its generated feature headers match the installed ones (one mismatch,
+  AT-SPI on, gave `undefined symbol: QSpiAccessibleBridge` at startup). Only libQt6WaylandClient
+  and the plugins are swapped in, with the build tree's RUNPATH removed so the installed QtCore and
+  QtGui are used.
 - **Resize glitches:** `tools/preview/unfold.sh` captures ~150 fps while KRunner's results unfold
   and fold and prints `top edge misplaced in N` (old frame shifted) and `N distinct text layouts`
   (old frame stretched; 1 = clean). `KRUNNER=`, `KRUNNER_ENV=` and `KWIN_ENV=` pick the build and
-  environment. Baseline on the main box (KWin on NVIDIA): no workaround 29 and 14; with
-  `QT_QUICK_BACKEND=software QT_WAYLAND_DISABLED_INTERFACES=wp_viewporter,wp_fractional_scale_manager_v1`
-  0 and 1.
+  environment. The stretch comes and goes, so compare several runs. Main box (KWin on NVIDIA),
+  2026-10-12: GPU rendering on NVIDIA 22-29 misplaced, 14-16 layouts (the shifts count as layouts
+  too), with stock or patched Qt; software rendering with stock Qt 0 misplaced, 1-9 layouts
+  (stretched in 5 of 6 runs), with the Qt patch 1 layout in 10 of 10; Mesa GPU rendering
+  (`__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json`) 1-2 misplaced and
+  5 layouts with stock Qt, 1 layout with the patch.
 - **Search:** edit `search/embedsearch.py`, copy it to `~/.local/share/embedsearch/`, then
   `systemctl --user restart embedsearch`. Use `embedsearch search "q"` to test.
 
@@ -80,11 +94,12 @@ docs are in README.md; this file covers how to work on it.
   the new size before the new buffer, so on each step of the results' unfold KRunner's old frame
   showed at the new size (pushed down when growing, up and clipped when shrinking): jumps and
   ghosts. Not with KWin on the iGPU. With KRunner's software renderer (`QT_QUICK_BACKEND=software`,
-  CPU shm buffers) the frame was stretched instead (text flicker), in 3 of 4 runs: Qt sends the new
-  `wp_viewporter` destination before the buffer that matches it. Also setting
+  CPU shm buffers) the frame was stretched instead (text flicker), in 3 of 4 runs: Qt sent the new
+  `wp_viewporter` destination before the buffer that matches it (fixed by the Qt patch, below). Also setting
   `QT_WAYLAND_DISABLED_INTERFACES=wp_viewporter,wp_fractional_scale_manager_v1` made it clean in 6 of
   6 (fine at scale 1; fractional scales would render at the next whole scale). install.sh adds both
-  as a `plasma-krunner.service` drop-in when KWin's GL vendor is NVIDIA. Check animations by text
+  as a `plasma-krunner.service` drop-in when KWin's GL vendor is NVIDIA (just the first once the
+  patched Qt is installed). Check animations by text
   positions too, not just edges: a stretch keeps the top edge in place. Found by
   capturing frames from the preview KWin at ~150 fps: start it with
   `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1` and call `org.kde.KWin.ScreenShot2.CaptureActiveScreen`
@@ -109,8 +124,19 @@ docs are in README.md; this file covers how to work on it.
   spawned process unless `~/intel/openvino_telemetry` contains `0` (install.sh writes it).
 - **KRunner sends Teardown before Run** when a result is clicked (it ends the session as the
   window hides), so a D-Bus runner must keep its matches until the next session's Match.
-- **Shell:** `grep` may be ugrep (`$` mid-pattern differs). Never nest a here-doc whose body
-  contains its own delimiter.
+- **Qt sent the `wp_viewporter` destination as soon as a window resized** (`setGeometry_helper`),
+  but it only applies with a commit, and the next commit can still carry the old buffer (a frame
+  rendered before the resize) or none at all (an ack or a blur-region update), so the compositor
+  stretched the old frame to the new size. `qtbase-wayland.patch` sends it with each buffer instead:
+  from the buffer's size in `attach()` (shm), and in `QWaylandGLContext::swapBuffers` from
+  `eglQuerySurface(EGL_WIDTH/HEIGHT)` (the driver applies `wl_egl_window_resize` between frames, so
+  that size can lag the geometry; Mesa, egl-wayland and egl-wayland2 all report the back buffer's
+  size). Vulkan windows still send it on resize (the driver presents). Qt only creates a viewport
+  when the compositor has fractional scaling, which KWin does.
+- **Shell:** `grep` may be ugrep (`$` mid-pattern differs), and this session's `grep` wrapper
+  skips binary files (use `/bin/grep` on a .so). Never nest a here-doc whose body contains its own
+  delimiter. Claude Code's safety check refuses `rm -rf "$VAR/x"`, even inside a script being
+  written; write `"${VAR:?}/x"`.
 
 ## Machines
 
@@ -150,12 +176,12 @@ docs are in README.md; this file covers how to work on it.
   sessions (virtual KWin, private bus). Cause unknown; if it recurs, check whether
   `globalShortcutPressed` signals reach `/component/kwin` (dbus-monitor) before relogging.
 - **Root-cause fixes for the resize glitches (next up; the KRunner drop-in is a workaround):**
-  1. Qt (stretch): `QWaylandWindow::setGeometry_helper` calls `updateViewport()`, which sends the
-     `wp_viewporter` destination at once, while the buffer is attached later (`attach()`; for EGL,
-     inside the driver on the render thread). Send the destination with the buffer it belongs to.
-     qtbase 6.11.2, `src/plugins/platforms/wayland/qwaylandwindow.cpp`; check whether newer Qt
-     changed this. Test by building Qt's Wayland client parts only and running KRunner against them
-     in `unfold.sh`; deploy as a Portage patch to dev-qt/qtbase (every Qt app gets it).
+  1. Qt (stretch): fixed by `patches/dev-qt/qtbase/qtbase-wayland.patch` (see the rules above),
+     measured clean on the virtual display (software, Mesa GL, scale 1 and 1.25). Qt's dev branch
+     still sends the destination early (checked 2026-10-12); no upstream report found. Once the
+     patched qtbase is installed, install.sh drops the viewporter workaround from KRunner's drop-in
+     (it detects `setViewportDestinationForBuffer` in libQt6WaylandClient); software rendering stays
+     until item 2 is fixed.
   2. NVIDIA offset: not located. KWin holds commits until buffers are ready (`src/wayland/transaction.cpp`,
      syncobj and dmabuf fences), yet the old NVIDIA-rendered buffer shows at the new size; a
      Mesa-rendered client was nearly clean (1 in 29), so NVIDIA's egl-wayland in the client is as

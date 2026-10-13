@@ -38,8 +38,9 @@ kquitapp6 krunner >/dev/null 2>&1 || true
 
 cat <<'EOF'
 User part removed. To undo the system part (as root):
-    rm -r /etc/portage/patches/kde-plasma/plasma-workspace /etc/portage/patches/kde-plasma/milou
-    emerge --oneshot kde-plasma/milou kde-plasma/plasma-workspace
+    rm -r /etc/portage/patches/kde-plasma/plasma-workspace /etc/portage/patches/kde-plasma/milou \
+          /etc/portage/patches/dev-qt/qtbase/qtbase-wayland.patch
+    emerge --oneshot kde-plasma/milou kde-plasma/plasma-workspace dev-qt/qtbase
 and, if nothing else needs it, the GPU runtime:
     emerge --ask --depclean dev-libs/intel-compute-runtime virtual/opencl dev-libs/opencl-icd-loader
 EOF
