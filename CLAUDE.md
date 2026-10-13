@@ -190,7 +190,10 @@ docs are in README.md; this file covers how to work on it.
   8.9 chunks/s with 14 ms queries, so this box's local config.toml uses `device = "CPU"`. OpenVINO
   can't run the model on the 2080 Ti at all (no Intel-only conversion kernels there, even in f32); a
   CUDA backend (ONNX Runtime) was considered and left out. `MAKEOPTS="-j32 -l32"`; plasma-workspace
-  rebuilds in about 6 min.
+  rebuilds in about 6 min. GCC 16 segfaulted once (2026-10-12, an internal compiler error on a
+  generated qmltyperegistrations file that had compiled minutes before); the retry built fine.
+  Microcode is 0x137 (Intel's Raptor Lake instability fixes) and no machine checks were logged; if
+  random compiler crashes come back, suspect the CPU (13th/14th-gen Vmin degradation).
   Monitors: DP-4 (main, 2560x1440 @ 240 Hz) is on the NVIDIA card (`card1`); DP-1 and HDMI-A-1
   are on the iGPU. KWin composited on the NVIDIA card for part of 2026-10-12 and is back on the
   iGPU since then: the user chose to stay there and watch for bug 3 (`/etc/environment.d/20-kde-gpu.conf` and a
