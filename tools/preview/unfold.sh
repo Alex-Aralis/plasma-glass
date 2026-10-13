@@ -18,11 +18,16 @@ WALLPAPER="$WORK/flat.png" prepare
 kwriteconfig6 --file "$WORK/cfg/krunnerrc" --group General --key FloatingCenterX 0.5
 kwriteconfig6 --file "$WORK/cfg/krunnerrc" --group General --key FloatingTop 0.2
 rm -rf "$WORK/frames" && mkdir -p "$WORK/frames"
-export KRUNNER_ENV="${KRUNNER_ENV:-}" KWIN_ENV="${KWIN_ENV:-}" QUERY2="${QUERY2:-}" REFRESH="${REFRESH:-}"
-# KEYS="33 33 33 - 14": type these evdev key codes instead (- pauses 600 ms), 120 ms apart
+export KRUNNER_ENV="${KRUNNER_ENV:-}" KWIN_ENV="${KWIN_ENV:-}" QUERY2="${QUERY2:-}" REFRESH="${REFRESH:-}" SECONDS_CAPTURED="${SECONDS_CAPTURED:-2.6}"
+# KEYS="33 33 33 - 14": type these evdev key codes instead (- pauses 600 ms), 120 ms apart; 33:1500
+# holds the key for 1.5 s (KRunner repeats it). SECONDS_CAPTURED: how long to capture (default 2.6).
 if [ -n "${KEYS:-}" ]; then
     for k in $KEYS; do
-        if [ "$k" = - ]; then echo "wait 600"; else echo "key $k down"; echo "key $k up"; echo "wait 120"; fi
+        case "$k" in
+            -) echo "wait 600" ;;
+            *:*) echo "key ${k%:*} down"; echo "wait ${k#*:}"; echo "key ${k%:*} up"; echo "wait 120" ;;
+            *) echo "key $k down"; echo "key $k up"; echo "wait 120" ;;
+        esac
     done >"$WORK/type.in"
     export TYPE_INPUT="$WORK/type.in" FAKEINPUT
     FAKEINPUT=$(fakeinput)

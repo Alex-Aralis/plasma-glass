@@ -94,7 +94,7 @@ JS
         sleep 2
         qdbus6 org.kde.krunner /App org.kde.krunner.App.display
         sleep 1.5
-        "$TOOL_PYTHON" -I "$HERE/frames.py" grab "$WORK/frames" 2.6 >"$WORK/grab.log" 2>&1 &
+        "$TOOL_PYTHON" -I "$HERE/frames.py" grab "$WORK/frames" "${SECONDS_CAPTURED:-2.6}" >"$WORK/grab.log" 2>&1 &
         GRAB=$!
         if [ -n "${TYPE_INPUT:-}" ]; then  # typed instead: fakeinput commands (keys) from this file
             sleep 0.3; "$FAKEINPUT" <"$TYPE_INPUT"

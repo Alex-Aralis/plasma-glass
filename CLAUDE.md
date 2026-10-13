@@ -166,6 +166,21 @@ docs are in README.md; this file covers how to work on it.
   `from`/`to` from sizes: those are fixed when the animation starts (the first try started at width 0
   and slid from 0 to 0). The overlay stays visible until the band is off the glass, so a sweep under
   way when the search ends finishes (`alwaysRunToEnd` alone doesn't, `running` drops at once).
+- **An item that takes a press doesn't hide it from pointer handlers underneath.** Qt Quick goes on
+  delivering it to the handlers below (handlers only), and they keep passive grabs. KRunner's Meta+drag
+  was an overlay MouseArea at first: started over a result, milou's `DragHandler` took the result's
+  grab as soon as the window changed screens (hiding it ends the MouseArea's grab) and began a real
+  drag and drop of the result (`start_drag` in WAYLAND_DEBUG) while the window was being dragged. Now
+  `View::event` takes modifier presses and everything up to the release before Qt Quick sees them. That
+  has to be `event()`: QQuickWindow calls the `mouse*Event()` overrides first, but delivers anyway
+  unless the event came in unaccepted, and it never does.
+- **`Layout.maximumHeight` alone animates growing, not shrinking.** The layout takes the smaller of
+  an item's own height and its maximum, so when KRunner's results went from 15 rows to 1, the list's
+  height fell at once and the window snapped from 827 to 353 px in two frames while the animated
+  maximum was still high (seen after holding a key down, as the last query's results arrive). The
+  results area sets `Layout.preferredHeight` to the animated height too. `unfold.sh` with
+  `KEYS="33:1500" SECONDS_CAPTURED=5 BOTTOMS=1` holds F for 1.5 s and prints the bottom edge of every
+  frame.
 - **`Kirigami.Icon` rounds to standard sizes** (`roundToIconSize`): ask for 28 px and you get 22.
 - **QQuickWindow sees every press as accepted after delivery**, even on empty space. Handle input
   in QML, as the KRunner drag area does (a MouseArea under the content).
@@ -238,9 +253,9 @@ docs are in README.md; this file covers how to work on it.
 - **KRunner drag-to-move** was rewritten to follow relative pointer motion and measured on the
   virtual display (exact final position, one even step per frame, clamped at the screen edge). It
   works by hand (rim). The 12 px rim is the only empty spot (the query field spans the full width,
-  the results list takes presses), so Meta+drag (KWin's move modifier from kwinrc) works anywhere,
-  through an overlay MouseArea that refuses presses without the modifier. KWin passes Meta+click
-  to layer-shell windows. Measured on the virtual display; needs a real-hand test after the rebuild.
+  the results list takes presses), so Meta+drag (KWin's move modifier from kwinrc) works anywhere;
+  `View::event` takes those presses before Qt Quick (see the rules). KWin passes Meta+click to
+  layer-shell windows. Measured on the virtual display; needs a real-hand test after the rebuild.
   Dragging onto another monitor (2026-10-12): measured on two virtual screens (lands at the exact
   spot, keeps the query, results and keyboard) and confirmed by hand on the main box, including
   reopening on the screen it was last dragged to (`FloatingScreen`, the output name; the active

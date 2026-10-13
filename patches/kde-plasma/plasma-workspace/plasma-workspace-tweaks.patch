@@ -206,13 +206,14 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunne
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -21,6 +21,86 @@
+@@ -21,6 +21,70 @@
      id: root
  
      required property RunnerWindow runnerWindow
 +
 +    // Drag the floating window from any spot nothing else uses (the glass rim, headers, gaps). It sits
 +    // under this layout, across the whole window, and the window remembers where it was left.
++    // Modifier+drag anywhere is RunnerWindow's own (C++), so the content never sees that press.
 +    property Item dragArea: MouseArea {
 +        parent: root.parent
 +        anchors.fill: parent
@@ -220,23 +221,6 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        cursorShape: pressed ? Qt.ClosedHandCursor : Qt.ArrowCursor
 +        // the window follows the pointer itself (positions in it lag behind its moves)
 +        onPressed: mouse => root.runnerWindow.startFloatingDrag(mouse.x, mouse.y)
-+        onReleased: mouse => root.runnerWindow.endFloatingDrag(mouse.x, mouse.y)
-+        onCanceled: root.runnerWindow.endFloatingDrag(NaN, NaN)
-+    }
-+    // Modifier+drag anywhere moves the window, as KWin does for other windows (KWin can't move this
-+    // layer-shell window itself). Over the content, so it only takes presses with the modifier held.
-+    property Item modifierDragArea: MouseArea {
-+        parent: root.parent
-+        anchors.fill: parent
-+        z: 1000
-+        cursorShape: pressed ? Qt.SizeAllCursor : undefined // unset, so the content's cursors show
-+        onPressed: mouse => {
-+            if ((mouse.modifiers & root.runnerWindow.moveModifier) === 0) {
-+                mouse.accepted = false;
-+                return;
-+            }
-+            root.runnerWindow.startFloatingDrag(mouse.x, mouse.y);
-+        }
 +        onReleased: mouse => root.runnerWindow.endFloatingDrag(mouse.x, mouse.y)
 +        onCanceled: root.runnerWindow.endFloatingDrag(NaN, NaN)
 +    }
@@ -293,7 +277,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
      property string query
      property string singleRunner
      property bool showHistory: false
-@@ -62,6 +142,13 @@
+@@ -62,6 +126,13 @@
      Connections {
          target: root.runnerWindow
          function onVisibleChanged() {
@@ -307,7 +291,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              if (root.runnerWindow.visible) {
                  queryField.forceActiveFocus();
                  listView.currentIndex = -1
-@@ -74,6 +161,7 @@
+@@ -74,6 +145,7 @@
                      }
                  }
              } else {
@@ -315,7 +299,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
                  if (root.runnerWindow.retainPriorSearch) {
                      root.priorSearch = root.query
                  }
-@@ -131,14 +219,33 @@
+@@ -131,14 +203,33 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -352,7 +336,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              QQC2.Label {
                  id: fadedTextCompletion
-@@ -157,35 +264,26 @@
+@@ -157,35 +248,26 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -401,7 +385,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              }
  
              function focusCurrentListView() {
-@@ -301,6 +399,7 @@
+@@ -301,6 +383,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -409,7 +393,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -314,11 +413,30 @@
+@@ -314,11 +397,33 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -439,11 +423,14 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +            id: unfold
 +            NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
 +        }
++        // the height it's shown at, whichever way it goes (a maximum alone let it snap when the
++        // results shrank: the list's own height dropped at once)
++        Layout.preferredHeight: shownHeight
 +        Layout.maximumHeight: shownHeight
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -347,6 +465,9 @@
+@@ -347,6 +452,9 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -777,7 +764,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
          if (m_floating) {
              layerWindow->setScreen(shownOnScreen);
          } else {
-@@ -209,6 +322,169 @@
+@@ -209,6 +322,203 @@
      }
  }
  
@@ -903,9 +890,43 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
 +    finishFloatingDrag(x, y);
 +}
 +
++// The press of a modifier+drag never reaches Qt Quick, nor anything else until the drag ends: an item
++// that takes a press doesn't stop the pointer handlers under it from seeing it too, and a result's
++// DragHandler took over once the window changed screens (which ends the item's grab) and started a
++// drag and drop of that result.
++bool View::event(QEvent *event)
++{
++    // (QQuickWindow::event delivers pointer events to Qt Quick unless they come in unaccepted, which
++    // they don't, so overriding mousePressEvent() and the like can't keep them away)
++    const QEvent::Type type = event->type();
++    if (type == QEvent::MouseButtonPress || type == QEvent::MouseButtonRelease || type == QEvent::MouseButtonDblClick
++        || type == QEvent::MouseMove) {
++        auto mouse = static_cast<QMouseEvent *>(event);
++        if (m_modifierDrag && m_dragging) {
++            if (type == QEvent::MouseButtonRelease && mouse->button() == Qt::LeftButton) {
++                endFloatingDrag(mouse->position().x(), mouse->position().y());
++            }
++            return true;
++        }
++        if (type == QEvent::MouseButtonPress && mouse->button() == Qt::LeftButton && (mouse->modifiers() & moveModifier())
++            && m_floating && KWindowSystem::isPlatformWayland()) {
++            m_modifierDrag = true;
++            m_cursorBeforeDrag = cursor();
++            setCursor(Qt::SizeAllCursor);
++            startFloatingDrag(mouse->position().x(), mouse->position().y());
++            return true;
++        }
++    }
++    return PlasmaQuick::PlasmaWindow::event(event);
++}
++
 +void View::finishFloatingDrag(qreal x, qreal y)
 +{
 +    m_dragging = false;
++    if (m_modifierDrag) {
++        m_modifierDrag = false;
++        setCursor(m_cursorBeforeDrag);
++    }
 +    if (!m_dragFollowed) {
 +        if (!qIsFinite(x) || !qIsFinite(y) || QPointF(x, y) == m_dragPress) {
 +            return; // a click
@@ -950,15 +971,17 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 --- a/krunner/view.h
 +++ b/krunner/view.h
-@@ -12,6 +12,7 @@
+@@ -11,7 +11,9 @@
+ #include <KPluginMetaData>
  #include <KSharedConfig>
  #include <PlasmaActivities/Consumer>
++#include <QCursor>
  #include <QQuickView>
 +#include <memory>
  #include <qqmlregistration.h>
  
  #include <PlasmaQuick/PlasmaWindow>
-@@ -21,6 +22,9 @@
+@@ -21,6 +23,9 @@
  
  class X11WindowScreenRelativePositioner;
  class ViewPrivate;
@@ -968,7 +991,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  
  class View : public PlasmaQuick::PlasmaWindow
  {
-@@ -47,6 +51,21 @@
+@@ -47,6 +52,17 @@
  
      void positionOnScreen();
  
@@ -982,15 +1005,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 +    {
 +        return m_changingScreen;
 +    }
-+    // KWin's window-move modifier (kwinrc [MouseBindings] CommandAllKey: Meta or Alt), so modifier+drag
-+    // moves KRunner as it moves other windows
-+    Q_PROPERTY(int moveModifier READ moveModifier CONSTANT)
-+    int moveModifier() const;
 +
      bool freeFloating() const;
      void setFreeFloating(bool floating);
  
-@@ -82,6 +101,7 @@
+@@ -82,12 +98,16 @@
      }
  
  Q_SIGNALS:
@@ -998,7 +1017,16 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
      void pinnedChanged();
      void helpEnabledChanged();
      void activityChanged(const QString &activity);
-@@ -106,6 +126,27 @@
+ 
+ protected:
+     void showEvent(QShowEvent *event) override;
++    // Modifier+drag anywhere moves the window, as KWin does for other windows (KWin can't move this
++    // layer-shell window itself)
++    bool event(QEvent *event) override;
+ 
+ public Q_SLOTS:
+     void display();
+@@ -106,6 +126,31 @@
      void writeHistory();
      QPoint m_customPos;
      QMargins margins();
@@ -1008,6 +1036,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 +    void moveToScreen(QScreen *screen, QPointF topLeft);
 +    void finishFloatingDrag(qreal x, qreal y);
 +    void ensureRelativePointer();
++    // KWin's window-move modifier (kwinrc [MouseBindings] CommandAllKey: Meta or Alt)
++    int moveModifier() const;
 +    double m_floatTop = 1.0 / 3.0; // top edge, fraction of the screen height (krunnerrc FloatingTop)
 +    double m_floatCenterX = 0.5; // horizontal centre, fraction of the width (krunnerrc FloatingCenterX)
 +    QString m_floatScreen; // the screen it was last dragged on, if any (krunnerrc FloatingScreen)
@@ -1018,6 +1048,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 +    std::unique_ptr<ButtonWatcher> m_buttonWatcher;
 +    bool m_dragging = false;
 +    bool m_dragFollowed = false; // relative motion arrived during this drag
++    bool m_modifierDrag = false; // started by modifier+press, which Qt Quick never sees
++    QCursor m_cursorBeforeDrag;
 +    bool m_changingScreen = false;
 +    bool m_dragChangedScreen = false; // the press that started the drag was in the window on another screen
 +    QPointF m_dragStart; // window top-left when the drag started, in screen coordinates

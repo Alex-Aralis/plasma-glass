@@ -3,7 +3,8 @@
 #                                (the preview's KWin runs with KWIN_SCREENSHOT_NO_PERMISSION_CHECKS)
 #   frames.py track DIR          per frame, KRunner's top edge, the query text's top (relative to the
 #                                edge) and the first result lines; prints the changes and a summary.
-#                                Expects the light style on a flat wallpaper.
+#                                Expects the light style on a flat wallpaper. With BOTTOMS=1 it also
+#                                prints every change of the bottom edge (how the height animates).
 import asyncio
 import glob
 import json
@@ -71,7 +72,7 @@ def track(outdir):
         ms = int(os.path.basename(f)[5:10])
         state = (rim, query, tuple(lines[:4]))
         rows.append((ms, bottom, rim, tuple(lines[:4]), query))
-        if state != prev:
+        if state != prev or (os.environ.get("BOTTOMS") and bottom != (rows[-2][1] if len(rows) > 1 else None)):
             print(f"{ms:5d} ms  bottom {bottom:4d}  top edge {rim}  query at +{query}  first lines {list(lines[:4])}")
             prev = state
     tops = [r[2] for r in rows if r[2] is not None]
