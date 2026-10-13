@@ -114,8 +114,10 @@ build stops at the patch step until the patch is refreshed.
     modifier held (Meta unless changed in kwinrc), like other windows; the window follows the
     pointer's relative motion, so it stays under the pointer, onto other monitors too (it moves there
     with its query and results). The spot is saved as
-    `krunnerrc [General] FloatingTop` (top edge as a fraction of the screen height; stock is 1/3) and
-    `FloatingCenterX` (horizontal centre as a fraction of the width; stock is 0.5). No "Ctrl+F"
+    `krunnerrc [General] FloatingTop` (top edge as a fraction of the screen height; stock is 1/3),
+    `FloatingCenterX` (horizontal centre as a fraction of the width; stock is 0.5) and
+    `FloatingScreen` (the monitor it was dragged to, e.g. `DP-4`; it opens there while that monitor is
+    connected, otherwise on the active one like stock). No "Ctrl+F"
     tooltip on the search field
   - notification popups: more padding, wider gaps between icons and text, summary and body text
     about 1.2x larger, the app name on the glass (no header band), no settings or close buttons (the

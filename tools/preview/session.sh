@@ -74,6 +74,13 @@ JS
         qdbus6 org.kde.KWin "/Scripting/Script$id" org.kde.kwin.Script.run >/dev/null 2>&1
         "$FAKEINPUT" <"$DRAG_INPUT"
         sleep 1.5
+        if [ -n "${REOPEN:-}" ]; then  # close and open it again: does it come back where it was left?
+            qdbus6 org.kde.krunner /App org.kde.krunner.App.toggleDisplay
+            echo "active output at reopen: $(qdbus6 org.kde.KWin /KWin org.kde.KWin.activeOutputName)" >"$WORK/reopen.log"
+            sleep 1
+            qdbus6 org.kde.krunner /App org.kde.krunner.App.display
+            sleep 1.5
+        fi
         ;;
     unfold)
         # shellcheck disable=SC2086

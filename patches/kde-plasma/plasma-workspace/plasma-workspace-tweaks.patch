@@ -638,16 +638,17 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
          setVisible(false);
      }
  }
-@@ -145,6 +247,8 @@
+@@ -145,6 +247,9 @@
  
  void View::loadConfig()
  {
 +    m_floatTop = std::clamp(m_config.readEntry("FloatingTop", 1.0 / 3.0), 0.0, 0.9);
 +    m_floatCenterX = std::clamp(m_config.readEntry("FloatingCenterX", 0.5), 0.0, 1.0);
++    m_floatScreen = m_config.readEntry("FloatingScreen", QString());
      setFreeFloating(m_config.readEntry("FreeFloating", false));
      setRetainPriorSearch(m_config.readEntry("RetainPriorSearch", true));
      setPinned(m_stateData.readEntry("Pinned", false));
-@@ -157,6 +261,7 @@
+@@ -157,6 +262,7 @@
          KX11Extras::setOnAllDesktops(winId(), true);
      }
      QQuickWindow::showEvent(event);
@@ -655,7 +656,24 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      requestActivate();
      if (KWindowSystem::isPlatformX11()) {
          KX11Extras::forceActiveWindow(winId());
-@@ -187,11 +292,10 @@
+@@ -167,7 +273,15 @@
+ {
+     const auto screens = QGuiApplication::screens();
+     auto screenIt = screens.cend();
+-    if (KWindowSystem::isPlatformWayland() && m_floating) {
++    if (m_floating && !m_floatScreen.isEmpty()) {
++        // the screen it was last dragged to, while that one is connected
++        screenIt = std::ranges::find_if(screens, [this](QScreen *screen) {
++            return screen->name() == m_floatScreen;
++        });
++    }
++    if (screenIt != screens.cend()) {
++        // found above
++    } else if (KWindowSystem::isPlatformWayland() && m_floating) {
+         auto message = QDBusMessage::createMethodCall(u"org.kde.KWin"_s, u"/KWin"_s, u"org.kde.KWin"_s, u"activeOutputName"_s);
+         QDBusReply<QString> reply = QDBusConnection::sessionBus().call(message);
+         if (reply.isValid()) {
+@@ -187,11 +301,10 @@
  
      if (KWindowSystem::isPlatformWayland()) {
          auto layerWindow = LayerShellQt::Window::get(this);
@@ -668,7 +686,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
          if (m_floating) {
              layerWindow->setScreen(shownOnScreen);
          } else {
-@@ -209,6 +313,167 @@
+@@ -209,6 +322,169 @@
      }
  }
  
@@ -808,8 +826,10 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
 +    if (!isActive()) {
 +        requestActivate(); // the focus left with the window on the previous screen
 +    }
++    m_floatScreen = screen()->name();
 +    m_config.writeEntry("FloatingTop", m_floatTop);
 +    m_config.writeEntry("FloatingCenterX", m_floatCenterX);
++    m_config.writeEntry("FloatingScreen", m_floatScreen);
 +    m_config.sync();
 +}
 +
@@ -887,7 +907,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
      void pinnedChanged();
      void helpEnabledChanged();
      void activityChanged(const QString &activity);
-@@ -106,6 +126,26 @@
+@@ -106,6 +126,27 @@
      void writeHistory();
      QPoint m_customPos;
      QMargins margins();
@@ -899,6 +919,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 +    void ensureRelativePointer();
 +    double m_floatTop = 1.0 / 3.0; // top edge, fraction of the screen height (krunnerrc FloatingTop)
 +    double m_floatCenterX = 0.5; // horizontal centre, fraction of the width (krunnerrc FloatingCenterX)
++    QString m_floatScreen; // the screen it was last dragged on, if any (krunnerrc FloatingScreen)
 +    // Wayland clients only see pointer positions relative to their own window, which lag behind the
 +    // moves they request, so the drag follows relative pointer motion instead.
 +    std::unique_ptr<RelativePointerManager> m_relativePointerManager;

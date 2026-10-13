@@ -217,8 +217,9 @@ docs are in README.md; this file covers how to work on it.
   through an overlay MouseArea that refuses presses without the modifier. KWin passes Meta+click
   to layer-shell windows. Measured on the virtual display; needs a real-hand test after the rebuild.
   Dragging onto another monitor (2026-10-12): measured on two virtual screens (lands at the exact
-  spot, keeps the query, results and keyboard); needs a real-hand test after the rebuild. KRunner
-  still opens on the active screen next time (only the position fractions are saved).
+  spot, keeps the query, results and keyboard); needs a real-hand test after the rebuild. It reopens
+  on the screen it was last dragged to (`FloatingScreen`, the output name) while that's connected,
+  else on the active one (`drag.sh` with `REOPEN=1` checks this).
 - **KWin's window shortcuts died during preview work (main box, 2026-10-12):** Alt+F4, Meta+Q and
   Meta+arrows did nothing, while Alt+Tab and KRunner's Meta+Space still worked. kglobalaccel still
   mapped the keys to the right KWin actions, owned its bus name since boot and had no conflicts; a
