@@ -159,9 +159,24 @@ docs are in README.md; this file covers how to work on it.
   keeps the top edge in place. Found by capturing frames from the preview KWin at ~150 fps: start it
   with `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1` and call `org.kde.KWin.ScreenShot2.CaptureActiveScreen`
   in a loop (dbus-fast: the `h` argument is the index into `unix_fds`; raw BGRA, format 6).
-- **KRunner's busy pulse is a gradient, not a mask.** The band of light that replaces the spinner is the
-  gradient of a rounded Rectangle over the glass (stops moved by a 0..1 progress), so it keeps to the
-  corners at every size. A MultiEffect mask (the style's frame SVG, then a rounded Rectangle) let it
+- **KRunner's busy feedback is a ripple shader** (`krunner/qml/busyripple.frag`, `busyRipple` in
+  RunCommand.qml, built into the QML module by `qt6_add_shaders`). While busy, every 1.2 s, knocks on
+  the left rim beside the query (and near the bottom while results show) each send one wave across the
+  glass. A knock flexes its side (most at the knock, none at the corners; a 1 px stretch moves at once,
+  then the flex slows to the waves' speed over 30 px, so the front is rounded, not a cone); waves fade
+  with time and as they head into a rim. Liquid Glass: light comes in at the rim (generate.py RIM) and
+  lets out where a slope faces an edge, and the content refracts: the ShaderEffect draws it from a
+  ShaderEffectSource of the layout, hidden while the ripple runs (the dividers aren't in it, so they
+  don't bend). Liquid Glass Light: a flat foil sheen of fixed-colour shards, no refraction (colours that
+  moved with the wave's tilt flickered). `KRUNNER_BUSY_DEMO=1` keeps it running, to look at it (also in
+  `tools/preview/krunner.sh`). dFdx/dFdy are undefined after a per-pixel early exit, so a wave's
+  direction is computed, not differentiated (the unit vector from where it left the side). Tried and
+  dropped: slowing waves near the rim (a kink where it starts; tails along the rims when it piled up),
+  shading on light glass (a white smear, then heavy relief), glitter specks. Designed in a lab copy of
+  KRunner (a `PlasmaCore.Window` with the same layout), recorded on the virtual display.
+- **Without shaders (software rendering) the busy pulse is a gradient, not a mask.** The band of light
+  that stands in for the ripple is the gradient of a rounded Rectangle over the glass (stops moved by a
+  0..1 progress), so it keeps to the corners at every size. A MultiEffect mask (the style's frame SVG, then a rounded Rectangle) let it
   show past the corners while the results folded away. Animate a 0..1 property, not `x` with
   `from`/`to` from sizes: those are fixed when the animation starts (the first try started at width 0
   and slid from 0 to 0). The overlay stays visible until the band is off the glass, so a sweep under

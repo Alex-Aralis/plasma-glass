@@ -65,6 +65,7 @@ QtObject {
     property bool changingScreen: false
     property real bottomPadding: 12
     property real indexingProgress: -1
+    property bool busyDemo: false
     signal activityChanged(string activity)
     signal showHistoryChanged()
     function startFloatingDrag(x, y) {}
