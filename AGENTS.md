@@ -183,13 +183,14 @@ docs are in README.md; this file covers how to work on it.
   per `drm-client-id`; KWin's isn't readable as a user). Frame pacing is in a `WAYLAND_DEBUG=client`
   log: the time from `wl_surface.frame` to its `wl_callback.done` is KWin's, from the done to the
   next commit the client's.
-- **Without shaders (software rendering) the busy pulse is a gradient, not a mask.** The band of light
-  that stands in for the ripple is the gradient of a rounded Rectangle over the glass (stops moved by a
-  0..1 progress), so it keeps to the corners at every size. A MultiEffect mask (the style's frame SVG, then a rounded Rectangle) let it
-  show past the corners while the results folded away. Animate a 0..1 property, not `x` with
-  `from`/`to` from sizes: those are fixed when the animation starts (the first try started at width 0
-  and slid from 0 to 0). The overlay stays visible until the band is off the glass, so a sweep under
-  way when the search ends finishes (`alwaysRunToEnd` alone doesn't, `running` drops at once).
+- **Without shaders (software rendering) the busy pulse is a gradient, not a mask.** The band of
+  light that stands in for the ripple is the gradient of a rounded Rectangle over the glass (stops
+  moved by a 0..1 progress), so it keeps to the corners at every size. A MultiEffect mask (the
+  style's frame SVG, then a rounded Rectangle) let it show past the corners while the results folded
+  away. Animate a 0..1 property, not `x` with `from`/`to` from sizes: those are fixed when the
+  animation starts (the first try started at width 0 and slid from 0 to 0). The overlay stays
+  visible until the band is off the glass, so a sweep under way when the search ends finishes
+  (`alwaysRunToEnd` alone doesn't, `running` drops at once).
 - **An item that takes a press doesn't hide it from pointer handlers underneath.** Qt Quick goes on
   delivering it to the handlers below (handlers only), and they keep passive grabs. KRunner's Meta+drag
   was an overlay MouseArea at first: started over a result, milou's `DragHandler` took the result's
@@ -287,21 +288,26 @@ docs are in README.md; this file covers how to work on it.
   Microcode is 0x137 (Intel's Raptor Lake instability fixes) and no machine checks were logged; if
   random compiler crashes come back, suspect the CPU (13th/14th-gen Vmin degradation).
   Monitors: DP-4 (main, 2560x1440 @ 240 Hz) is on the NVIDIA card (`card1`); DP-1 and HDMI-A-1
-  are on the iGPU. KWin composited on the NVIDIA card for part of 2026-10-12 and is back on the
-  iGPU since then: the user chose to stay there and watch for bug 3 (`/etc/environment.d/20-kde-gpu.conf` and a
-  `plasma-kwin_wayland.service` drop-in, `gpu.conf`, both `KWIN_DRM_DEVICES=/dev/dri/card0:/dev/dri/card1`). Changing that file needs a reboot: the systemd user manager reads environment.d
-  only when it starts and outlives a relog while anything keeps the session open (tmux, the root
-  terminal), and even `systemctl --user set-environment` was undone at the next login (the session
-  bus, up since boot, still had the old value and Plasma's startup pushes it back). Without a
-  reboot, set it on KWin's unit instead: a drop-in in
+  are on the iGPU. KWin composites on the NVIDIA card since 2026-10-13 (the
+  `plasma-kwin_wayland.service` drop-in `gpu.conf` and `/etc/environment.d/20-kde-gpu.conf`, both
+  `KWIN_DRM_DEVICES=/dev/dri/card1:/dev/dri/card0`). On the iGPU (2026-10-12 to 10-13, to watch for
+  bug 3), KWin copied every DP-4 frame across to the NVIDIA card and showed a frame late for one in
+  five at 240 Hz, while DP-1 ran at its full 165. On NVIDIA, KRunner's busy ripple (KRunner renders
+  there too) ran at 228 fps on DP-4 with one frame in ten late, all KWin's (its frame callbacks;
+  KRunner answered each in 0.06 ms), and at the full 165 on DP-1. Changing environment.d needs a
+  reboot: the systemd user manager reads it only when it starts and outlives a relog while anything
+  keeps the session open (tmux, the root terminal), and even `systemctl --user set-environment` was
+  undone at the next login (the session bus, up since boot, still had the old value and Plasma's
+  startup pushes it back). Without a reboot, set it on KWin's unit instead: a drop-in in
   `~/.config/systemd/user/plasma-kwin_wayland.service.d/` with `Environment=KWIN_DRM_DEVICES=...`,
   then `systemctl --user daemon-reload` and relog; check with the GL vendor in
-  `qdbus6 org.kde.KWin /KWin supportInformation`. With KWin on the iGPU, its blur darkened what's behind a window on DP-4 as if
-  gamma were applied twice (a 190 background blurred to about 138): darker glass and a dark fringe
-  on the corner arcs (whole-pixel blur region under anti-aliased edges). It was gone with blur
-  unloaded, on the iGPU monitors, and everywhere once KWin composited on NVIDIA, so it only hits
-  iGPU-rendered frames shown on the NVIDIA card. The preview can't reproduce it (one GPU). Both Qt
-  patches are installed here (2026-10-12), so KRunner renders on the GPU with no drop-in.
+  `qdbus6 org.kde.KWin /KWin supportInformation`. With KWin on the iGPU, its blur darkened what's
+  behind a window on DP-4 as if gamma were applied twice (a 190 background blurred to about 138):
+  darker glass and a dark fringe on the corner arcs (whole-pixel blur region under anti-aliased
+  edges). It was gone with blur unloaded, on the iGPU monitors, and everywhere once KWin composited
+  on NVIDIA, so it only hits iGPU-rendered frames shown on the NVIDIA card. The preview can't
+  reproduce it (one GPU). Both Qt patches are installed here (2026-10-12), so KRunner renders on the
+  GPU with no drop-in.
 
 ## Open items
 
@@ -342,6 +348,7 @@ docs are in README.md; this file covers how to work on it.
      event (DPMS, hotplug), or it depended on something changed since (the style's corner glow was
      redrawn during that investigation). Screenshots are re-rendered by KWin, so a darkening in the
      copy to the NVIDIA card would only show to the eye. A KWin bug report draft was written for the
-     user earlier (not filed; kept outside the repo); don't file it unless this comes back.
+     user earlier (not filed; kept outside the repo); don't file it unless this comes back. KWin
+     composites on the NVIDIA card again since 2026-10-13, so this watch has ended.
 - **Remember password:** the laptop's ksshaskpass passphrase wasn't saved to KWallet yet (tick it
   at login).
