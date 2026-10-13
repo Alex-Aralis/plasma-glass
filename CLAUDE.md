@@ -172,8 +172,8 @@ docs are in README.md; this file covers how to work on it.
   gamma were applied twice (a 190 background blurred to about 138): darker glass and a dark fringe
   on the corner arcs (whole-pixel blur region under anti-aliased edges). It was gone with blur
   unloaded, on the iGPU monitors, and everywhere once KWin composited on NVIDIA, so it only hits
-  iGPU-rendered frames shown on the NVIDIA card. The preview can't reproduce it (one GPU). With KWin
-  on NVIDIA, KRunner renders in software until the Qt patches are installed (see the rules above).
+  iGPU-rendered frames shown on the NVIDIA card. The preview can't reproduce it (one GPU). Both Qt
+  patches are installed here (2026-10-12), so KRunner renders on the GPU with no drop-in.
 
 ## Open items
 
@@ -196,8 +196,9 @@ docs are in README.md; this file covers how to work on it.
      patched qtbase is installed (emerged 2026-10-12), install.sh drops the viewporter part of
      KRunner's drop-in.
   2. NVIDIA offset: Qt Quick, not KWin; fixed by `patches/dev-qt/qtdeclarative/qtdeclarative-quick.patch`
-     (see the rules above), measured clean on the virtual display. With both Qt patches installed,
-     install.sh removes KRunner's drop-in (GPU rendering again). Upstream qtdeclarative still takes
+     (see the rules above), measured clean on the virtual display. Installed 2026-10-12 (qtdeclarative
+     emerge about 10 min); install.sh then removed KRunner's drop-in, and the installed Qt measured
+     0 misplaced and 1 layout in 3 of 3 with GPU rendering. Upstream qtdeclarative still takes
      the size before polishing (6.11.2; check dev before reporting). The KWin bug report draft for
      this was wrong (KWin showed what it got); the user was told not to file it.
   3. Cross-GPU blur darkening: needs the real monitors; skip while KWin composites on NVIDIA. A KWin
