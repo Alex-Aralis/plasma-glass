@@ -6,9 +6,10 @@
 #
 # 1. Intel GPU compute runtime (OpenCL/Level Zero) so OpenVINO can run the search model on the iGPU.
 # 2. Portage user patches for kde-plasma/plasma-workspace (KRunner + notification popups),
-#    kde-plasma/milou (KRunner result rows) and dev-qt/qtbase (a Qt Wayland fix: a resizing window no
-#    longer shows its old frame stretched to the new size), then rebuilds the packages whose patch is
-#    new or changed. Portage re-applies the patches on every future update of those packages.
+#    kde-plasma/milou (KRunner result rows), dev-qt/qtbase and dev-qt/qtdeclarative (Qt fixes: a
+#    resizing window no longer shows its old frame stretched to the new size, or, with NVIDIA, shifted),
+#    then rebuilds the packages whose patch is new or changed. Portage re-applies the patches on every
+#    future update of those packages.
 set -eu
 
 REPO=$(cd "$(dirname "$0")" && pwd)
@@ -29,7 +30,7 @@ usage: sudo ./install-system.sh [options]
   --no-rebuild
         install the Portage patches but don't rebuild the patched packages now
   --no-qt
-        leave dev-qt/qtbase alone (no Qt patch, no Qt rebuild)
+        leave Qt alone (no qtbase/qtdeclarative patches, no Qt rebuilds)
   --skip-checks
         don't run tools/check-patches.sh (patches apply, QML loads, C++ compiles) first
 EOF
@@ -88,7 +89,7 @@ if [ "$CHECKS" = 1 ]; then
 fi
 say "Installing Portage user patches"
 pkgs="kde-plasma/plasma-workspace kde-plasma/milou"
-if [ "$QT" = 1 ]; then pkgs="$pkgs dev-qt/qtbase"; fi
+if [ "$QT" = 1 ]; then pkgs="$pkgs dev-qt/qtbase dev-qt/qtdeclarative"; fi
 rebuild=""
 for atom in $pkgs; do
     dest=/etc/portage/patches/$atom
@@ -104,7 +105,7 @@ for atom in $pkgs; do
     echo "  $dest: $(cd "$dest" && ls)"
 done
 for atom in $pkgs; do
-    case "$atom" in dev-qt/qtbase) want=6.11.2 ;; *) want=6.7.5 ;; esac
+    case "$atom" in dev-qt/*) want=6.11.2 ;; *) want=6.7.5 ;; esac
     have=$(portageq best_version / "$atom" 2>/dev/null || true)
     case "$have" in
         *-"$want"*) ;;
@@ -114,7 +115,7 @@ for atom in $pkgs; do
 done
 
 if [ "$REBUILD" = 1 ] && [ -n "$rebuild" ]; then
-    say "Rebuilding$rebuild (plasma-workspace and qtbase are long compiles)"
+    say "Rebuilding$rebuild (plasma-workspace, qtbase and qtdeclarative take a while)"
     # shellcheck disable=SC2086
     emerge --oneshot --verbose $rebuild
 elif [ "$REBUILD" = 1 ]; then
@@ -129,7 +130,7 @@ Done. As your normal user:
   - restart Plasma's shell and KRunner to load the patched builds (after a Qt rebuild, log out and
     back in instead, so every running Qt app picks it up):
         systemctl --user restart plasma-plasmashell.service; kquitapp6 krunner
-  - re-run ./install.sh --no-search --no-style, which fits KRunner's NVIDIA workaround to the new Qt
+  - re-run ./install.sh --no-search --no-style, which drops KRunner's NVIDIA workaround once Qt is patched
   - restart the search service so it picks up the GPU:
         systemctl --user restart embedsearch
 EOF

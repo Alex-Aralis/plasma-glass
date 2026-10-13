@@ -49,6 +49,13 @@ command -v kwriteconfig6 >/dev/null || die "kwriteconfig6 not found: this needs 
 "$PYTHON" -c 'import sys; sys.exit(sys.version_info < (3, 11))' 2>/dev/null \
     || die "need Python 3.11+ (set PYTHON=/path/to/python3 to pick one)"
 
+# patched CATEGORY/PKG PATCH: install-system.sh's Portage patch is in place and the package was rebuilt since
+patched() {
+    p=/etc/portage/patches/$1/$2
+    built=$(cat /var/db/pkg/"$1"-[0-9]*/BUILD_TIME 2>/dev/null | head -1)
+    [ -f "$p" ] && [ "$(stat -c %Y "$p")" -le "${built:-0}" ]
+}
+
 fill() {  # fill TEMPLATE DEST: substitute @APP_DIR@
     mkdir -p "$(dirname "$2")"
     sed "s|@APP_DIR@|$APP_DIR|g" "$1" > "$2"
@@ -117,21 +124,24 @@ fi
 if [ "$DO_SETTINGS" = 1 ]; then
     say "KRunner / Plasma settings"
     sh "$REPO/desktop/plasma-settings.sh"
-    # When KWin composites on an NVIDIA GPU, a resizing KRunner showed its old frame at the new size
-    # for a frame on each step of the results' unfold: shifted with GPU buffers (cause not found yet),
-    # stretched with CPU ones (Qt sent the new viewport size before the buffer that matches it). So
-    # KRunner renders in software there. With install-system.sh's Qt patch, Qt sends the viewport size
-    # with its buffer; without it, Qt must also ignore viewporter/fractional scaling (fractional output
-    # scales then render KRunner at the next whole scale and downscale it).
+    # When KWin composites on an NVIDIA GPU, Qt renders Qt Quick on the GUI thread (its threaded loop
+    # froze on resize there, QTBUG-95817), and that loop drew the first frame after each resize at the
+    # old size into the new-size buffer: on each step of KRunner's unfold its old frame showed shifted.
+    # CPU (software) rendering avoids that but stretched the old frame instead, since Qt sent the new
+    # viewport size before the matching buffer. install-system.sh's qtdeclarative and qtbase patches
+    # fix both; until they're installed, KRunner renders in software and, without the qtbase one, Qt
+    # ignores viewporter/fractional scaling (fractional output scales then render KRunner at the next
+    # whole scale and downscale it).
     dropin="$CONF/systemd/user/plasma-krunner.service.d/plasma-glass-software-render.conf"
-    if qdbus6 org.kde.KWin /KWin org.kde.KWin.supportInformation 2>/dev/null | grep -q '^OpenGL vendor string: NVIDIA'; then
+    if qdbus6 org.kde.KWin /KWin org.kde.KWin.supportInformation 2>/dev/null | grep -q '^OpenGL vendor string: NVIDIA' \
+            && ! { patched dev-qt/qtbase qtbase-wayland.patch && patched dev-qt/qtdeclarative qtdeclarative-quick.patch; }; then
         mkdir -p "$(dirname "$dropin")"
-        if grep -qs setViewportDestinationForBuffer /usr/lib64/libQt6WaylandClient.so.6 /usr/lib/libQt6WaylandClient.so.6; then
+        if patched dev-qt/qtbase qtbase-wayland.patch; then
             printf '[Service]\nEnvironment=QT_QUICK_BACKEND=software\n' > "$dropin"
         else
             printf '[Service]\nEnvironment=QT_QUICK_BACKEND=software\nEnvironment=QT_WAYLAND_DISABLED_INTERFACES=wp_viewporter,wp_fractional_scale_manager_v1\n' > "$dropin"
         fi
-        echo "KWin composites on NVIDIA: KRunner uses software rendering ($dropin)"
+        echo "KWin composites on NVIDIA and Qt isn't patched yet: KRunner uses software rendering ($dropin)"
     else
         rm -f "$dropin"
     fi

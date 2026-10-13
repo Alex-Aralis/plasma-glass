@@ -3,9 +3,9 @@
 #   1. each patch applies to the source of the installed package version
 #   2. the patched QML loads under Qt, with stubs for modules that only exist inside krunner or
 #      plasmashell (this catches errors that only show at runtime, like assigning to a grouped property)
-#   3. patched KRunner and Qt Wayland C++ passes a compiler syntax check
+#   3. patched KRunner and Qt C++ passes a compiler syntax check
 # Needs the source tarballs in Portage's DISTDIR (kept after a build; otherwise
-# `emerge --fetchonly kde-plasma/plasma-workspace kde-plasma/milou dev-qt/qtbase`). Exit status 1 on any failure.
+# `emerge --fetchonly kde-plasma/plasma-workspace kde-plasma/milou dev-qt/qtbase dev-qt/qtdeclarative`). Exit status 1 on any failure.
 set -eu
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 WORK=$(mktemp -d)
@@ -24,13 +24,13 @@ prepare() {
     patches=$(ls "$REPO/patches/$cat/$pkg/"*.patch 2>/dev/null) || return 0
     ver=$(portageq best_version / "$cat/$pkg" 2>/dev/null | sed -E "s|^$cat/$pkg-||; s|-r[0-9]+$||")
     [ -n "$ver" ] || { bad "$pkg is not installed"; return 0; }
-    case "$pkg" in qtbase) top=qtbase-everywhere-src-$ver ;; *) top=$pkg-$ver ;; esac
+    case "$cat" in dev-qt) top=$pkg-everywhere-src-$ver ;; *) top=$pkg-$ver ;; esac
     tarball="$DISTDIR/$top.tar.xz"
     [ -f "$tarball" ] || { bad "$top source not in $DISTDIR (emerge --fetchonly $cat/$pkg)"; return 0; }
     # whole directories around the patched files, since QML resolves sibling files and C++ includes them
     dirs=$(cat $patches | sed -n 's|^+++ b/||p' | awk -F/ '{
         if ($1 == "applets" && NF > 2) print $1 "/" $2
-        else if ($1 == "src" && NF > 4) print $1 "/" $2 "/" $3 "/" $4
+        else if ($1 == "src") { n = (NF - 1 < 4) ? NF - 1 : 4; d = $1; for (i = 2; i <= n; i++) d = d "/" $i; print d }
         else print $1 }' | sort -u)
     # one pass over the tarball (xz has to be decompressed in full each time)
     # shellcheck disable=SC2046
@@ -136,9 +136,9 @@ echo "Patches"
 prepare kde-plasma/plasma-workspace
 prepare kde-plasma/milou
 prepare dev-qt/qtbase
+prepare dev-qt/qtdeclarative
 PW=$(cat "$WORK/plasma-workspace.dir" 2>/dev/null || true)
 MI=$(cat "$WORK/milou.dir" 2>/dev/null || true)
-QB=$(cat "$WORK/qtbase.dir" 2>/dev/null || true)
 
 echo "QML"
 if [ -n "$PW" ]; then
@@ -177,29 +177,40 @@ if [ -n "$PW" ] && [ -f "$PW/krunner/view.cpp" ]; then
     fi
 fi
 
-if [ -n "$QB" ]; then
-    wl="$QB/src/plugins/platforms/wayland"
-    qv=$(portageq best_version / dev-qt/qtbase | sed -E 's|^dev-qt/qtbase-||; s|-r[0-9]+$||')
+# qt_check PKG MODULE "QT MODULES" "PKG-CONFIG NAMES" DEFINE: syntax-check the .cpp files PKG's patch
+# changes, against the installed Qt's headers. The extracted (patched) private headers of MODULE shadow
+# the installed ones, which sources include as <MODULE/private/...>; moc output is stubbed.
+qt_check() {
+    src=$(cat "$WORK/$1.dir" 2>/dev/null) || return 0
+    qv=$(portageq best_version / "dev-qt/$1" | sed -E "s|^dev-qt/$1-||; s|-r[0-9]+$||")
     inc=$(qtpaths6 --query QT_INSTALL_HEADERS 2>/dev/null || echo /usr/include/qt6)
-    # the patched private headers shadow the installed ones, which the sources include as
-    # <QtWaylandClient/private/...>; moc output is stubbed
-    mkdir -p "$WORK/qtinc/QtWaylandClient/private"
-    for h in $(find "$wl" -name '*_p.h'); do ln -sf "$h" "$WORK/qtinc/QtWaylandClient/private/"; done
-    flags="-I$WORK/qtinc -I$WORK/qtinc/QtWaylandClient/private"
-    flags="$flags -I$inc/QtWaylandClient/$qv/QtWaylandClient/private"  # generated protocol headers
-    for m in QtCore QtGui QtOpenGL QtWaylandClient QtWaylandGlobal; do flags="$flags -I$inc/$m/$qv -I$inc/$m/$qv/$m"; done
-    flags="$flags $(pkg-config --cflags Qt6WaylandClient Qt6OpenGL wayland-client wayland-egl egl 2>/dev/null)"
-    for f in $(sed -n 's|^+++ b/src/plugins/platforms/wayland/\(.*\.cpp\)$|\1|p' "$REPO"/patches/dev-qt/qtbase/*.patch); do
-        for m in $(sed -n 's/^#include "\(moc_[^"]*\|[^"]*\.moc\)"$/\1/p' "$wl/$f"); do : > "$WORK/qtinc/$m"; done
+    sh="$WORK/qtinc-$1"
+    mkdir -p "$sh/$2/private"
+    for h in $(find "$src" -name '*_p.h'); do ln -sf "$h" "$sh/$2/private/"; done
+    # the private dirs themselves too: generated protocol headers and siblings are included as "x_p.h"
+    flags="-I$sh -I$sh/$2/private -I$inc/$2/$qv/$2/private"
+    for m in $3; do flags="$flags -I$inc/$m/$qv -I$inc/$m/$qv/$m"; done
+    # shellcheck disable=SC2086
+    flags="$flags $(pkg-config --cflags $4 2>/dev/null) -D$5"
+    for f in $(sed -n 's|^+++ b/\(.*\.cpp\)$|\1|p' "$REPO"/patches/dev-qt/"$1"/*.patch); do
+        for m in $(sed -n 's/^#include "\(moc_[^"]*\|[^"]*\.moc\)"$/\1/p' "$src/$f"); do : > "$sh/$m"; done
+        # tracepoint headers are generated too; with tracing off they only include qtrace_p.h
+        for t in $(sed -n 's/^#include <\([a-z]*_tracepoints_p\.h\)>$/\1/p' "$src/$f"); do
+            echo '#include <private/qtrace_p.h>' > "$sh/$t"
+        done
         # shellcheck disable=SC2086
-        if (cd "$(dirname "$wl/$f")" && g++ -std=c++20 -fsyntax-only -fPIC -I. $flags -DQT_BUILD_WAYLANDCLIENT_LIB \
-                "$(basename "$f")") >"$WORK/cxx.log" 2>&1; then
+        if (cd "$(dirname "$src/$f")" && g++ -std=c++20 -fsyntax-only -fPIC -I. $flags "$(basename "$f")") \
+                >"$WORK/cxx.log" 2>&1; then
             ok "Qt $(basename "$f") compiles (syntax check)"
         else
             bad "Qt $(basename "$f"): $(grep -m3 'error' "$WORK/cxx.log" | tr '\n' ' ')"
         fi
     done
-fi
+}
+qt_check qtbase QtWaylandClient "QtCore QtGui QtOpenGL QtWaylandClient QtWaylandGlobal" \
+    "Qt6WaylandClient Qt6OpenGL wayland-client wayland-egl egl" QT_BUILD_WAYLANDCLIENT_LIB
+qt_check qtdeclarative QtQuick "QtCore QtGui QtOpenGL QtQml QtQmlModels QtQmlMeta QtQuick" \
+    "Qt6Quick Qt6OpenGL" QT_BUILD_QUICK_LIB
 
 echo
 if [ "$FAILED" = 0 ]; then echo "All checks passed."; else echo "Some checks failed; fix the patches before rebuilding."; exit 1; fi

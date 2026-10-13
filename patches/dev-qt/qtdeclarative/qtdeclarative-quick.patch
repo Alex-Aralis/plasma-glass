@@ -1,0 +1,19 @@
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/quick/scenegraph/qsgrenderloop.cpp b/src/quick/scenegraph/qsgrenderloop.cpp
+--- a/src/quick/scenegraph/qsgrenderloop.cpp
++++ b/src/quick/scenegraph/qsgrenderloop.cpp
+@@ -613,6 +613,15 @@
+     cd->polishItems();
+     m_inPolish = false;
+ 
++    // Polishing can resize the window (a window sized to its content's implicit size, which layouts
++    // compute while polishing), and on Wayland the surface takes the new size at once. Rendering at
++    // the size from before polishing would put the old-size frame into the new-size buffer.
++    if (cd->swapchain) {
++        effectiveOutputSize = cd->swapchain->surfacePixelSize();
++        if (effectiveOutputSize.isEmpty())
++            return;
++    }
++
+     if (profileFrames)
+         polishTime = renderTimer.nsecsElapsed();
+ 

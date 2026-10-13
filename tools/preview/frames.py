@@ -15,7 +15,7 @@ async def grab(outdir, seconds):
     from dbus_fast import Message, MessageType, Variant
     from dbus_fast.aio import MessageBus
     bus = await MessageBus(negotiate_unix_fd=True).connect()
-    t0, n = time.monotonic(), 0
+    t0, t0_wall, n = time.monotonic(), time.time(), 0
     while time.monotonic() - t0 < seconds:
         r, w = os.pipe()
         reply = await bus.call(Message(
@@ -29,6 +29,7 @@ async def grab(outdir, seconds):
             data = f.read()
         if n == 0:  # raw image: width, height, stride, format 6 (ARGB32 premultiplied, BGRA in memory)
             meta = {k: v.value for k, v in reply.body[0].items()}
+            meta["t0_wall"] = t0_wall  # wall clock at 0 ms, to line frames up with WAYLAND_DEBUG logs
             json.dump(meta, open(os.path.join(outdir, "meta.json"), "w"))
         with open(os.path.join(outdir, f"{n:04d}-{int((time.monotonic() - t0) * 1000):05d}.raw"), "wb") as f:
             f.write(data)

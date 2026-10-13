@@ -1,7 +1,7 @@
 # plasma-glass: notes for development
 
 Liquid Glass Plasma Styles, semantic KRunner search (EmbeddingGemma 2 on the Intel iGPU via OpenVINO)
-and Portage patches for KRunner, notification popups, milou and Qt's Wayland client. Gentoo, Plasma
+and Portage patches for KRunner, notification popups, milou and Qt (Wayland client, Qt Quick). Gentoo, Plasma
 6.7.5, Qt 6.11.2, Wayland. User
 docs are in README.md; this file covers how to work on it.
 
@@ -12,7 +12,7 @@ docs are in README.md; this file covers how to work on it.
 | `search/embedsearch.py` | search service: indexer, KRunner D-Bus runner (`local.embedsearch`), CLI. Installed copy: `~/.local/share/embedsearch/` (service `embedsearch.service`) |
 | `search/export_model.py` | one-time PyTorch to OpenVINO export with a parity check (run by install.sh in a throwaway venv) |
 | `theme/liquid-glass/generate.py` | draws both styles (`liquid-glass`, `liquid-glass-light`) into `~/.local/share/plasma/desktoptheme/` |
-| `patches/kde-plasma/{plasma-workspace,milou}/*.patch`, `patches/dev-qt/qtbase/*.patch` | Portage user patches, one per package |
+| `patches/kde-plasma/{plasma-workspace,milou}/*.patch`, `patches/dev-qt/{qtbase,qtdeclarative}/*.patch` | Portage user patches, one per package |
 | `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc) |
 | `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` and `qt` build test copies |
 | `tools/check-patches.sh` | patches apply; patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
@@ -31,31 +31,38 @@ docs are in README.md; this file covers how to work on it.
   `journalctl --user -u plasma-plasmashell.service` for QML errors. The real popups only appear in
   plasmashell, so the user looks at them; `tools/preview/dialog.sh` only approximates them.
   milou rebuilds in about 2 min, plasma-workspace in about 25 min on the laptop (about 6 min on the
-  main box).
+  main box), qtbase in about 3 min on the main box. After a Qt rebuild, running apps keep the old
+  libraries until they restart (a relogin restarts them all).
 - **KRunner C++/QML without an emerge:** `tools/patch-dev.sh krunner` builds just KRunner from the
   edited tree (about 20 s the first time, then seconds) and refreshes a milou QML overlay. Preview:
   `QML_IMPORT_PATH=~/.cache/plasma-glass/dev/qml KRUNNER=$(tools/patch-dev.sh krunner) tools/preview/krunner.sh /tmp/k.png "q"`.
   `tools/preview/fakeinput.c` (built by `common.sh`) sends pointer input to the preview's KWin, and a
   KWin script can print `frameGeometry` of each window, so drags can be measured, not just eyeballed.
-- **Qt's Wayland client without an emerge:** `tools/patch-dev.sh setup qtbase`, edit under
-  `~/.cache/plasma-glass/dev/b/qtbase/src/plugins/platforms/wayland/`, then `tools/patch-dev.sh qt`
-  (about 2 min the first time, then seconds) builds libQt6WaylandClient, the wayland platform
-  plugin and its EGL plugin, and prints the environment that loads them into one app:
-  `KRUNNER_ENV="$(tools/patch-dev.sh qt) QT_QUICK_BACKEND=software" tools/preview/unfold.sh`. The
-  build is configured from the installed qtbase's USE flags like the ebuild, and the tool refuses
-  to stage it unless its generated feature headers match the installed ones (one mismatch,
-  AT-SPI on, gave `undefined symbol: QSpiAccessibleBridge` at startup). Only libQt6WaylandClient
-  and the plugins are swapped in, with the build tree's RUNPATH removed so the installed QtCore and
-  QtGui are used.
+- **Qt without an emerge:** `tools/patch-dev.sh setup qtbase qtdeclarative`, edit under
+  `~/.cache/plasma-glass/dev/b/qtbase/src/plugins/platforms/wayland/` or
+  `.../b/qtdeclarative/src/quick/scenegraph/`, then `tools/patch-dev.sh qt` (about 2 min each the
+  first time, then seconds) builds libQt6WaylandClient with the wayland platform and EGL plugins
+  (from a qtbase tree) and libQt6Quick (qtdeclarative built as a module against the installed
+  qtbase), and prints the environment that loads them into one app:
+  `KRUNNER_ENV="$(tools/patch-dev.sh qt)" tools/preview/unfold.sh`. Each build is configured from
+  the installed package's USE flags like its ebuild, with Gentoo's own patches, and the tool refuses
+  to stage it unless its generated feature headers match the installed ones (one mismatch, AT-SPI
+  on, gave `undefined symbol: QSpiAccessibleBridge` at startup). Only the changed libraries are
+  swapped in, with the build tree's RUNPATH removed so the installed QtCore and QtGui are used. To
+  see which ones a process loaded: `LD_DEBUG=files LD_DEBUG_OUTPUT=/some/prefix` in `KRUNNER_ENV`.
 - **Resize glitches:** `tools/preview/unfold.sh` captures ~150 fps while KRunner's results unfold
   and fold and prints `top edge misplaced in N` (old frame shifted) and `N distinct text layouts`
   (old frame stretched; 1 = clean). `KRUNNER=`, `KRUNNER_ENV=` and `KWIN_ENV=` pick the build and
   environment. The stretch comes and goes, so compare several runs. Main box (KWin on NVIDIA),
   2026-10-12: GPU rendering on NVIDIA 22-29 misplaced, 14-16 layouts (the shifts count as layouts
-  too), with stock or patched Qt; software rendering with stock Qt 0 misplaced, 1-9 layouts
-  (stretched in 5 of 6 runs), with the Qt patch 1 layout in 10 of 10; Mesa GPU rendering
-  (`__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json`) 1-2 misplaced and
-  5 layouts with stock Qt, 1 layout with the patch.
+  too) with stock Qt Quick, 0 and 1 in 4 of 4 with the qtdeclarative patch; software rendering
+  with stock qtbase 0 misplaced, 1-9 layouts (stretched in 5 of 6 runs), with the qtbase patch 1
+  layout in 10 of 10; Mesa GPU rendering
+  (`__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json`, threaded loop) 1-2
+  misplaced and 5 layouts with stock Qt, 1 layout with the qtbase patch. To see which buffer a
+  glitched frame came from, run with `KRUNNER_ENV=WAYLAND_DEBUG=client` (the log is the preview's
+  `app.log`, times in UTC) and line it up with the frames (`meta.json` has the capture's start
+  time, `t0_wall`).
 - **Search:** edit `search/embedsearch.py`, copy it to `~/.local/share/embedsearch/`, then
   `systemctl --user restart embedsearch`. Use `embedsearch search "q"` to test.
 
@@ -90,19 +97,26 @@ docs are in README.md; this file covers how to work on it.
 - **Layer-shell margins only apply on a commit.** layer-shell-qt's `setMargins` just sends
   `set_margin`; `requestUpdate()` doesn't render an unchanged scene, so nothing commits. Use
   `QQuickWindow::update()`.
-- **KWin compositing on NVIDIA misplaces a resizing layer-shell window for a frame:** it applies
-  the new size before the new buffer, so on each step of the results' unfold KRunner's old frame
-  showed at the new size (pushed down when growing, up and clipped when shrinking): jumps and
-  ghosts. Not with KWin on the iGPU. With KRunner's software renderer (`QT_QUICK_BACKEND=software`,
-  CPU shm buffers) the frame was stretched instead (text flicker), in 3 of 4 runs: Qt sent the new
-  `wp_viewporter` destination before the buffer that matches it (fixed by the Qt patch, below). Also setting
-  `QT_WAYLAND_DISABLED_INTERFACES=wp_viewporter,wp_fractional_scale_manager_v1` made it clean in 6 of
-  6 (fine at scale 1; fractional scales would render at the next whole scale). install.sh adds both
-  as a `plasma-krunner.service` drop-in when KWin's GL vendor is NVIDIA (just the first once the
-  patched Qt is installed). Check animations by text
-  positions too, not just edges: a stretch keeps the top edge in place. Found by
-  capturing frames from the preview KWin at ~150 fps: start it with
-  `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1` and call `org.kde.KWin.ScreenShot2.CaptureActiveScreen`
+- **Qt Quick's GUI-thread render loop drew the frame after a resize at the old size** (fixed by
+  `qtdeclarative-quick.patch`): `QSGGuiThreadRenderLoop::renderWindow` took the surface size before
+  `polishItems()`, but a window sized to its content (KRunner, Plasma dialogs) resizes during
+  polish, when layouts compute implicit sizes, and on Wayland the EGL surface takes the new size at
+  once. The old-size frame landed in the new-size buffer bottom-aligned (GL's origin is
+  bottom-left): on each step of KRunner's unfold its old frame showed pushed down by the growth, or
+  up and clipped when shrinking. Qt uses that loop whenever the EGL vendor is NVIDIA on a desktop
+  (`QWaylandEglClientBufferIntegration`, QTBUG-95817; `QSG_INFO=1` prints the loop), so it showed
+  with NVIDIA client rendering only, and looked like a KWin bug: the first commit at each new size
+  carried the shifted content (WAYLAND_DEBUG), so KWin showed what it got. Mesa clients get the
+  threaded loop, which polishes before it takes the size (1-2 glitches remain there: a resize on
+  the GUI thread after the sync). Not egl-wayland: v1 and v2 behaved the same.
+- **CPU rendering (`QT_QUICK_BACKEND=software`) avoided that but stretched the old frame** in 3 of 4
+  runs (text flicker), until the qtbase patch (below); also setting
+  `QT_WAYLAND_DISABLED_INTERFACES=wp_viewporter,wp_fractional_scale_manager_v1` was clean (fractional
+  scales would render at the next whole scale). install.sh puts these in a `plasma-krunner.service`
+  drop-in when KWin's GL vendor is NVIDIA and the Qt patches aren't installed (software only once the
+  qtbase one is; none with both). Check animations by text positions too, not just edges: a stretch
+  keeps the top edge in place. Found by capturing frames from the preview KWin at ~150 fps: start it
+  with `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1` and call `org.kde.KWin.ScreenShot2.CaptureActiveScreen`
   in a loop (dbus-fast: the `h` argument is the index into `unix_fds`; raw BGRA, format 6).
 - **`Kirigami.Icon` rounds to standard sizes** (`roundToIconSize`): ask for 28 px and you get 22.
 - **QQuickWindow sees every press as accepted after delivery**, even on empty space. Handle input
@@ -159,7 +173,7 @@ docs are in README.md; this file covers how to work on it.
   on the corner arcs (whole-pixel blur region under anti-aliased edges). It was gone with blur
   unloaded, on the iGPU monitors, and everywhere once KWin composited on NVIDIA, so it only hits
   iGPU-rendered frames shown on the NVIDIA card. The preview can't reproduce it (one GPU). With KWin
-  on NVIDIA, KRunner renders in software (see the rules above).
+  on NVIDIA, KRunner renders in software until the Qt patches are installed (see the rules above).
 
 ## Open items
 
@@ -175,19 +189,18 @@ docs are in README.md; this file covers how to work on it.
   relogin fixed it. The user saw the same during earlier desktop dev, so suspect the preview
   sessions (virtual KWin, private bus). Cause unknown; if it recurs, check whether
   `globalShortcutPressed` signals reach `/component/kwin` (dbus-monitor) before relogging.
-- **Root-cause fixes for the resize glitches (next up; the KRunner drop-in is a workaround):**
+- **Root-cause fixes for the resize glitches (the KRunner drop-in is the workaround until they're installed):**
   1. Qt (stretch): fixed by `patches/dev-qt/qtbase/qtbase-wayland.patch` (see the rules above),
      measured clean on the virtual display (software, Mesa GL, scale 1 and 1.25). Qt's dev branch
      still sends the destination early (checked 2026-10-12); no upstream report found. Once the
-     patched qtbase is installed, install.sh drops the viewporter workaround from KRunner's drop-in
-     (it detects `setViewportDestinationForBuffer` in libQt6WaylandClient); software rendering stays
-     until item 2 is fixed.
-  2. NVIDIA offset: not located. KWin holds commits until buffers are ready (`src/wayland/transaction.cpp`,
-     syncobj and dmabuf fences), yet the old NVIDIA-rendered buffer shows at the new size; a
-     Mesa-rendered client was nearly clean (1 in 29), so NVIDIA's egl-wayland in the client is as
-     suspect as KWin. Reproduces in `unfold.sh` (preview KWin on NVIDIA by default), so a self-built
-     KWin or egl-wayland can be tested there. Time-box it.
-  3. Cross-GPU blur darkening: needs the real monitors; skip while KWin composites on NVIDIA.
-  Bug report drafts for 2 and 3 were written for the user (not filed; kept outside the repo).
+     patched qtbase is installed (emerged 2026-10-12), install.sh drops the viewporter part of
+     KRunner's drop-in.
+  2. NVIDIA offset: Qt Quick, not KWin; fixed by `patches/dev-qt/qtdeclarative/qtdeclarative-quick.patch`
+     (see the rules above), measured clean on the virtual display. With both Qt patches installed,
+     install.sh removes KRunner's drop-in (GPU rendering again). Upstream qtdeclarative still takes
+     the size before polishing (6.11.2; check dev before reporting). The KWin bug report draft for
+     this was wrong (KWin showed what it got); the user was told not to file it.
+  3. Cross-GPU blur darkening: needs the real monitors; skip while KWin composites on NVIDIA. A KWin
+     bug report draft was written for the user (not filed; kept outside the repo).
 - **Remember password:** the laptop's ksshaskpass passphrase wasn't saved to KWallet yet (tick it
   at login).
