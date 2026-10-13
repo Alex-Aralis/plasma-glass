@@ -1,6 +1,7 @@
 #!/bin/sh
 # Screenshot of a notification-like Plasma dialog (frame, padding, text field, highlight, scrollbar).
 #   tools/preview/dialog.sh OUT.png                    (see common.sh for STYLE, WALLPAPER, ...)
+# DIALOG_QML=file.qml shows that Plasma dialog instead.
 set -eu
 . "$(dirname "$0")/common.sh"
 OUT=$(realpath -m "${1:?usage: dialog.sh OUT.png}")

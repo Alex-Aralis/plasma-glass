@@ -36,7 +36,7 @@ case "$MODE" in
         sleep 8  # let results arrive (the semantic search service can be slow while the CPU is busy)
         ;;
     dialog)
-        qml6 "$HERE/qml/dialog.qml" >"$WORK/app.log" 2>&1 &
+        qml6 "${DIALOG_QML:-$HERE/qml/dialog.qml}" >"$WORK/app.log" 2>&1 &  # DIALOG_QML: another dialog to show
         sleep 2
         # A plain qml6 client can't place a Plasma dialog (that needs KWin's plasma-shell protocol,
         # which only Plasma's own apps may use), so it opens at the top-left, where Plasma also leaves
