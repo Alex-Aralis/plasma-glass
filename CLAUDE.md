@@ -69,8 +69,9 @@ docs are in README.md; this file covers how to work on it.
   `ENV="$(tools/patch-dev.sh qt)"` for a patched Qt, `QSG_RENDER_LOOP=basic` for the GUI-thread
   loop). Main box with KWin on the iGPU, 2026-10-12: stock Qt Quick 62.5 fps on DP-4 (240 Hz) and
   DP-1 (165 Hz); with the qtdeclarative patch 235-239 on DP-4, 165 on DP-1, 60 on HDMI-A-1
-  (threaded loop) and 183-194 on DP-4 with the GUI-thread loop. Always say before putting
-  windows on the user's screens.
+  (threaded loop) and 183-194 on DP-4 with the GUI-thread loop; installed, in a full session,
+  219-224 on DP-4. The probe's speed figure reads 1.04 for stock and patched Qt alike, so it's
+  the probe's own error (not chased). Always say before putting windows on the user's screens.
 - **Search:** edit `search/embedsearch.py`, copy it to `~/.local/share/embedsearch/`, then
   `systemctl --user restart embedsearch`. Use `embedsearch search "q"` to test.
 
@@ -220,9 +221,9 @@ docs are in README.md; this file covers how to work on it.
   through an overlay MouseArea that refuses presses without the modifier. KWin passes Meta+click
   to layer-shell windows. Measured on the virtual display; needs a real-hand test after the rebuild.
   Dragging onto another monitor (2026-10-12): measured on two virtual screens (lands at the exact
-  spot, keeps the query, results and keyboard); needs a real-hand test after the rebuild. It reopens
-  on the screen it was last dragged to (`FloatingScreen`, the output name) while that's connected,
-  else on the active one (`drag.sh` with `REOPEN=1` checks this).
+  spot, keeps the query, results and keyboard) and confirmed by hand on the main box, including
+  reopening on the screen it was last dragged to (`FloatingScreen`, the output name; the active
+  screen when that one isn't connected; `drag.sh` with `REOPEN=1` checks this).
 - **KWin's window shortcuts died during preview work (main box, 2026-10-12):** Alt+F4, Meta+Q and
   Meta+arrows did nothing, while Alt+Tab and KRunner's Meta+Space still worked. kglobalaccel still
   mapped the keys to the right KWin actions, owned its bus name since boot and had no conflicts; a
