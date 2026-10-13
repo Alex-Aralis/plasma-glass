@@ -1,7 +1,90 @@
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/platforms/wayland/plugins/hardwareintegration/wayland-egl/qwaylandeglwindow.cpp b/src/plugins/platforms/wayland/plugins/hardwareintegration/wayland-egl/qwaylandeglwindow.cpp
+--- a/src/plugins/platforms/wayland/plugins/hardwareintegration/wayland-egl/qwaylandeglwindow.cpp
++++ b/src/plugins/platforms/wayland/plugins/hardwareintegration/wayland-egl/qwaylandeglwindow.cpp
+@@ -61,9 +61,37 @@
+     }
+ 
+     QMutexLocker lock (&m_eglSurfaceLock);
++    // A frame that a render thread is drawing has the old size (its scene and viewport were set while
++    // the main thread was blocked), but the driver gives it a buffer of the new size if it allocates one
++    // after this: the old frame would land in the new buffer, bottom-aligned (GL's origin is
++    // bottom-left). So resize after that frame.
++    if (m_inFrame) {
++        m_resizePending = true;
++        return;
++    }
+     updateSurface(false);
+ }
+ 
++void QWaylandEglWindow::frameStarted()
++{
++    QMutexLocker lock(&m_eglSurfaceLock);
++    if (m_resizePending) {
++        m_resizePending = false;
++        updateSurface(false);
++    }
++    m_inFrame = true;
++}
++
++void QWaylandEglWindow::frameEnded()
++{
++    QMutexLocker lock(&m_eglSurfaceLock);
++    m_inFrame = false;
++    if (m_resizePending) {
++        m_resizePending = false;
++        updateSurface(false);
++    }
++}
++
+ void QWaylandEglWindow::updateSurface(bool create)
+ {
+     // eglSurfaceLock should be locked before calling this method
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/platforms/wayland/plugins/hardwareintegration/wayland-egl/qwaylandeglwindow_p.h b/src/plugins/platforms/wayland/plugins/hardwareintegration/wayland-egl/qwaylandeglwindow_p.h
+--- a/src/plugins/platforms/wayland/plugins/hardwareintegration/wayland-egl/qwaylandeglwindow_p.h
++++ b/src/plugins/platforms/wayland/plugins/hardwareintegration/wayland-egl/qwaylandeglwindow_p.h
+@@ -28,6 +28,11 @@
+     void updateSurface(bool create);
+     QRect contentsRect() const;
+ 
++    // Around each frame (render thread, from QWaylandGLContext): a resize that ensureSize() gets while a
++    // frame is being drawn waits for the frame to end.
++    void frameStarted();
++    void frameEnded();
++
+     EGLSurface eglSurface() const;
+     GLuint contentFBO() const;
+     GLuint contentTexture() const;
+@@ -52,6 +57,10 @@
+     // Size used in the last call to wl_egl_window_resize
+     QSize m_requestedSize;
+ 
++    // under m_eglSurfaceLock
++    bool m_inFrame = false;
++    bool m_resizePending = false;
++
+     // Size of the buffer used by QWaylandWindow
+     // This is always written to from the main thread, potentially read from the rendering thread
+     QReadWriteLock m_bufferSizeLock;
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/platforms/wayland/plugins/hardwareintegration/wayland-egl/qwaylandglcontext.cpp b/src/plugins/platforms/wayland/plugins/hardwareintegration/wayland-egl/qwaylandglcontext.cpp
 --- a/src/plugins/platforms/wayland/plugins/hardwareintegration/wayland-egl/qwaylandglcontext.cpp
 +++ b/src/plugins/platforms/wayland/plugins/hardwareintegration/wayland-egl/qwaylandglcontext.cpp
-@@ -493,6 +493,12 @@
+@@ -376,6 +376,7 @@
+     if (!m_currentWindow)
+         return;
+ 
++    m_currentWindow->frameStarted();
+     if (m_supportNonBlockingSwap)
+         m_currentWindow->beginFrame();
+ }
+@@ -386,6 +387,7 @@
+         return;
+ 
+     QWaylandEglWindow *currentWindow = m_currentWindow;
++    currentWindow->frameEnded();
+ 
+     if (m_doneCurrentWorkAround) {
+         doneCurrent();
+@@ -493,6 +495,12 @@
          glFlush(); // Flush before waiting so we can swap more quickly when the frame event arrives
          window->waitForFrameSync(100);
      }

@@ -1,8 +1,9 @@
 # Frame capture for the preview (used by unfold.sh).
 #   frames.py grab DIR SECONDS   capture the screen through KWin's ScreenShot2 as fast as it renders
 #                                (the preview's KWin runs with KWIN_SCREENSHOT_NO_PERMISSION_CHECKS)
-#   frames.py track DIR          per frame, KRunner's top edge and the first result lines; prints the
-#                                changes and a summary. Expects the light style on a flat wallpaper.
+#   frames.py track DIR          per frame, KRunner's top edge, the query text's top (relative to the
+#                                edge) and the first result lines; prints the changes and a summary.
+#                                Expects the light style on a flat wallpaper.
 import asyncio
 import glob
 import json
@@ -56,6 +57,11 @@ def track(outdir):
         cx = (left + right) // 2
         col = [sum(im.getpixel((cx, y))) for y in range(h)]
         rim = next((y for y in range(top + 1, bottom) if col[y] > 3 * 235 and col[y - 1] < 3 * 225), None)
+        # the query text's first dark row, below the top edge (none for the light placeholder)
+        query = None
+        if rim is not None:
+            query = next((y - rim for y in range(rim + 4, min(bottom, rim + 90))
+                          if sum(1 for x in range(left + 65, min(right, left + 215)) if gray.getpixel((x, y)) < 110) >= 3), None)
         lines, run = [], False
         for y in range(top + 100, bottom):
             dark = sum(1 for x in range(left + 65, min(right, left + 215)) if gray.getpixel((x, y)) < 110)
@@ -63,10 +69,10 @@ def track(outdir):
                 lines.append(y)
             run = dark >= 3
         ms = int(os.path.basename(f)[5:10])
-        state = (rim, tuple(lines[:4]))
-        rows.append((ms, bottom, rim, tuple(lines[:4])))
+        state = (rim, query, tuple(lines[:4]))
+        rows.append((ms, bottom, rim, tuple(lines[:4]), query))
         if state != prev:
-            print(f"{ms:5d} ms  bottom {bottom:4d}  top edge {rim}  first lines {list(lines[:4])}")
+            print(f"{ms:5d} ms  bottom {bottom:4d}  top edge {rim}  query at +{query}  first lines {list(lines[:4])}")
             prev = state
     tops = [r[2] for r in rows if r[2] is not None]
     steady = max(set(tops), key=tops.count) if tops else None
@@ -78,8 +84,11 @@ def track(outdir):
             layouts += 1
         if r[3]:
             last = r[3]
+    queries = [r[4] for r in rows if r[4] is not None]
+    query_steady = max(set(queries), key=queries.count) if queries else None
+    query_moved = sum(1 for q in queries if abs(q - query_steady) > 2)  # the cursor blinking moves it 1 px
     print(f"summary: {len(rows)} frames, top edge misplaced in {misplaced} (offset glitches), "
-          f"{layouts} distinct text layouts (1 = no stretch/flicker)")
+          f"{layouts} distinct text layouts (1 = no stretch/flicker), query text moved in {query_moved}")
 
 
 if __name__ == "__main__":

@@ -131,7 +131,10 @@ build stops at the patch step until the patch is refreshed.
   viewport size (`wp_viewporter`, used with fractional scaling) together with the buffer drawn for it.
   It sent it as soon as the window resized, so the compositor showed the previous frame stretched to
   the new size for a frame (KRunner's text flickered while its results unfolded). Not fixed upstream
-  as of Qt's dev branch (2026-10)
+  as of Qt's dev branch (2026-10). Also, a window resized while a frame is being drawn on Qt Quick's
+  render thread takes the new size once that frame is done: at high refresh rates the frame in flight
+  sometimes got a buffer of the new size and showed shifted (KRunner's search box jumping down for a
+  frame while typing during the unfold)
 - `qtdeclarative-quick.patch` (dev-qt/qtdeclarative, every Qt Quick app):
   - the GUI-thread render loop, which Qt uses whenever the GPU is NVIDIA, takes the window's size
     after polishing instead of before. A window sized to its content resizes while polishing, so the

@@ -126,6 +126,19 @@ docs are in README.md; this file covers how to work on it.
   carried the shifted content (WAYLAND_DEBUG), so KWin showed what it got. Mesa clients get the
   threaded loop, which polishes before it takes the size (1-2 glitches remain there: a resize on
   the GUI thread after the sync). Not egl-wayland: v1 and v2 behaved the same.
+- **Qt Quick's threaded loop also drew an old frame into a new buffer, at high refresh rates** (fixed in
+  `qtbase-wayland.patch`): the main thread polishes the next frame, and resizes the window then
+  (`QWaylandEglWindow::ensureSize`, `wl_egl_window_resize`), while the render thread is still drawing
+  the previous one; Mesa allocates that frame's buffer lazily, so it could get the new size and the
+  frame showed pushed down for one frame. The user saw it typing "fff" then Backspace while KRunner
+  was still unfolding, on the 240 Hz screen; at 60 Hz it hardly happens. Now a resize that comes
+  while a frame is in flight (between `QWaylandGLContext::beginFrame` and `endFrame`) waits for that
+  frame's swap. Reproduce with `REFRESH=240000` (the preview KWin gets a 240 Hz custom mode through
+  kscreen-doctor), `KWIN_ENV`/`KRUNNER_ENV` pointing EGL at Mesa, and `KEYS="33 33 33 14"` (typed
+  with fakeinput) in `unfold.sh`: installed Qt 7 shifted frames in 4 of 10 runs, the fix 0 in 10.
+  Left over: forcing `QSG_RENDER_LOOP=basic` on Mesa gives one frame shifted up about 6 px in most
+  such runs (the buffer was allocated before polish resized the window); stock and patched alike,
+  and no real setup uses that pairing (Mesa gets the threaded loop, NVIDIA the GUI-thread one).
 - **Qt Quick animated at 60 fps on faster screens** (fixed by `qtdeclarative-quick.patch` too). The
   threaded loop's animation driver steps one frame of the *primary screen* per frame, and Qt's
   primary on Wayland is simply the first output (HDMI-A-1, 60 Hz; QtWayland ignores KDE's output

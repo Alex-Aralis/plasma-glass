@@ -23,6 +23,12 @@ env -u WAYLAND_DISPLAY KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 KWIN_SCREENSHOT_NO_PE
 KWIN=$!
 for _ in $(seq 100); do [ -S "$XDG_RUNTIME_DIR/$SOCK" ] && break; sleep 0.1; done
 export WAYLAND_DISPLAY="$SOCK" QT_QPA_PLATFORM=wayland
+# REFRESH=240000 (mHz): the virtual output runs at that rate instead of 60 Hz, through a custom mode
+if [ -n "${REFRESH:-}" ]; then
+    kscreen-doctor "output.Virtual-0.addCustomMode.$WIDTH.$HEIGHT.$REFRESH.full" >"$WORK/kscreen.log" 2>&1
+    kscreen-doctor "output.Virtual-0.mode.${WIDTH}x${HEIGHT}@$((REFRESH / 1000))" >>"$WORK/kscreen.log" 2>&1
+    kscreen-doctor -o 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E 'Output|Modes' | cut -c1-160 >>"$WORK/kscreen.log"
+fi
 
 if [ "$MODE" != popup ]; then  # plasmashell draws its own wallpaper
     qml6 "$HERE/qml/wallpaper.qml" -- "$WALLPAPER_FILE" >"$WORK/wallpaper.log" 2>&1 &
@@ -90,8 +96,12 @@ JS
         sleep 1.5
         "$TOOL_PYTHON" -I "$HERE/frames.py" grab "$WORK/frames" 2.6 >"$WORK/grab.log" 2>&1 &
         GRAB=$!
-        sleep 0.3; qdbus6 org.kde.krunner /App org.kde.krunner.App.query "$1"
-        sleep 1.2; qdbus6 org.kde.krunner /App org.kde.krunner.App.query ""
+        if [ -n "${TYPE_INPUT:-}" ]; then  # typed instead: fakeinput commands (keys) from this file
+            sleep 0.3; "$FAKEINPUT" <"$TYPE_INPUT"
+        else
+            sleep 0.3; qdbus6 org.kde.krunner /App org.kde.krunner.App.query "$1"
+            sleep 1.2; qdbus6 org.kde.krunner /App org.kde.krunner.App.query "${QUERY2:-}"  # QUERY2: then this query
+        fi
         wait $GRAB
         ;;
     popup)
