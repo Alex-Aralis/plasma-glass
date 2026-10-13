@@ -11,6 +11,9 @@ kwriteconfig6 --file krunnerrc --group General --key FreeFloating true
 [ -n "$(kreadconfig6 --file krunnerrc --group General --key FloatingCenterX)" ] ||
     kwriteconfig6 --file krunnerrc --group General --key FloatingCenterX 0.62
 
+# KRunner opens with Meta+Space (like Spotlight) instead of Alt+Space; Alt+F2 and Search stay
+sh "$(dirname "$0")/krunner-shortcut.sh" meta
+
 # KRunner plugins: no browser history/tabs flood, no help plugin (hides the "?" button)
 kwriteconfig6 --file krunnerrc --group Plugins --key browserhistoryEnabled false
 kwriteconfig6 --file krunnerrc --group Plugins --key browsertabsEnabled false

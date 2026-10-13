@@ -13,7 +13,7 @@ docs are in README.md; this file covers how to work on it.
 | `search/export_model.py` | one-time PyTorch to OpenVINO export with a parity check (run by install.sh in a throwaway venv) |
 | `theme/liquid-glass/generate.py` | draws both styles (`liquid-glass`, `liquid-glass-light`) into `~/.local/share/plasma/desktoptheme/` |
 | `patches/kde-plasma/{plasma-workspace,milou}/*.patch`, `patches/dev-qt/{qtbase,qtdeclarative}/*.patch` | Portage user patches, one per package |
-| `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc) |
+| `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc), `krunner-shortcut.sh` (KRunner on Meta+Space, or back on Alt+Space) |
 | `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` and `qt` build test copies |
 | `tools/check-patches.sh` | patches apply; patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
 | `tools/screenprobe/screen.sh` | probes on the real screens (small, never focused, ask first): `fps` measures Qt Quick frame rate and animation speed per screen, `glass` shows the style's glass over a grey square (screenshot or by eye) |
@@ -234,6 +234,11 @@ docs are in README.md; this file covers how to work on it.
   that size can lag the geometry; Mesa, egl-wayland and egl-wayland2 all report the back buffer's
   size). Vulkan windows still send it on resize (the driver presents). Qt only creates a viewport
   when the compositor has fractional scaling, which KWin does.
+- **Global shortcuts belong to kglobalaccel while a session runs** (inside KWin since Plasma 6, no
+  D-Bus activation): it rewrites `kglobalshortcutsrc` from memory, so set keys over D-Bus
+  (`setForeignShortcut`, Qt key codes) and only edit the file when it isn't on the bus.
+  `isGlobalShortcutAvailable` says false even when the key is the asking component's own; ask
+  `action(key)` who has it instead. `shortcut()` returns the keys sorted by code, not in order.
 - **Shell:** `grep` may be ugrep (`$` mid-pattern differs), and this session's `grep` wrapper
   skips binary files (use `/bin/grep` on a .so). Never nest a here-doc whose body contains its own
   delimiter. Claude Code's safety check refuses `rm -rf "$VAR/x"`, even inside a script being

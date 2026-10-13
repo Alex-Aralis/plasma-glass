@@ -5,13 +5,13 @@ notification cruft trimmed.
 
 - **Semantic search in KRunner.** [EmbeddingGemma 2](https://huggingface.co/google/embeddinggemma-2)
   (text encoder, 270M) runs on the Intel iGPU through OpenVINO in float16. Your documents are indexed
-  in the background, and results appear in KRunner (Alt+Space), about 0.2 s per query. Searching
+  in the background, and results appear in KRunner (Meta+Space), about 0.2 s per query. Searching
   finds files by meaning, not just by name.
 - **Liquid Glass Plasma Style.** Translucent popups over KWin's blur: 18 px corners, a light rim along
   the top, a soft shadow, glassy search fields, list highlights and scrollbars, and quiet header
   bands in applet popups. Everything else
   falls back to Breeze, and colours follow your colour scheme.
-- **Trimmed KRunner and notifications.** KRunner floats where you drag it (by the glass rim, or anywhere
+- **Trimmed KRunner and notifications.** KRunner opens with Meta+Space (Alt+F2 still works) and floats where you drag it (by the glass rim, or anywhere
   with Meta held, as with other windows) and remembers the spot. It is wider, and types straight onto the glass in larger text, with no input box, like Spotlight. It uses
   compact section headers and has no help, settings, pin or clear buttons. Notification popups lose
   their settings and close buttons and the countdown bar, and show a pointer when clicking them
@@ -72,13 +72,15 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 | `~/intel/openvino_telemetry` | `0`: opts out of OpenVINO's usage reporting to Google Analytics (sent on every import otherwise); an existing file is left alone |
 | `~/.local/share/krunner/dbusplugins/`, `~/.local/share/dbus-1/services/`, `~/.config/systemd/user/` | KRunner plugin and the service that runs it |
 | `~/.local/share/plasma/desktoptheme/liquid-glass/` | the Plasma Style (`generate.py` draws it) |
-| `krunnerrc`, `kdeglobals` | settings from [`desktop/plasma-settings.sh`](desktop/plasma-settings.sh) |
+| `krunnerrc`, `kdeglobals`, `kglobalshortcutsrc` | settings from [`desktop/plasma-settings.sh`](desktop/plasma-settings.sh) |
 | `~/.config/systemd/user/plasma-krunner.service.d/plasma-glass-software-render.conf` | only when KWin composites on an NVIDIA GPU and the Qt patches aren't installed: KRunner renders in software (otherwise a resizing KRunner shows its old frame shifted for a frame, so the results' unfold jumps); without the qtbase patch, Qt also skips viewporter/fractional scaling |
 | `/etc/portage/patches/kde-plasma/{plasma-workspace,milou}/`, `/etc/portage/patches/dev-qt/{qtbase,qtdeclarative}/` | the patches (root) |
 
 `plasma-settings.sh` sets a KDE restriction to hide KRunner's settings button. As a side effect,
 that also hides the KRunner page in System Settings. Delete `kcm_krunnersettings` from
-`~/.config/kdeglobals` to get it back.
+`~/.config/kdeglobals` to get it back. It also gives KRunner Meta+Space in place of Alt+Space, unless
+another shortcut already uses Meta+Space (then it says so and leaves KRunner's keys alone);
+`uninstall.sh` puts Alt+Space back.
 
 To look at notification popups, open **Test Notifications** from KRunner or the start menu, or pin
 it to the panel. It sends a clickable one, a long one that scrolls, one with an image and a critical
