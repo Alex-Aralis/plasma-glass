@@ -5,6 +5,8 @@
 #   session.sh dialog
 #   session.sh popup ACTION    plasmashell with popup.sh's config, then a plasmashell shortcut action
 #   session.sh unfold QUERY    KRunner; capture frames while results for QUERY unfold, then fold
+#   session.sh drag QUERY      KRunner with results for QUERY, then FAKEINPUT < DRAG_INPUT, while a KWin
+#                              script logs KRunner's frame geometry and output (kwin.log, "KRUNNER" lines)
 MODE="$1"; shift
 SOCK="$PREVIEW_SOCK"  # chosen by run_session, which also points the bus's services at it
 export XDG_CONFIG_HOME="$WORK/cfg"
@@ -16,7 +18,7 @@ shortcuts=--no-global-shortcuts
 # KWIN_ENV: extra environment for KWin only, e.g. to composite on another GPU like the real session
 # shellcheck disable=SC2086
 env -u WAYLAND_DISPLAY KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1 ${KWIN_ENV:-} \
-    kwin_wayland --virtual --width "$WIDTH" --height "$HEIGHT" --scale "$SCALE" --socket "$SOCK" \
+    kwin_wayland --virtual --width "$WIDTH" --height "$HEIGHT" --scale "$SCALE" --output-count "${OUTPUTS:-1}" --socket "$SOCK" \
     --no-lockscreen $shortcuts >"$WORK/kwin.log" 2>&1 &
 KWIN=$!
 for _ in $(seq 100); do [ -S "$XDG_RUNTIME_DIR/$SOCK" ] && break; sleep 0.1; done
@@ -49,6 +51,28 @@ for (const w of workspace.windowList())
 JS
         id=$(qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.loadScript "$WORK/move.js" preview-move)
         qdbus6 org.kde.KWin "/Scripting/Script$id" org.kde.kwin.Script.run >/dev/null 2>&1
+        sleep 1.5
+        ;;
+    drag)
+        # shellcheck disable=SC2086
+        env ${KRUNNER_ENV:-} "${KRUNNER:-krunner}" >"$WORK/app.log" 2>&1 &
+        sleep 2
+        qdbus6 org.kde.krunner /App org.kde.krunner.App.query "$1"
+        sleep 3
+        cat >"$WORK/track.js" <<'JS'
+function track(w) {
+    if (String(w.resourceClass).indexOf("krunner") < 0) return;
+    const log = () => console.info("KRUNNER", w.output ? w.output.name : "-", JSON.stringify(w.frameGeometry));
+    log();
+    w.frameGeometryChanged.connect(log);
+    w.outputChanged.connect(log);
+}
+workspace.windowList().forEach(track);
+workspace.windowAdded.connect(track);
+JS
+        id=$(qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.loadScript "$WORK/track.js" preview-track)
+        qdbus6 org.kde.KWin "/Scripting/Script$id" org.kde.kwin.Script.run >/dev/null 2>&1
+        "$FAKEINPUT" <"$DRAG_INPUT"
         sleep 1.5
         ;;
     unfold)

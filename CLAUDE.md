@@ -100,8 +100,16 @@ docs are in README.md; this file covers how to work on it.
 - **Pointer positions in a layer-shell window lag its moves.** Events are window-local, and the
   compositor applies new margins some events later, so "move by the offset from the press point"
   feeds back on itself (a 100 px drag flew to the screen edge). KRunner's drag follows
-  `zwp_relative_pointer_v1` motion instead, with the virtual pointer clamped to the screen like the
-  real cursor.
+  `zwp_relative_pointer_v1` motion instead, with a virtual pointer in global coordinates, clamped to
+  the screens like the real cursor.
+- **A layer-shell surface can't change outputs**, so KRunner's drag hops screens by hiding and
+  showing itself on the screen the virtual pointer entered (`View::moveToScreen`; `changingScreen`
+  stops RunCommand.qml from clearing the query and stops focus loss from hiding it). Two traps: the
+  press in the old surface ends in Qt's view, with a cancel to the MouseArea and a release Qt makes up
+  itself, both arriving after the hop; so after a hop only the compositor's button events on a
+  `wl_pointer` of KRunner's own (`ButtonWatcher`) end the drag. Relative motion keeps coming through
+  the hop. `tools/preview/drag.sh` drags across two virtual screens (`OUTPUTS=2` for the preview's
+  KWin) and logs KRunner's geometry and output from a KWin script.
 - **Layer-shell margins only apply on a commit.** layer-shell-qt's `setMargins` just sends
   `set_margin`; `requestUpdate()` doesn't render an unchanged scene, so nothing commits. Use
   `QQuickWindow::update()`.
@@ -208,6 +216,9 @@ docs are in README.md; this file covers how to work on it.
   the results list takes presses), so Meta+drag (KWin's move modifier from kwinrc) works anywhere,
   through an overlay MouseArea that refuses presses without the modifier. KWin passes Meta+click
   to layer-shell windows. Measured on the virtual display; needs a real-hand test after the rebuild.
+  Dragging onto another monitor (2026-10-12): measured on two virtual screens (lands at the exact
+  spot, keeps the query, results and keyboard); needs a real-hand test after the rebuild. KRunner
+  still opens on the active screen next time (only the position fractions are saved).
 - **KWin's window shortcuts died during preview work (main box, 2026-10-12):** Alt+F4, Meta+Q and
   Meta+arrows did nothing, while Alt+Tab and KRunner's Meta+Space still worked. kglobalaccel still
   mapped the keys to the right KWin actions, owned its bus name since boot and had no conflicts; a

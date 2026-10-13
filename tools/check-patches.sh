@@ -63,6 +63,7 @@ QtObject {
     property bool retainPriorSearch: true
     property int historyBehavior: 1
     property int moveModifier: Qt.MetaModifier
+    property bool changingScreen: false
     signal activityChanged(string activity)
     signal showHistoryChanged()
     function startFloatingDrag(x, y) {}

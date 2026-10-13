@@ -112,7 +112,8 @@ build stops at the patch step until the patch is refreshed.
     and folds away when they go (the window follows)
   - KRunner position when floating: drag it by the glass rim, or anywhere with KWin's window-move
     modifier held (Meta unless changed in kwinrc), like other windows; the window follows the
-    pointer's relative motion, so it stays under the pointer. The spot is saved as
+    pointer's relative motion, so it stays under the pointer, onto other monitors too (it moves there
+    with its query and results). The spot is saved as
     `krunnerrc [General] FloatingTop` (top edge as a fraction of the screen height; stock is 1/3) and
     `FloatingCenterX` (horizontal centre as a fraction of the width; stock is 0.5). No "Ctrl+F"
     tooltip on the search field
