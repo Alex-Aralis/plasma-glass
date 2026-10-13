@@ -166,9 +166,16 @@ docs are in README.md; this file covers how to work on it.
   CUDA backend (ONNX Runtime) was considered and left out. `MAKEOPTS="-j32 -l32"`; plasma-workspace
   rebuilds in about 6 min.
   Monitors: DP-4 (main, 2560x1440 @ 240 Hz) is on the NVIDIA card (`card1`); DP-1 and HDMI-A-1
-  are on the iGPU. KWin composites on the NVIDIA card since 2026-10-12
-  (`/etc/environment.d/20-kde-gpu.conf`: `KWIN_DRM_DEVICES=/dev/dri/card1:/dev/dri/card0`; it was
-  `card0:card1`). With KWin on the iGPU, its blur darkened what's behind a window on DP-4 as if
+  are on the iGPU. KWin composited on the NVIDIA card for part of 2026-10-12 and is back on the
+  iGPU since then for bug 3 testing (`/etc/environment.d/20-kde-gpu.conf` and a
+  `plasma-kwin_wayland.service` drop-in, `gpu.conf`, both `KWIN_DRM_DEVICES=/dev/dri/card0:/dev/dri/card1`). Changing that file needs a reboot: the systemd user manager reads environment.d
+  only when it starts and outlives a relog while anything keeps the session open (tmux, the root
+  terminal), and even `systemctl --user set-environment` was undone at the next login (the session
+  bus, up since boot, still had the old value and Plasma's startup pushes it back). Without a
+  reboot, set it on KWin's unit instead: a drop-in in
+  `~/.config/systemd/user/plasma-kwin_wayland.service.d/` with `Environment=KWIN_DRM_DEVICES=...`,
+  then `systemctl --user daemon-reload` and relog; check with the GL vendor in
+  `qdbus6 org.kde.KWin /KWin supportInformation`. With KWin on the iGPU, its blur darkened what's behind a window on DP-4 as if
   gamma were applied twice (a 190 background blurred to about 138): darker glass and a dark fringe
   on the corner arcs (whole-pixel blur region under anti-aliased edges). It was gone with blur
   unloaded, on the iGPU monitors, and everywhere once KWin composited on NVIDIA, so it only hits
@@ -201,7 +208,15 @@ docs are in README.md; this file covers how to work on it.
      0 misplaced and 1 layout in 3 of 3 with GPU rendering. Upstream qtdeclarative still takes
      the size before polishing (6.11.2; check dev before reporting). The KWin bug report draft for
      this was wrong (KWin showed what it got); the user was told not to file it.
-  3. Cross-GPU blur darkening: needs the real monitors; skip while KWin composites on NVIDIA. A KWin
-     bug report draft was written for the user (not filed; kept outside the repo).
+  3. Cross-GPU blur darkening: not reproducible on 2026-10-12 after a reboot, with KWin back on the
+     iGPU: a probe (`~/.cache/plasma-glass/bug3/`: a 190 grey band with an empty `PlasmaCore.Window`
+     on it, the style's glass and blur, placed by a KWin script, never focused) measured the glass at
+     129 (dark) and 225 (light) on DP-4 and DP-1 alike, the same as with KWin on NVIDIA, and the
+     user saw no darker glass or corner fringe on DP-4. It was first seen in a KWin session up since
+     10-09 (relogged 10-12 18:27), so it may build up over a long session or follow a monitor
+     event (DPMS, hotplug), or it depended on something changed since (the style's corner glow was
+     redrawn during that investigation). Screenshots are re-rendered by KWin, so a darkening in the
+     copy to the NVIDIA card would only show to the eye. A KWin bug report draft was written for the
+     user earlier (not filed; kept outside the repo); don't file it unless this comes back.
 - **Remember password:** the laptop's ksshaskpass passphrase wasn't saved to KWallet yet (tick it
   at login).
