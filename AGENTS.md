@@ -331,7 +331,12 @@ docs are in README.md; this file covers how to work on it.
   on NVIDIA, so it only hits iGPU-rendered frames shown on the NVIDIA card. The preview can't
   reproduce it (one GPU). The 2080 Ti's link runs at PCIe 3.0 x8 (it can do x16), which bounds any
   copy between the GPUs at about 7 GB/s. Both Qt patches are installed here (2026-10-12), so KRunner
-  renders on the GPU with no drop-in.
+  renders on the GPU with no drop-in. KWin got no real-time priority until 2026-10-13 ("Failed to gain
+  real time thread priority" at every start, all threads SCHED_OTHER, though `kwin_wayland` has
+  `cap_sys_nice=ep`): the kernel (gentoo-dist) has `CONFIG_RT_GROUP_SCHED=y`, which refuses SCHED_RR to
+  tasks outside the root cgroup until their group gets RT runtime, and cgroup v2 can't give it. GRUB
+  now passes `rt_group_sched=0` (`GRUB_CMDLINE_LINUX_DEFAULT` in `/etc/default/grub`, normal entries
+  only), and KWin's main thread, its per-screen commit threads and its libinput thread run SCHED_RR.
 
 ## Open items
 
@@ -374,11 +379,5 @@ docs are in README.md; this file covers how to work on it.
      copy to the NVIDIA card would only show to the eye. A KWin bug report draft was written for the
      user earlier (not filed; kept outside the repo); don't file it unless this comes back. KWin
      composites on the NVIDIA card again since 2026-10-13, so this watch has ended.
-- **KWin runs without real-time priority on the main box:** every start logs "Failed to gain real
-  time thread priority", and all its threads are SCHED_OTHER, although `kwin_wayland` has
-  `cap_sys_nice=ep` and gets it. The kernel (gentoo-dist 7.2.8) has `CONFIG_RT_GROUP_SCHED=y`, so a
-  task outside the root cgroup can't be made real-time until its group is given RT runtime, and cgroup
-  v2 has no way to give it. The kernel has the `rt_group_sched=0` boot parameter to turn that off
-  (`setup_rt_group_sched` in System.map); not applied yet (2026-10-13).
 - **Remember password:** the laptop's ksshaskpass passphrase wasn't saved to KWallet yet (tick it
   at login).
