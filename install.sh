@@ -128,6 +128,10 @@ if [ "$DO_STYLE" = 1 ]; then
     chmod +x "$HOME/.local/bin/plasma-glass-tune"
     sed "s|@BIN@|$HOME/.local/bin/plasma-glass-tune|g" "$REPO/desktop/plasma-glass-tune.desktop.in" \
         > "$DATA/applications/plasma-glass-tune.desktop"
+    # "Toggle Dark/Light Mode": Liquid Glass or Liquid Glass Light, with matching colours and icons
+    install -D -m 755 "$REPO/desktop/plasma-glass-mode.sh" "$HOME/.local/bin/plasma-glass-mode"
+    sed "s|@BIN@|$HOME/.local/bin/plasma-glass-mode|g" "$REPO/desktop/plasma-glass-mode.desktop.in" \
+        > "$DATA/applications/plasma-glass-mode.desktop"
     kbuildsycoca6 >/dev/null 2>&1 || true
 fi
 

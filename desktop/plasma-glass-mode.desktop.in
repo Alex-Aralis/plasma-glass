@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Name=Toggle Dark/Light Mode
+GenericName=plasma-glass
+Comment=Switch between Liquid Glass and Liquid Glass Light, with matching colours and icons
+Icon=weather-clear-night
+Exec=@BIN@
+Categories=Settings;DesktopSettings;
+Keywords=dark;light;mode;theme;toggle;glass;
+Actions=dark;light;
+
+[Desktop Action dark]
+Name=Dark Mode
+Exec=@BIN@ dark
+
+[Desktop Action light]
+Name=Light Mode
+Exec=@BIN@ light

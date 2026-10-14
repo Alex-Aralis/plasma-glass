@@ -76,6 +76,7 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 | `~/.local/share/krunner/dbusplugins/`, `~/.local/share/dbus-1/services/`, `~/.config/systemd/user/` | KRunner plugin and the service that runs it |
 | `~/.local/share/plasma/desktoptheme/liquid-glass/` | the Plasma Style (`generate.py` draws it) |
 | `~/.local/share/plasma-glass/`, `~/.local/bin/plasma-glass-tune`, `~/.local/share/applications/plasma-glass-tune.desktop` | Liquid Glass Tuning, which writes `~/.config/plasma-glassrc` (see [Tuning](#tuning-the-glass-and-krunners-ripple-live)) |
+| `~/.local/bin/plasma-glass-mode`, `~/.local/share/applications/plasma-glass-mode.desktop` | Toggle Dark/Light Mode (below) |
 | `krunnerrc`, `kdeglobals`, `kglobalshortcutsrc` | settings from [`desktop/plasma-settings.sh`](desktop/plasma-settings.sh) |
 | `~/.config/systemd/user/plasma-krunner.service.d/plasma-glass-software-render.conf` | only when KWin composites on an NVIDIA GPU and the Qt patches aren't installed: KRunner renders in software (otherwise a resizing KRunner shows its old frame shifted for a frame, so the results' unfold jumps); without the qtbase patch, Qt also skips viewporter/fractional scaling |
 | `/etc/portage/patches/kde-plasma/{plasma-workspace,milou,kwin}/`, `/etc/portage/patches/dev-qt/{qtbase,qtdeclarative}/` | the patches (root) |
@@ -85,6 +86,12 @@ that also hides the KRunner page in System Settings. Delete `kcm_krunnersettings
 `~/.config/kdeglobals` to get it back. It also gives KRunner Meta+Space in place of Alt+Space, unless
 another shortcut already uses Meta+Space (then it says so and leaves KRunner's keys alone);
 `uninstall.sh` puts Alt+Space back.
+
+To switch between dark and light, run `plasma-glass-mode` (or **Toggle Dark/Light Mode** from KRunner or
+the start menu; `plasma-glass-mode dark` or `light` sets one, and the launcher's right-click menu has
+both). It switches the Plasma Style between Liquid Glass and Liquid Glass Light (KWin's glass follows),
+the colour scheme apps use between Breeze Dark and Breeze Light, and the icons to match. Give the
+launcher a shortcut in System Settings > Keyboard > Shortcuts to toggle with a key.
 
 To look at notification popups, open **Test Notifications** from KRunner or the start menu, or pin
 it to the panel. It sends a clickable one, a long one that scrolls, one with an image and a critical
