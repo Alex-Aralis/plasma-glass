@@ -161,9 +161,9 @@ docs are in README.md; this file covers how to work on it.
   with `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1` and call `org.kde.KWin.ScreenShot2.CaptureActiveScreen`
   in a loop (dbus-fast: the `h` argument is the index into `unix_fds`; raw BGRA, format 6).
 - **KRunner's busy feedback is a ripple shader** (`krunner/qml/busyripple.frag`, `busyRipple` in
-  RunCommand.qml, built into the QML module by `qt6_add_shaders`). While busy, every 1.2 s, knocks on
-  the left rim beside the query (and near the bottom while results show) each send one wave across the
-  glass. A knock flexes its side (most at the knock, none at the corners; a 1 px stretch moves at once,
+  RunCommand.qml, built into the QML module by `qt6_add_shaders`). While busy, every 1.2 s, a knock on
+  the left rim beside the query sends one wave across the glass (a second knock near the bottom while
+  results showed was dropped, 2026-10-13: one is enough). A knock flexes its side (most at the knock, none at the corners; a 1 px stretch moves at once,
   then the flex slows to the waves' speed over 30 px, so the front is rounded, not a cone); waves fade
   with time and as they head into a rim. Liquid Glass: light comes in at the rim (generate.py RIM) and
   lets out where a slope faces an edge, and the content refracts: the ShaderEffect draws it from a
