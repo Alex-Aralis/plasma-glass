@@ -6,10 +6,11 @@
 #
 # 1. Intel GPU compute runtime (OpenCL/Level Zero) so OpenVINO can run the search model on the iGPU.
 # 2. Portage user patches for kde-plasma/plasma-workspace (KRunner + notification popups),
-#    kde-plasma/milou (KRunner result rows), dev-qt/qtbase and dev-qt/qtdeclarative (Qt fixes: a
-#    resizing window no longer shows its old frame stretched to the new size, or, with NVIDIA, shifted),
-#    then rebuilds the packages whose patch is new or changed. Portage re-applies the patches on every
-#    future update of those packages.
+#    kde-plasma/milou (KRunner result rows), kde-plasma/kwin (the dark style's glass, frame pacing, a
+#    crash at logout), dev-qt/qtbase and dev-qt/qtdeclarative (Qt fixes: a resizing window no longer
+#    shows its old frame stretched to the new size, or, with NVIDIA, shifted), then rebuilds the
+#    packages whose patch is new or changed. Portage re-applies the patches on every future update of
+#    those packages.
 set -eu
 
 REPO=$(cd "$(dirname "$0")" && pwd)
@@ -88,7 +89,7 @@ if [ "$CHECKS" = 1 ]; then
     sh "$REPO/tools/check-patches.sh" || die "patch checks failed; nothing was installed (override with --skip-checks)"
 fi
 say "Installing Portage user patches"
-pkgs="kde-plasma/plasma-workspace kde-plasma/milou"
+pkgs="kde-plasma/plasma-workspace kde-plasma/milou kde-plasma/kwin"
 if [ "$QT" = 1 ]; then pkgs="$pkgs dev-qt/qtbase dev-qt/qtdeclarative"; fi
 rebuild=""
 for atom in $pkgs; do
@@ -115,7 +116,7 @@ for atom in $pkgs; do
 done
 
 if [ "$REBUILD" = 1 ] && [ -n "$rebuild" ]; then
-    say "Rebuilding$rebuild (plasma-workspace, qtbase and qtdeclarative take a while)"
+    say "Rebuilding$rebuild (plasma-workspace, kwin, qtbase and qtdeclarative take a while)"
     # shellcheck disable=SC2086
     emerge --oneshot --verbose $rebuild
 elif [ "$REBUILD" = 1 ]; then
@@ -127,8 +128,8 @@ render=$(ls -l /dev/dri/renderD128 2>/dev/null || true)
 cat <<EOF
 
 Done. As your normal user:
-  - restart Plasma's shell and KRunner to load the patched builds (after a Qt rebuild, log out and
-    back in instead, so every running Qt app picks it up):
+  - restart Plasma's shell and KRunner to load the patched builds (after a Qt or KWin rebuild, log
+    out and back in instead, so every running Qt app picks it up and the new KWin runs):
         systemctl --user restart plasma-plasmashell.service; kquitapp6 krunner
   - re-run ./install.sh --no-search --no-style, which drops KRunner's NVIDIA workaround once Qt is patched
   - restart the search service so it picks up the GPU:

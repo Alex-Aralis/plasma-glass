@@ -44,7 +44,7 @@ Python packages plus a 540 MB model).
 
 Override with `--runtime=legacy|current|skip`. A discrete NVIDIA GPU is fine: OpenVINO lists it
 as a GPU too (through NVIDIA's OpenCL driver), but the search service picks the Intel one, and falls
-back to the CPU if the GPU can't run the model. Rebuilding plasma-workspace, qtbase and qtdeclarative
+back to the CPU if the GPU can't run the model. Rebuilding plasma-workspace, kwin, qtbase and qtdeclarative
 takes a while (only packages whose patch is new or changed are rebuilt). Use `--no-rebuild` to only install the
 patches and let them land with your next update, or `--no-qt` to leave Qt alone.
 
@@ -77,7 +77,7 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 | `~/.local/share/plasma-glass/`, `~/.local/bin/plasma-glass-tune`, `~/.local/share/applications/plasma-glass-tune.desktop` | Liquid Glass Tuning, which writes `~/.config/plasma-glassrc` (see [Tuning](#tuning-the-glass-and-krunners-ripple-live)) |
 | `krunnerrc`, `kdeglobals`, `kglobalshortcutsrc` | settings from [`desktop/plasma-settings.sh`](desktop/plasma-settings.sh) |
 | `~/.config/systemd/user/plasma-krunner.service.d/plasma-glass-software-render.conf` | only when KWin composites on an NVIDIA GPU and the Qt patches aren't installed: KRunner renders in software (otherwise a resizing KRunner shows its old frame shifted for a frame, so the results' unfold jumps); without the qtbase patch, Qt also skips viewporter/fractional scaling |
-| `/etc/portage/patches/kde-plasma/{plasma-workspace,milou}/`, `/etc/portage/patches/dev-qt/{qtbase,qtdeclarative}/` | the patches (root) |
+| `/etc/portage/patches/kde-plasma/{plasma-workspace,milou,kwin}/`, `/etc/portage/patches/dev-qt/{qtbase,qtdeclarative}/` | the patches (root) |
 
 `plasma-settings.sh` sets a KDE restriction to hide KRunner's settings button. As a side effect,
 that also hides the KRunner page in System Settings. Delete `kcm_krunnersettings` from
