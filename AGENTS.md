@@ -267,9 +267,17 @@ docs are in README.md; this file covers how to work on it.
   KDirWatch since the style's settings page doesn't notify; tested by rewriting the preview's plasmarc
   mid-recording. `KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness` (24,9,2,1) in KWin's
   environment overrides it, to tune without a rebuild. A shader that fails to compile drops only the
-  bevel. In the preview (UHD 770 through Mesa, KRunner at 744x346, scale 1, the wallpaper scrolling)
-  KWin's GPU time went from 2.04 to 2.27 ms a frame; the 27 samples a pixel only run in the bevel.
-  Over a smooth wallpaper (Next) it hardly shows: tuned on ColorfulCups and a scrolling image of code.
+  bevel. The glass is frosted lightly all over: blur strength 4 of BlurStrength's 1-15 (two halvings,
+  offset 3), never above the user's own; KWin's default is 15, the heaviest. With that in the middle and
+  a clear bevel, the middle didn't match the bevel (the user, 2026-10-14): a clear frame around frosted
+  plastic. liquidglass frosts lightly everywhere too (blurAmount 0.25-0.4 on its demo page) and its bevel
+  bends that same blur, with 15% of the sharp background at the rim. Here the bevel stays sharp at the rim
+  (the look the user approved) and the middle is frosted lightly enough to show shapes, so one fades into
+  the other. `KWIN_LIQUID_GLASS_FROST=strength` overrides it. In the preview (UHD 770 through Mesa,
+  KRunner at 744x346, scale 1, the wallpaper scrolling) KWin's GPU time went from 2.04 ms a frame (no
+  bevel, strength 15) to 2.27 with the bevel at 15 and 2.25-2.28 at 4 (fewer halvings); the 27 samples a
+  pixel only run in the bevel. Over a smooth wallpaper (Next) it hardly shows: tuned on ColorfulCups and
+  a scrolling image of code.
 - **Without shaders (software rendering) the busy pulse is a gradient, not a mask.** The band of
   light that stands in for the ripple is the gradient of a rounded Rectangle over the glass (stops
   moved by a 0..1 progress), so it keeps to the corners at every size. A MultiEffect mask (the

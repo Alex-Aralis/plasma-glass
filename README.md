@@ -11,7 +11,8 @@ notification cruft trimmed.
   the top, a soft shadow, glassy search fields, list highlights and scrollbars, and quiet header
   bands in applet popups. Everything else
   falls back to Breeze, and colours follow your colour scheme. With the KWin patch, the dark style's
-  glass rounds off at the edge like a lens: what's behind bends there and parts a little in colour.
+  glass is frosted lightly and rounds off at the edge like a lens: what's behind bends there and parts
+  a little in colour.
 - **Trimmed KRunner and notifications.** KRunner opens with Meta+Space (Alt+F2 still works) and floats where you drag it (by the glass rim, or anywhere
   with Meta held, as with other windows) and remembers the spot. It is wider, and types straight onto the glass in larger text, with no input box, like Spotlight. It uses
   compact section headers and has no help, settings, pin or clear buttons. Notification popups lose
@@ -137,13 +138,14 @@ build stops at the patch step until the patch is refreshed.
 - `milou-section-headers.patch`: KRunner result categories become small headers above each group
   instead of a 10-grid-unit column beside every row; result text 1.2x
 - `kwin-fixes.patch` (kde-plasma/kwin; a new KWin runs from the next login)
-  - the dark Liquid Glass style's bevel: within 24 px of the glass's edge, KWin's blur shows what's
-    behind it refracted (seen from up to 9 px further in at the very edge), less frosted, and split in
-    colour by up to 2 px each way, as in [liquidglass](https://github.com/ybouane/liquidglass). Only
-    while that style is selected (it follows `plasmarc`, no relogin), on Plasma's own surfaces
-    (KRunner, popups, notifications, panels with rounded corners), not on windows with title bars.
-    `KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness` in KWin's environment overrides it
-    (24,9,2,1; 0,0,0,0 for none)
+  - the dark Liquid Glass style's glass, as in [liquidglass](https://github.com/ybouane/liquidglass):
+    frosted lightly all over (blur strength 4 of 15, never more than your own setting), so what's
+    behind shows through as soft shapes; and within 24 px of the edge a bevel that bends that view (seen
+    from up to 9 px further in at the very edge), turns sharp toward the rim and splits it in colour by
+    up to 2 px each way. Only while that style is selected (it follows `plasmarc`, no relogin), on
+    Plasma's own surfaces (KRunner, popups, notifications, panels with rounded corners), not on windows
+    with title bars. In KWin's environment, `KWIN_LIQUID_GLASS_FROST=strength` and
+    `KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness` override them (4; 24,9,2,1)
   - frame callbacks go out after each screen's composite, not only when KWin is about to sleep, so a
     window on one screen doesn't wait for another screen's composite (KRunner's ripple missed frames
     on the 240 Hz screen while another one animated)
