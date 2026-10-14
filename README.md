@@ -12,7 +12,8 @@ notification cruft trimmed.
   bands in applet popups. Everything else
   falls back to Breeze, and colours follow your colour scheme. With the KWin patch, the dark style's
   glass is frosted lightly and rounds off at the edge like a lens: what's behind bends there and parts
-  a little in colour.
+  a little in colour. The light style's glass is frosted more, and KRunner's busy waves run beneath the
+  frost, lit in shards of colour as off an etched diffraction foil.
 - **Trimmed KRunner and notifications.** KRunner opens with Meta+Space (Alt+F2 still works) and floats where you drag it (by the glass rim, or anywhere
   with Meta held, as with other windows) and remembers the spot. It is wider, and types straight onto the glass in larger text, with no input box, like Spotlight. It uses
   compact section headers and has no help, settings, pin or clear buttons. Notification popups lose
@@ -109,15 +110,17 @@ tools/preview/krunner.sh /tmp/krunner.png "some query"
 
 ### Tuning the glass and KRunner's ripple, live
 
-"Liquid Glass Tuning" (`plasma-glass-tune`, in the start menu or KRunner) has a slider for each of
-the busy ripple's settings and the dark glass's: wave speed, width, widening, damping, lifetime,
-the time between knocks, amplitude, colour split, ringing, edge fade and how far in from the rim that
-fade sits; the side the knocks land on, where along it and how much of it each one strikes; and the
-glass's frost, bevel width, refraction, colour split and sharpness.
-Changes apply as you drag: KRunner takes them with its next knock, KWin at once. While the window
-is open, KRunner keeps its ripple running and stays open when you click elsewhere, so open KRunner
-(Meta+Space) beside it and tune. Each row has a button back to its default, and "Reset All" resets
-everything. It needs the patched KRunner and KWin (`kwin-fixes.patch`, `plasma-workspace-tweaks.patch`).
+"Liquid Glass Tuning" (`plasma-glass-tune`, in the start menu or KRunner) has a slider for each of the
+busy ripple's settings, the dark glass's and Liquid Glass Light's: wave speed, width, widening,
+damping, lifetime, the time between knocks, amplitude, colour split, ringing, edge fade and how far in
+from the rim that fade sits; the side the knocks land on, where along it and how much of it each one
+strikes; the dark glass's frost, bevel width, refraction, colour split and sharpness; and the light
+glass's frost, the waves' refraction and diffraction beneath it, the diffraction foil's etch size and
+saturation, the old foil sheen over the glass, and an optional bevel. Changes apply as you drag:
+KRunner takes them with its next knock, KWin at once. While the window is open, KRunner keeps its
+ripple running and stays open when you click elsewhere, so open KRunner (Meta+Space) beside it and
+tune. Each row has a button back to its default, and "Reset All" resets everything. It needs the
+patched KRunner and KWin (`kwin-fixes.patch`, `plasma-workspace-tweaks.patch`).
 
 The settings live in `~/.config/plasma-glassrc`, which you can also edit by hand (plain `key=value`
 lines; the tuning window rewrites the file as you move its sliders):
@@ -143,6 +146,13 @@ lines; the tuning window rewrites the file as you move its sliders):
 | | `refraction` | 9 | px |
 | | `dispersion` | 2 | px |
 | | `sharpness` | 1 | 0-1 |
+| `[Light]` | `frost` | 5 | blur strength 1-15 over the waves, never more than KWin's Blur setting |
+| | `refraction` | 16 | px what's behind bends beneath the frost where a wave leans fully |
+| | `diffraction` | 1.2 | how bright the foil's colours are where the waves crest |
+| | `etch` | 32 | px, the size of the foil's shards of colour |
+| | `saturation` | 0.8 | 0-1 |
+| | `sheen` | 0 | the foil sheen over the glass, as KRunner drew it before (0.35) |
+| | `bevelWidth`, `bevelRefraction`, `bevelDispersion`, `bevelSharpness` | 24, 0, 0, 0 | a bevel as the dark glass's (off: flat) |
 
 KWin's environment still overrides the glass for experiments (`KWIN_LIQUID_GLASS_*`, below).
 
@@ -189,7 +199,10 @@ build stops at the patch step until the patch is refreshed.
     up to 2 px each way. KRunner's busy ripple bends what's behind the glass the same way as its waves
     run, ringing behind each crest, clear across each wave and on into the bevel at the far edge, its
     colours parting a little more than the bevel's (KRunner tells KWin about each knock over D-Bus).
-    Only while that style is selected (it follows `plasmarc`, no relogin), on Plasma's own surfaces
+    Liquid Glass Light gets frosted glass too (strength 5), flat by default, with KRunner's waves
+    beneath the frost: what's behind bends under them, and an etched diffraction foil lights up in
+    shards of colour where they crest, all softened by the frost. Only while one of those styles is
+    selected (it follows `plasmarc`, no relogin), on Plasma's own surfaces
     (KRunner, popups, notifications, panels with rounded corners), not on windows with title bars. In
     KWin's environment, `KWIN_LIQUID_GLASS_FROST=strength`,
     `KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness` and

@@ -274,6 +274,58 @@ Kirigami.ApplicationWindow {
                 key: "Glass/sharpness"; fallback: 1; from: 0; to: 1; stepSize: 0.05; decimals: 2
             }
             Hint { text: "How much of what's behind shows sharp at the rim, rather than frosted." }
+
+            Kirigami.Separator {
+                Kirigami.FormData.isSection: true
+                Kirigami.FormData.label: "Liquid Glass Light"
+            }
+            Hint { text: "The waves go beneath the frost here: what's behind bends under them, and an etched diffraction foil lights up in shards of colour where they crest; then the frost softens it all." }
+            Tuner {
+                Kirigami.FormData.label: "Frost:"
+                key: "Light/frost"; fallback: 5; from: 1; to: 15; stepSize: 1
+            }
+            Hint { text: "Blur strength over the waves, as in KWin's Blur settings; never more than yours there." }
+            Tuner {
+                Kirigami.FormData.label: "Refraction:"
+                key: "Light/refraction"; fallback: 16; from: 0; to: 40; stepSize: 0.5; decimals: 1; unit: "px"
+            }
+            Hint { text: "How far what's behind bends beneath the frost, where a wave leans fully." }
+            Tuner {
+                Kirigami.FormData.label: "Diffraction:"
+                key: "Light/diffraction"; fallback: 1.2; from: 0; to: 3; stepSize: 0.05; decimals: 2
+            }
+            Hint { text: "How bright the foil's colours are where the waves crest." }
+            Tuner {
+                Kirigami.FormData.label: "Etch size:"
+                key: "Light/etch"; fallback: 32; from: 4; to: 120; stepSize: 1; unit: "px"
+            }
+            Hint { text: "The size of the foil's shards of colour. Under heavier frost they need to be bigger to show apart." }
+            Tuner {
+                Kirigami.FormData.label: "Saturation:"
+                key: "Light/saturation"; fallback: 0.8; from: 0; to: 1; stepSize: 0.05; decimals: 2
+            }
+            Tuner {
+                Kirigami.FormData.label: "Sheen over the glass:"
+                key: "Light/sheen"; fallback: 0; from: 0; to: 1; stepSize: 0.05; decimals: 2
+            }
+            Hint { text: "The foil sheen KRunner drew over the glass before the waves went beneath the frost (it was 0.35)." }
+            Tuner {
+                Kirigami.FormData.label: "Bevel width:"
+                key: "Light/bevelWidth"; fallback: 24; from: 4; to: 60; stepSize: 1; unit: "px"
+            }
+            Tuner {
+                Kirigami.FormData.label: "Bevel refraction:"
+                key: "Light/bevelRefraction"; fallback: 0; from: 0; to: 30; stepSize: 0.5; decimals: 1; unit: "px"
+            }
+            Tuner {
+                Kirigami.FormData.label: "Bevel colour split:"
+                key: "Light/bevelDispersion"; fallback: 0; from: 0; to: 8; stepSize: 0.5; decimals: 1; unit: "px"
+            }
+            Tuner {
+                Kirigami.FormData.label: "Bevel sharpness:"
+                key: "Light/bevelSharpness"; fallback: 0; from: 0; to: 1; stepSize: 0.05; decimals: 2
+            }
+            Hint { text: "Liquid Glass Light is flat by default; give it a bevel like the dark glass's here." }
         }
     }
 }

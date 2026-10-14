@@ -198,7 +198,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
  #include <KDecoration3/Decoration>
  
-@@ -57,6 +63,53 @@
+@@ -57,6 +63,61 @@
  
  static const QByteArray s_blurAtomName = QByteArrayLiteral("_KDE_NET_WM_BLUR_BEHIND_REGION");
  
@@ -206,6 +206,14 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +// the edge, so the blur seen there is refracted and parts in colour, as through a lens. Its frames have
 +// corners of this radius (logical px, generate.py R), which their mask, and so the blur region, leaves out.
 +static const QString s_liquidGlassTheme = QStringLiteral("liquid-glass");
++// and Liquid Glass Light: its glass is frosted more and looks flat (a bevel only if [Light] asks for one),
++// and KRunner's waves go beneath the frost: what's behind bends under them and an etched foil lights up in
++// shards of colour where they crest, then the blur frosts it all. [Light] frost, refraction, diffraction,
++// etch, saturation, bevelWidth, bevelRefraction, bevelDispersion, bevelSharpness
++static const QString s_liquidGlassLightTheme = QStringLiteral("liquid-glass-light");
++static const QVector4D s_lightBevel(24, 0, 0, 0);
++static constexpr int s_lightFrost = 5;
++static const QVector4D s_lightUnderlay(16, 1.2, 32, 0.8);
 +static constexpr qreal s_liquidGlassRadius = 26;
 +// The glass's look comes from these defaults, then ~/.config/plasma-glassrc's [Glass] group (which
 +// plasma-glass-tune edits; followed live), then the environment, to tune without touching the file.
@@ -252,7 +260,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  static QMatrix4x4 colorTransformMatrix(qreal saturation, qreal contrast)
  {
      QMatrix4x4 saturationMatrix;
-@@ -119,6 +172,52 @@
+@@ -119,6 +180,71 @@
          m_roundedOnscreenPass.opacityLocation = m_roundedOnscreenPass.shader->uniformLocation("opacity");
      }
  
@@ -292,8 +300,27 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        m_ripplePass.edgeLocation = m_ripplePass.shader->uniformLocation("edge");
 +        m_ripplePass.standoffLocation = m_ripplePass.shader->uniformLocation("standoff");
 +    }
++    m_underlayPass.shader = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture,
++                                                                              QStringLiteral(":/effects/blur/shaders/vertex.vert"),
++                                                                              QStringLiteral(":/effects/blur/shaders/underlay.frag"));
++    if (!m_underlayPass.shader) {
++        qCWarning(KWIN_BLUR) << "Failed to load the Liquid Glass Light underlay shader";
++    } else {
++        m_underlayPass.mvpMatrixLocation = m_underlayPass.shader->uniformLocation("modelViewProjectionMatrix");
++        m_underlayPass.sizeLocation = m_underlayPass.shader->uniformLocation("size");
++        m_underlayPass.originLocation = m_underlayPass.shader->uniformLocation("origin");
++        m_underlayPass.areaLocation = m_underlayPass.shader->uniformLocation("area");
++        m_underlayPass.leanLocation = m_underlayPass.shader->uniformLocation("lean");
++        m_underlayPass.lightLocation = m_underlayPass.shader->uniformLocation("light");
++        m_underlayPass.timeLocation = m_underlayPass.shader->uniformLocation("time");
++        m_underlayPass.texUnitLocation = m_underlayPass.shader->uniformLocation("texUnit");
++        m_underlayPass.wavesUnitLocation = m_underlayPass.shader->uniformLocation("wavesUnit");
++    }
 +    m_bevel = s_liquidGlassBevel;
 +    m_frost = s_liquidGlassFrost;
++    m_lightBevel = s_lightBevel;
++    m_lightFrost = s_lightFrost;
++    m_lightUnderlay = s_lightUnderlay;
 +    if (qEnvironmentVariableIsSet("KWIN_LIQUID_GLASS_RIPPLE")) {
 +        const QStringList ripple = qEnvironmentVariable("KWIN_LIQUID_GLASS_RIPPLE").split(QLatin1Char(','));
 +        m_rippleLean = ripple[0].toDouble();
@@ -305,7 +332,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      m_downsamplePass.shader = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture,
                                                                                  QStringLiteral(":/effects/blur/shaders/vertex.vert"),
                                                                                  QStringLiteral(":/effects/blur/shaders/downsample.frag"));
-@@ -181,14 +280,114 @@
+@@ -181,14 +307,132 @@
          slotWindowAdded(window);
      }
  
@@ -348,9 +375,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +{
 +    KSharedConfig::Ptr plasmarc = KSharedConfig::openConfig(QStringLiteral("plasmarc"), KConfig::NoGlobals);
 +    plasmarc->reparseConfiguration();
-+    const bool liquidGlass = plasmarc->group(QStringLiteral("Theme")).readEntry("name", QString()) == s_liquidGlassTheme;
-+    if (liquidGlass != m_liquidGlass) {
++    const QString style = plasmarc->group(QStringLiteral("Theme")).readEntry("name", QString());
++    const bool liquidGlass = style == s_liquidGlassTheme;
++    const bool light = style == s_liquidGlassLightTheme;
++    if (liquidGlass != m_liquidGlass || light != m_liquidGlassLight) {
 +        m_liquidGlass = liquidGlass;
++        m_liquidGlassLight = light;
 +        effects->addRepaintFull();
 +    }
 +}
@@ -372,9 +402,24 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +    // a bevel at least 1 px wide (the shader divides by it), sharpness a share
 +    bevel = QVector4D(std::max(bevel.x(), 1.0f), std::max(bevel.y(), 0.0f), std::max(bevel.z(), 0.0f), std::clamp(bevel.w(), 0.0f, 1.0f));
 +    frost = std::clamp(frost, 1, 15);
-+    if (bevel != m_bevel || frost != m_frost) {
++
++    const KConfigGroup light = glassrc->group(QStringLiteral("Light"));
++    const QVector4D lightBevel(std::max(light.readEntry("bevelWidth", double(s_lightBevel.x())), 1.0),
++                               std::max(light.readEntry("bevelRefraction", double(s_lightBevel.y())), 0.0),
++                               std::max(light.readEntry("bevelDispersion", double(s_lightBevel.z())), 0.0),
++                               std::clamp(light.readEntry("bevelSharpness", double(s_lightBevel.w())), 0.0, 1.0));
++    const int lightFrost = std::clamp(light.readEntry("frost", s_lightFrost), 1, 15);
++    const QVector4D lightUnderlay(std::max(light.readEntry("refraction", double(s_lightUnderlay.x())), 0.0),
++                                  std::max(light.readEntry("diffraction", double(s_lightUnderlay.y())), 0.0),
++                                  std::max(light.readEntry("etch", double(s_lightUnderlay.z())), 2.0),
++                                  std::clamp(light.readEntry("saturation", double(s_lightUnderlay.w())), 0.0, 1.0));
++
++    if (bevel != m_bevel || frost != m_frost || lightBevel != m_lightBevel || lightFrost != m_lightFrost || lightUnderlay != m_lightUnderlay) {
 +        m_bevel = bevel;
 +        m_frost = frost;
++        m_lightBevel = lightBevel;
++        m_lightFrost = lightFrost;
++        m_lightUnderlay = lightUnderlay;
 +        effects->addRepaintFull();
 +    }
 +}
@@ -420,20 +465,21 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  void BlurEffect::initBlurStrengthValues()
  {
      // This function creates an array of blur strength values that are evenly distributed
-@@ -571,6 +770,20 @@
+@@ -571,6 +815,21 @@
  
      blurShape.translate(w->pos());
  
-+    // a dark Liquid Glass surface (a Plasma frame: no decoration) shows the blur through its bevel
++    // a Liquid Glass surface (a Plasma frame: no decoration) shows the blur through its bevel
 +    BorderRadius bevelCorners;
-+    if (m_liquidGlass && m_bevelOnscreenPass.shader && w->window()->borderRadius().isNull()) {
++    if ((m_liquidGlass || m_liquidGlassLight) && m_bevelOnscreenPass.shader && w->window()->borderRadius().isNull()) {
 +        bevelCorners = liquidGlassCorners(blurShape, blurShape.boundingRect());
 +    }
++    const bool light = !bevelCorners.isNull() && m_liquidGlassLight;
 +    // and it's frosted more lightly than other blur
 +    size_t iterationCount = m_iterationCount;
 +    float offset = m_offset;
 +    if (!bevelCorners.isNull()) {
-+        const BlurValuesStruct &frost = blurStrengthValues[std::clamp(m_frost, 1, BlurConfig::blurStrength()) - 1];
++        const BlurValuesStruct &frost = blurStrengthValues[std::clamp(light ? m_lightFrost : m_frost, 1, BlurConfig::blurStrength()) - 1];
 +        iterationCount = frost.iteration;
 +        offset = frost.offset;
 +    }
@@ -441,7 +487,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      const Rect backgroundRect = blurShape.boundingRect().rounded();
      const Rect scaledBackgroundRect = backgroundRect.scaled(viewport.scale()).rounded();
      const Rect deviceBackgroundRect = viewport.mapToDeviceCoordinates(backgroundRect).rounded();
-@@ -605,12 +818,12 @@
+@@ -605,12 +864,12 @@
          textureFormat = renderTarget.texture()->internalFormat();
      }
  
@@ -456,7 +502,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
              auto texture = GLTexture::allocate(textureFormat, backgroundRect.size() / (1 << i));
              if (!texture) {
                  qCWarning(KWIN_BLUR) << "Failed to allocate an offscreen texture";
-@@ -742,6 +955,77 @@
+@@ -742,6 +1001,131 @@
  
      vbo->bindArrays();
  
@@ -531,10 +577,64 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        }
 +    }
 +
++    // Liquid Glass Light: the waves go beneath the frost. The background, bent by them and lit in shards of
++    // colour where they crest, is what the blur's passes frost (and what its bevel shows sharp), and they
++    // don't lean the glass on top.
++    GLTexture *frostSource = renderInfo.textures[0].get();
++    if (light && ripple.x() > 0 && m_underlayPass.shader) {
++        const QSize underlaySize = renderInfo.textures[0]->size();
++        if (!blurInfo.underlayTexture || blurInfo.underlayTexture->size() != underlaySize || blurInfo.underlayTexture->internalFormat() != textureFormat) {
++            blurInfo.underlayFramebuffer.reset();
++            blurInfo.underlayTexture = GLTexture::allocate(textureFormat, underlaySize);
++            if (blurInfo.underlayTexture) {
++                blurInfo.underlayTexture->setFilter(GL_LINEAR);
++                blurInfo.underlayTexture->setWrapMode(GL_CLAMP_TO_EDGE);
++                blurInfo.underlayFramebuffer = std::make_unique<GLFramebuffer>(blurInfo.underlayTexture.get());
++            }
++        }
++        if (blurInfo.underlayFramebuffer && blurInfo.underlayFramebuffer->valid()) {
++            const RectF window = w->frameGeometry();
++            ShaderManager::instance()->pushShader(m_underlayPass.shader.get());
++
++            QMatrix4x4 projectionMatrix;
++            projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
++            const float scale = viewport.scale();
++
++            m_underlayPass.shader->setUniform(m_underlayPass.mvpMatrixLocation, projectionMatrix);
++            m_underlayPass.shader->setUniform(m_underlayPass.sizeLocation, QVector2D(underlaySize.width(), underlaySize.height()));
++            m_underlayPass.shader->setUniform(m_underlayPass.originLocation, QVector2D(backgroundRect.x() - window.x(), backgroundRect.y() - window.y()));
++            m_underlayPass.shader->setUniform(m_underlayPass.areaLocation, QVector2D(backgroundRect.width(), backgroundRect.height()));
++            m_underlayPass.shader->setUniform(m_underlayPass.leanLocation, ripple.x());
++            m_underlayPass.shader->setUniform(m_underlayPass.lightLocation, QVector4D(m_lightUnderlay.x() * scale, m_lightUnderlay.y(), m_lightUnderlay.z(), m_lightUnderlay.w()));
++            m_underlayPass.shader->setUniform(m_underlayPass.timeLocation, float(std::fmod(monotonicNow(), 1000.0)));
++            m_underlayPass.shader->setUniform(m_underlayPass.texUnitLocation, 0);
++            m_underlayPass.shader->setUniform(m_underlayPass.wavesUnitLocation, 1);
++
++            glActiveTexture(GL_TEXTURE1);
++            blurInfo.wavesTexture->bind();
++            glActiveTexture(GL_TEXTURE0);
++            renderInfo.textures[0]->bind();
++
++            GLFramebuffer::pushFramebuffer(blurInfo.underlayFramebuffer.get());
++            vbo->draw(GL_TRIANGLES, 0, 6);
++            GLFramebuffer::popFramebuffer();
++
++            glActiveTexture(GL_TEXTURE1);
++            blurInfo.wavesTexture->unbind();
++            glActiveTexture(GL_TEXTURE0);
++
++            ShaderManager::instance()->popShader();
++            frostSource = blurInfo.underlayTexture.get();
++        }
++    }
++    if (light) {
++        ripple = QVector2D();
++    }
++
      // The downsample pass of the dual Kawase algorithm: the background will be scaled down 50% every iteration.
      {
          ShaderManager::instance()->pushShader(m_downsamplePass.shader.get());
-@@ -750,7 +1034,7 @@
+@@ -750,7 +1134,7 @@
          projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
  
          m_downsamplePass.shader->setUniform(m_downsamplePass.mvpMatrixLocation, projectionMatrix);
@@ -543,7 +643,16 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
          for (size_t i = 1; i < renderInfo.framebuffers.size(); ++i) {
              const auto &read = renderInfo.framebuffers[i - 1];
-@@ -777,7 +1061,7 @@
+@@ -760,7 +1144,7 @@
+                                       0.5 / read->colorAttachment()->height());
+             m_downsamplePass.shader->setUniform(m_downsamplePass.halfpixelLocation, halfpixel);
+ 
+-            read->colorAttachment()->bind();
++            (i == 1 ? frostSource : read->colorAttachment())->bind();
+ 
+             GLFramebuffer::pushFramebuffer(draw.get());
+             vbo->draw(GL_TRIANGLES, 0, 6);
+@@ -777,7 +1161,7 @@
          projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
  
          m_upsamplePass.shader->setUniform(m_upsamplePass.mvpMatrixLocation, projectionMatrix);
@@ -552,7 +661,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
          for (size_t i = renderInfo.framebuffers.size() - 1; i > 1; --i) {
              GLFramebuffer::popFramebuffer();
-@@ -824,7 +1108,7 @@
+@@ -824,7 +1208,7 @@
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.mvpMatrixLocation, projectionMatrix);
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.colorMatrixLocation, m_colorMatrix);
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.halfpixelLocation, halfpixel);
@@ -561,7 +670,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.boxLocation, QVector4D(nativeBox.horizontalCenter(), nativeBox.verticalCenter(), nativeBox.width() * 0.5, nativeBox.height() * 0.5));
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.cornerRadiusLocation, nativeCornerRadius.toVector());
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.opacityLocation, modulation);
-@@ -839,6 +1123,60 @@
+@@ -839,6 +1223,61 @@
          glDisable(GL_BLEND);
  
          ShaderManager::instance()->popShader();
@@ -588,14 +697,15 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.cornerRadiusLocation, bevelCorners.scaled(scale).toVector());
 +        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.opacityLocation, modulation);
 +        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.sizeLocation, size);
-+        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.bevelLocation, QVector4D(m_bevel.x() * scale, m_bevel.y() * scale, m_bevel.z() * scale, m_bevel.w()));
++        const QVector4D bevel = light ? m_lightBevel : m_bevel;
++        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.bevelLocation, QVector4D(bevel.x() * scale, bevel.y() * scale, bevel.z() * scale, bevel.w()));
 +        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.sharpUnitLocation, 1);
 +        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.wavesUnitLocation, 2);
 +        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.rippleLocation, QVector3D(ripple.x(), ripple.y(), rippleDispersion * scale));
 +
-+        // the background as it is, before the blur; the ripple's waves
++        // the background as it is, before the blur (on light glass, with the waves in it); the ripple's waves
 +        glActiveTexture(GL_TEXTURE1);
-+        renderInfo.textures[0]->bind();
++        frostSource->bind();
 +        if (ripple.x() > 0) {
 +            glActiveTexture(GL_TEXTURE2);
 +            blurInfo.wavesTexture->bind();
@@ -611,7 +721,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        glDisable(GL_BLEND);
 +
 +        glActiveTexture(GL_TEXTURE1);
-+        renderInfo.textures[0]->unbind();
++        frostSource->unbind();
 +        if (ripple.x() > 0) {
 +            glActiveTexture(GL_TEXTURE2);
 +            blurInfo.wavesTexture->unbind();
@@ -622,7 +732,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      } else {
          ShaderManager::instance()->pushShader(m_onscreenPass.shader.get());
  
-@@ -854,7 +1192,7 @@
+@@ -854,7 +1293,7 @@
          m_onscreenPass.shader->setUniform(m_onscreenPass.mvpMatrixLocation, projectionMatrix);
          m_onscreenPass.shader->setUniform(m_onscreenPass.colorMatrixLocation, m_colorMatrix);
          m_onscreenPass.shader->setUniform(m_onscreenPass.halfpixelLocation, halfpixel);
@@ -674,7 +784,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  struct BlurEffectData
  {
      /// The region that should be blurred behind the window
-@@ -43,9 +67,14 @@
+@@ -43,9 +67,17 @@
      std::unordered_map<RenderView *, BlurRenderData> render;
  
      std::unique_ptr<BackgroundEffectItem> blurItem;
@@ -683,6 +793,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
 +    std::vector<LiquidGlassKnock> knocks;
 +    std::unique_ptr<GLTexture> wavesTexture;
 +    std::unique_ptr<GLFramebuffer> wavesFramebuffer;
++    /// and on Liquid Glass Light, the background with the waves in it, for the blur to frost
++    std::unique_ptr<GLTexture> underlayTexture;
++    std::unique_ptr<GLFramebuffer> underlayFramebuffer;
  };
  
 -class BlurEffect : public KWin::Effect
@@ -690,7 +803,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  {
      Q_OBJECT
  
-@@ -81,6 +110,11 @@
+@@ -81,6 +113,11 @@
  #endif
      void setupDecorationConnections(EffectWindow *w);
  
@@ -702,7 +815,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  private:
      void initBlurStrengthValues();
      RegionF blurRegion(EffectWindow *w) const;
-@@ -90,6 +124,7 @@
+@@ -90,6 +127,7 @@
      void updateBlurRegion(EffectWindow *w);
      void blur(const RenderTarget &renderTarget, const RenderViewport &viewport, EffectWindow *w, int mask, const Region &deviceRegion, WindowPaintData &data);
      GLTexture *ensureNoiseTexture();
@@ -710,7 +823,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  
  private:
      struct
-@@ -113,6 +148,49 @@
+@@ -113,6 +151,69 @@
          int opacityLocation;
      } m_roundedOnscreenPass;
  
@@ -745,10 +858,30 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
 +        int edgeLocation;
 +        int standoffLocation;
 +    } m_ripplePass;
++    // Liquid Glass Light: the waves beneath the frost (shaders/underlay.frag)
++    struct
++    {
++        std::unique_ptr<GLShader> shader;
++        int mvpMatrixLocation;
++        int sizeLocation;
++        int originLocation;
++        int areaLocation;
++        int leanLocation;
++        int lightLocation;
++        int timeLocation;
++        int texUnitLocation;
++        int wavesUnitLocation;
++    } m_underlayPass;
 +    void loadLiquidGlassSettings();
 +    QString m_plasmarc; // the Plasma style is set in there
 +    QString m_glassrc; // plasma-glass's own settings (plasma-glass-tune edits them)
 +    bool m_liquidGlass = false; // it's the dark Liquid Glass
++    bool m_liquidGlassLight = false; // it's Liquid Glass Light
++    QVector4D m_lightBevel; // Liquid Glass Light's bevel, as m_bevel
++    int m_lightFrost; // and frost, as m_frost
++    // and its waves beneath the frost: logical px what's behind is seen from further in where one leans
++    // fully, how bright the foil's colours are, its shards' size (logical px), how saturated they are
++    QVector4D m_lightUnderlay;
 +    QVector4D m_bevel; // logical px: width, refraction, dispersion; sharpness at the edge
 +    int m_frost; // its blur strength, at most (as BlurStrength)
 +    // KWIN_LIQUID_GLASS_RIPPLE: how far KRunner's ripple leans the glass, against the bevel's edge (0: not at
@@ -763,7 +896,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.qrc b/src/plugins/blur/blur.qrc
 --- a/src/plugins/blur/blur.qrc
 +++ b/src/plugins/blur/blur.qrc
-@@ -3,8 +3,10 @@
+@@ -3,8 +3,11 @@
    <file>shaders/downsample.frag</file>
    <file>shaders/noise.frag</file>
    <file>shaders/onscreen.frag</file>
@@ -771,6 +904,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.qrc b/src
    <file>shaders/onscreen_rounded.frag</file>
    <file>shaders/onscreen_rounded.vert</file>
 +  <file>shaders/ripple.frag</file>
++  <file>shaders/underlay.frag</file>
    <file>shaders/upsample.frag</file>
    <file>shaders/vertex.vert</file>
  </qresource>
@@ -1030,6 +1164,94 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple
 +        knock(p, knocks[i], shapes[i], die, toRim, slope, height);
 +    }
 +    fragColor = vec4(slope, height, 1.0);
++}
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/underlay.frag b/src/plugins/blur/shaders/underlay.frag
+--- a/src/plugins/blur/shaders/underlay.frag
++++ b/src/plugins/blur/shaders/underlay.frag
+@@ -0,0 +1,84 @@
++#version 140
++
++// KRunner's busy ripple on Liquid Glass Light (plasma-glass), beneath the frost: what's behind the glass,
++// bent by the waves (seen from further in where a wave leans, as through a lens) and lit in shards of
++// colour where they crest, as off an etched diffraction foil. The blur's passes then frost this, so the
++// waves show through the frosting, softened. In: the background as it is, and the waves' slope and height
++// (ripple.frag) at half size. Out: the background to frost.
++
++uniform sampler2D texUnit;   // the background as it is
++uniform sampler2D wavesUnit; // the waves: the glass's slope (x, y) and their height
++uniform vec2 size;           // the background's size, device px
++uniform vec2 origin;         // its top left in the window, logical px
++uniform vec2 area;           // its size, logical px
++uniform float lean;          // what a wave's slope is multiplied by to lean the glass
++uniform vec4 light;          // device px what's behind is seen from further in where a wave leans fully;
++                             // how bright the foil's colours are; its shards' size (logical px); how
++                             // saturated they are (0: white)
++uniform float time;          // s, for the colours' slow drift
++
++in vec2 uv;
++
++out vec4 fragColor;
++
++// hashes without sine (Dave Hoskins), stable in float precision
++float hash12(vec2 p)
++{
++    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
++    p3 += dot(p3, p3.yzx + 33.33);
++    return fract((p3.x + p3.y) * p3.z);
++}
++
++vec2 hash22(vec2 p)
++{
++    vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
++    p3 += dot(p3, p3.yzx + 33.33);
++    return fract((p3.xx + p3.yz) * p3.zy);
++}
++
++// a rainbow: w 0 (red) .. 1 (violet)
++vec3 spectral(float w)
++{
++    vec3 x = 3.2 * (w - vec3(0.18, 0.48, 0.78));
++    vec3 c = max(1.0 - x * x, 0.0);
++    c.r += 0.35 * max(1.0 - 10.0 * (w - 1.0) * (w - 1.0), 0.0); // violet has some red
++    return c;
++}
++
++void main(void)
++{
++    vec3 wave = texture(wavesUnit, uv).xyz;
++    vec2 waveLean = -wave.xy * lean; // a wave faces downhill
++    float tilt = min(length(waveLean), 1.0);
++    vec2 facing = waveLean / max(length(waveLean), 1e-6);
++    // seen from further in, most where it's steep (the background is drawn with v from 1 at its top)
++    vec2 shift = facing * light.x * tilt * tilt / size;
++    vec4 color = texture(texUnit, uv + vec2(-shift.x, shift.y));
++
++    float crest = max(wave.z, 0.0);
++    if (crest > 0.002 && light.y > 0.0) {
++        // the foil's shard here: the Voronoi cells of a jittered grid, light.z logical px across, fixed to
++        // the window, each with its own colour and sparkle
++        vec2 q = (origin + vec2(uv.x, 1.0 - uv.y) * area) / light.z;
++        vec2 cell = floor(q);
++        vec2 f = q - cell;
++        float best = 8.0;
++        vec2 id = cell;
++        for (int j = -1; j <= 1; ++j) {
++            for (int i = -1; i <= 1; ++i) {
++                vec2 o = vec2(float(i), float(j)) + hash22(cell + vec2(float(i), float(j))) - f;
++                float d2 = dot(o, o);
++                if (d2 < best) {
++                    best = d2;
++                    id = cell + vec2(float(i), float(j));
++                }
++            }
++        }
++        float hue = hash22(id + 17.17).y;
++        float sparkle = 0.3 + 0.7 * hash12(id + 3.7);
++        vec3 tint = mix(vec3(1.0), spectral(fract(hue + 0.03 * time)), light.w);
++        // light the crests give off, beneath the frost
++        color.rgb += tint * light.y * sparkle * min(crest, 1.0) * color.a;
++    }
++    fragColor = color;
 +}
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/scripting/scripting.cpp b/src/scripting/scripting.cpp
 --- a/src/scripting/scripting.cpp

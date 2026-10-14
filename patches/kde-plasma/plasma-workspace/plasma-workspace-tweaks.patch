@@ -215,7 +215,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunne
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -16,11 +16,297 @@
+@@ -16,11 +16,299 @@
  import org.kde.milou as Milou
  import org.kde.krunner.private.view
  import org.kde.kirigami as Kirigami
@@ -306,7 +306,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        readonly property bool shaders: GraphicsInfo.api !== GraphicsInfo.Software
 +        readonly property bool active: root.busy && shaders && Kirigami.Units.longDuration > 0 // reduced motion: none
 +        readonly property bool rippling: active || knocks.length > 0
-+        visible: lightStyle && rippling
++        visible: lightStyle && rippling && sheen > 0
 +        fragmentShader: Qt.resolvedUrl("busyripple.frag.qsb")
 +        property var source: ShaderEffectSource {
 +            sourceItem: root
@@ -331,10 +331,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        property size itemSize: Qt.size(width, height)
 +        property real radius: 26 // Liquid Glass's corner radius (generate.py R)
 +        property real steep: 0.5 // steepest slope of a fresh wave
-+        // Liquid Glass Light: a flat foil sheen; other styles show the waves only by what KWin bends behind
-+        // the glass (no light of their own, and the content stays as it is)
++        // Both styles show the waves by what KWin does behind the glass (plasma-glass's KWin patch: on dark
++        // glass it bends what's behind; on Liquid Glass Light the waves go beneath the frost, lit in shards
++        // of colour). On light glass a flat foil sheen can go over the glass too, [Light] sheen (0: none,
++        // the default since the waves went beneath the frost; it was 0.35)
 +        readonly property bool lightStyle: KSvg.ImageSet.imageSetName === "liquid-glass-light"
-+        property real sheen: 0.35 * amplitude
++        property real sheen: Math.max(0, tunedNumber("light.sheen", 0)) * amplitude
 +        property real foilTile: busyFoil.width
 +        property real foilSat: 0.8
 +        property real time: clock
@@ -444,17 +446,17 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +            busyWaves.knock7 = kv[7] ?? none; busyWaves.shape7 = sh[7] ?? none;
 +        }
 +    }
-+    // the foil's shards for busyRipple on light glass (9 px, a tile of 64 by 64 that repeats), rendered once
++    // the foil's shards for busyRipple on light glass ([Light] etch px, a tile of 64 by 64 that repeats), rendered once
 +    // into its `foil` texture
 +    property Item busyFoil: ShaderEffect {
 +        id: busyFoil
 +        parent: root.parent
 +        width: 64 * grain
 +        height: width
-+        visible: busyRipple.lightStyle
++        visible: busyRipple.lightStyle && busyRipple.sheen > 0 // only for the sheen over the glass
 +        blending: false
 +        fragmentShader: Qt.resolvedUrl("busyfoil.frag.qsb")
-+        property real grain: 9 // px
++        property real grain: Math.max(2, busyRipple.tunedNumber("light.etch", 32)) // px, as KWin's foil beneath the frost
 +        property real cells: 64
 +    }
 +    // the waves' slope and height for busyRipple, rendered only into its `waves` texture
@@ -513,7 +515,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
      property string query
      property string singleRunner
      property bool showHistory: false
-@@ -62,6 +348,13 @@
+@@ -62,6 +350,13 @@
      Connections {
          target: root.runnerWindow
          function onVisibleChanged() {
@@ -527,7 +529,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              if (root.runnerWindow.visible) {
                  queryField.forceActiveFocus();
                  listView.currentIndex = -1
-@@ -74,6 +367,8 @@
+@@ -74,6 +369,8 @@
                      }
                  }
              } else {
@@ -536,7 +538,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
                  if (root.runnerWindow.retainPriorSearch) {
                      root.priorSearch = root.query
                  }
-@@ -98,6 +393,7 @@
+@@ -98,6 +395,7 @@
      }
      
      RowLayout {
@@ -544,7 +546,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          Layout.alignment: Qt.AlignTop
          PlasmaComponents3.ToolButton {
              visible: root.runnerWindow.helpEnabled
-@@ -131,14 +427,33 @@
+@@ -131,14 +429,33 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -581,7 +583,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              QQC2.Label {
                  id: fadedTextCompletion
-@@ -157,35 +472,25 @@
+@@ -157,35 +474,25 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -629,7 +631,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              }
  
              function focusCurrentListView() {
-@@ -301,6 +606,7 @@
+@@ -301,6 +608,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -637,7 +639,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -313,12 +619,102 @@
+@@ -313,12 +621,102 @@
          }
      }
  
@@ -743,7 +745,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -327,6 +723,10 @@
+@@ -327,6 +725,10 @@
              queryString: root.query
              queryField: queryField
              singleRunner: root.singleRunner
@@ -754,7 +756,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              Keys.onEscapePressed: {
                  root.runnerWindow.visible = false
-@@ -347,9 +747,18 @@
+@@ -347,9 +749,18 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -774,7 +776,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
          visible: root.query.length === 0 && listView.count > 0
-@@ -358,6 +767,8 @@
+@@ -358,6 +769,8 @@
  
          ListView {
              id: listView // needs this id so the delegate can access it
@@ -1399,7 +1401,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      } else {
          return {}; // Zeros
      }
-@@ -119,11 +248,46 @@
+@@ -119,11 +248,48 @@
          displayWithClipboardContents();
      }
  
@@ -1418,11 +1420,13 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
 +void View::loadLiquidGlass()
 +{
 +    QVariantMap settings;
-+    const QMap<QString, QString> entries = m_liquidGlassConfig->group(u"Ripple"_s).entryMap();
-+    for (auto it = entries.cbegin(); it != entries.cend(); ++it) {
-+        bool number = false;
-+        const double value = it.value().toDouble(&number);
-+        settings.insert(it.key(), number ? QVariant(value) : QVariant(it.value()));
++    for (const auto &[group, prefix] : {std::pair(u"Ripple"_s, QString()), std::pair(u"Light"_s, u"light."_s)}) {
++        const QMap<QString, QString> entries = m_liquidGlassConfig->group(group).entryMap();
++        for (auto it = entries.cbegin(); it != entries.cend(); ++it) {
++            bool number = false;
++            const double value = it.value().toDouble(&number);
++            settings.insert(prefix + it.key(), number ? QVariant(value) : QVariant(it.value()));
++        }
 +    }
 +    // the heartbeat comes every 2 s; the settings only change while someone tunes them
 +    const double left = settings.take(u"tuning"_s).toDouble() - QDateTime::currentMSecsSinceEpoch() / 1000.0;
@@ -1447,7 +1451,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
  bool View::freeFloating() const
  {
      return m_floating;
-@@ -145,6 +309,9 @@
+@@ -145,6 +311,9 @@
  
  void View::loadConfig()
  {
@@ -1457,7 +1461,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      setFreeFloating(m_config.readEntry("FreeFloating", false));
      setRetainPriorSearch(m_config.readEntry("RetainPriorSearch", true));
      setPinned(m_stateData.readEntry("Pinned", false));
-@@ -157,6 +324,7 @@
+@@ -157,6 +326,7 @@
          KX11Extras::setOnAllDesktops(winId(), true);
      }
      QQuickWindow::showEvent(event);
@@ -1465,7 +1469,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      requestActivate();
      if (KWindowSystem::isPlatformX11()) {
          KX11Extras::forceActiveWindow(winId());
-@@ -167,7 +335,15 @@
+@@ -167,7 +337,15 @@
  {
      const auto screens = QGuiApplication::screens();
      auto screenIt = screens.cend();
@@ -1482,7 +1486,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
          auto message = QDBusMessage::createMethodCall(u"org.kde.KWin"_s, u"/KWin"_s, u"org.kde.KWin"_s, u"activeOutputName"_s);
          QDBusReply<QString> reply = QDBusConnection::sessionBus().call(message);
          if (reply.isValid()) {
-@@ -187,11 +363,10 @@
+@@ -187,11 +365,10 @@
  
      if (KWindowSystem::isPlatformWayland()) {
          auto layerWindow = LayerShellQt::Window::get(this);
@@ -1495,7 +1499,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
          if (m_floating) {
              layerWindow->setScreen(shownOnScreen);
          } else {
-@@ -209,6 +384,267 @@
+@@ -209,6 +386,267 @@
      }
  }
  
@@ -1788,7 +1792,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  
  class View : public PlasmaQuick::PlasmaWindow
  {
-@@ -47,6 +54,54 @@
+@@ -47,6 +54,55 @@
  
      void positionOnScreen();
  
@@ -1810,8 +1814,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 +        return qEnvironmentVariableIntValue("KRUNNER_BUSY_DEMO") > 0;
 +    }
 +
-+    // The busy ripple's settings: ~/.config/plasma-glassrc's [Ripple] group (numbers as numbers, the rest as
-+    // text), which plasma-glass-tune edits; read again whenever the file changes
++    // The busy ripple's settings: ~/.config/plasma-glassrc's [Ripple] group, and its [Light] group's as
++    // light.key (numbers as numbers, the rest as text), which plasma-glass-tune edits; read again whenever
++    // the file changes
 +    Q_PROPERTY(QVariantMap liquidGlass READ liquidGlass NOTIFY liquidGlassChanged)
 +    QVariantMap liquidGlass() const
 +    {
@@ -1843,7 +1848,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
      bool freeFloating() const;
      void setFreeFloating(bool floating);
  
-@@ -82,12 +137,19 @@
+@@ -82,12 +138,19 @@
      }
  
  Q_SIGNALS:
@@ -1863,7 +1868,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  
  public Q_SLOTS:
      void display();
-@@ -97,6 +159,9 @@
+@@ -97,6 +160,9 @@
      void query(const QString &term);
      void querySingleRunner(const QString &runnerName, const QString &term);
  
@@ -1873,7 +1878,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  protected Q_SLOTS:
      void loadConfig();
      void objectIncubated();
-@@ -106,6 +171,40 @@
+@@ -106,6 +172,40 @@
      void writeHistory();
      QPoint m_customPos;
      QMargins margins();

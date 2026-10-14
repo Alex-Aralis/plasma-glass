@@ -209,10 +209,13 @@ docs are in README.md; this file covers how to work on it.
   bump, spread, damping, life and steep), born on the monotonic clock both run the ripple on
   (`View::monotonicTime()`; the ripple's clock used to sum frame times, capped at 0.1 s, which a stall
   would have put behind KWin's). KRunner's own GPU time while busy went from 0.78 to 0.30 ms a frame
-  (preview, UHD 770 through Mesa, 744x346 at scale 1.1). Liquid Glass Light: a flat
-  foil sheen of fixed-colour shards over the crests, no refraction (colours that moved with the wave's
-  tilt flickered); busyRipple draws the content too, over the sheen, from a ShaderEffectSource of the
-  layout hidden while it runs (the dividers aren't in it).
+  (preview, UHD 770 through Mesa, 744x346 at scale 1.1). Liquid Glass Light used to get a flat foil
+  sheen of fixed-colour shards over the crests, drawn by busyRipple over the glass (no refraction:
+  colours that moved with the wave's tilt flickered; it draws the content too, over the sheen, from a
+  ShaderEffectSource of the layout hidden while it runs, without the dividers). Since 2026-10-14 the
+  waves go beneath the frost there too ("put the wave beneath the frosting"), drawn by KWin (below), and
+  the sheen over the glass is `[Light] sheen`, 0 by default (it was 0.35); its shards follow `[Light]
+  etch` like KWin's foil, and busyFoil only renders its tile while the sheen is on.
   `KRUNNER_BUSY_DEMO=1` keeps it running, to look at it (also in `tools/preview/krunner.sh`, and
   `tools/preview/record.sh` records it). dFdx/dFdy are undefined after a per-pixel early exit, so a
   wave's direction is computed, not differentiated (the unit vector from where it left the side). Tried and
@@ -287,8 +290,8 @@ docs are in README.md; this file covers how to work on it.
   that [liquidglass](https://github.com/ybouane/liquidglass) uses, whose bevel is a half circle. On the
   blur alone the colour split doesn't show; the sharp background makes it visible. A refraction linear
   in the tilt (16 px over 24) magnified a thin strip 3x evenly and smeared glyphs into colour streaks;
-  with tilt² it starts smoothly, and it folds over if the refraction passes half the width. Only while
-  plasmarc's `[Theme] name` is `liquid-glass` (the light style is meant to look flat), watched with
+  with tilt² it starts smoothly, and it folds over if the refraction passes half the width. While
+  plasmarc's `[Theme] name` is `liquid-glass`, or `liquid-glass-light` (below), watched with
   KDirWatch since the style's settings page doesn't notify; tested by rewriting the preview's plasmarc
   mid-recording. `KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness` (24,9,2,1) in KWin's
   environment overrides it, to tune without a rebuild. A shader that fails to compile drops only the
@@ -346,6 +349,21 @@ docs are in README.md; this file covers how to work on it.
   third moved 2.87 against 2.88 from the reference recording). Checked live in the preview, the tuning
   window beside KRunner and its sliders dragged with fakeinput: frost changed at once, speed, split and
   width with the next knock. The preview copies `plasma-glassrc` into its config, like your KDE files.
+- **Liquid Glass Light's waves go beneath the frost** (2026-10-14: "the light version with frosted
+  glass, the wave beneath the frosting", with a settings panel and the diffraction's etch size as a
+  setting). KWin treats `liquid-glass-light` as Liquid Glass too: its own frost (`[Light] frost`, 5; it
+  had KWin's own blur strength, 15 by default, before) and the bevel pass with `[Light]`'s bevel, off by
+  default (the light style looks flat). While KRunner's waves run, `shaders/underlay.frag` runs between
+  the background's copy and the first downsample: what's behind, seen from further in where a wave leans
+  (`refraction`, 16 px x lean²), plus light where the waves crest in shards of colour, the Voronoi cells
+  of a jittered grid `etch` px across (32), fixed to the window, each its own hue and sparkle, as
+  busyfoil.frag's (`diffraction` 1.2, `saturation` 0.8). The blur's passes frost that instead of the
+  plain copy, and the waves don't lean the glass on top. Under the frost the shards' size decides what
+  shows: at 12 px they blur into a near-white haze, at 32 they show as soft patches of colour, at 72 as
+  big blobs. The first defaults (frost 7, refraction 12, diffraction 0.8, etch 28) were too faint
+  under the light glass's 62% white tint. In the preview (UHD 770, 744x346) KWin takes 2.69-2.73 ms a
+  frame on light glass with the waves, 1.26 without them; the foil costs nothing measurable (2.72 ms
+  without it), the full-size underlay pass and the heavier frost do.
 - **Without shaders (software rendering) the busy pulse is a gradient, not a mask.** The band of
   light that stands in for the ripple is the gradient of a rounded Rectangle over the glass (stops
   moved by a 0..1 progress), so it keeps to the corners at every size. A MultiEffect mask (the
