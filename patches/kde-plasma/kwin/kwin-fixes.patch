@@ -198,7 +198,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
  #include <KDecoration3/Decoration>
  
-@@ -57,6 +63,49 @@
+@@ -57,6 +63,53 @@
  
  static const QByteArray s_blurAtomName = QByteArrayLiteral("_KDE_NET_WM_BLUR_BEHIND_REGION");
  
@@ -207,16 +207,20 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +// corners of this radius (logical px, generate.py R), which their mask, and so the blur region, leaves out.
 +static const QString s_liquidGlassTheme = QStringLiteral("liquid-glass");
 +static constexpr qreal s_liquidGlassRadius = 26;
-+// the bevel: logical px wide; how far in what's behind is seen at the very edge (refraction), how far red
-+// and blue part there each way (dispersion); how much sharper the edge shows it (0..1). The environment
-+// can override it, to tune: KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness
++// The glass's look comes from these defaults, then ~/.config/plasma-glassrc's [Glass] group (which
++// plasma-glass-tune edits; followed live), then the environment, to tune without touching the file.
++// The bevel: logical px wide; how far in what's behind is seen at the very edge (refraction), how far red
++// and blue part there each way (dispersion); how much sharper the edge shows it (0..1).
++// [Glass] bevelWidth, refraction, dispersion, sharpness; KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness
 +static const QVector4D s_liquidGlassBevel(24, 9, 2, 1);
 +// The glass is frosted lightly all over, so what's behind still shows through and the bevel bends that
-+// same frost: a blur strength (BlurStrength's 1..15) it never goes above. KWIN_LIQUID_GLASS_FROST=strength
++// same frost: a blur strength (BlurStrength's 1..15) it never goes above. [Glass] frost; KWIN_LIQUID_GLASS_FROST
 +static constexpr int s_liquidGlassFrost = 2;
 +// KRunner's busy ripple leans the glass too: a fresh wave's steepest slope as far as the bevel at its edge
 +// (1), times this; and where a wave leans it fully, its colours part by a little more than the bevel's
-+// (logical px each way). KWIN_LIQUID_GLASS_RIPPLE=scale[,dispersion] (scale 0: no waves)
++// (logical px each way). KRunner sends both with each knock (plasma-glassrc's [Ripple] amplitude and
++// aberration); these stand in when it doesn't. KWIN_LIQUID_GLASS_RIPPLE=scale[,dispersion] overrides
++// them (scale 0: no waves).
 +static constexpr double s_liquidGlassRipple = 1;
 +static constexpr double s_liquidGlassRippleDispersion = 3;
 +
@@ -248,7 +252,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  static QMatrix4x4 colorTransformMatrix(qreal saturation, qreal contrast)
  {
      QMatrix4x4 saturationMatrix;
-@@ -119,6 +168,58 @@
+@@ -119,6 +172,51 @@
          m_roundedOnscreenPass.opacityLocation = m_roundedOnscreenPass.shader->uniformLocation("opacity");
      }
  
@@ -285,17 +289,10 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        m_ripplePass.knocksLocation = m_ripplePass.shader->uniformLocation("knocks");
 +        m_ripplePass.shapesLocation = m_ripplePass.shader->uniformLocation("shapes");
 +        m_ripplePass.steepLocation = m_ripplePass.shader->uniformLocation("steep");
++        m_ripplePass.edgeLocation = m_ripplePass.shader->uniformLocation("edge");
 +    }
 +    m_bevel = s_liquidGlassBevel;
-+    if (const QStringList bevel = qEnvironmentVariable("KWIN_LIQUID_GLASS_BEVEL").split(QLatin1Char(',')); bevel.size() == 4) {
-+        m_bevel = QVector4D(bevel[0].toFloat(), bevel[1].toFloat(), bevel[2].toFloat(), bevel[3].toFloat());
-+    }
 +    m_frost = s_liquidGlassFrost;
-+    if (const int frost = qEnvironmentVariableIntValue("KWIN_LIQUID_GLASS_FROST"); frost > 0) {
-+        m_frost = frost;
-+    }
-+    m_rippleLean = s_liquidGlassRipple;
-+    m_rippleDispersion = s_liquidGlassRippleDispersion;
 +    if (qEnvironmentVariableIsSet("KWIN_LIQUID_GLASS_RIPPLE")) {
 +        const QStringList ripple = qEnvironmentVariable("KWIN_LIQUID_GLASS_RIPPLE").split(QLatin1Char(','));
 +        m_rippleLean = ripple[0].toDouble();
@@ -307,23 +304,29 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      m_downsamplePass.shader = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture,
                                                                                  QStringLiteral(":/effects/blur/shaders/vertex.vert"),
                                                                                  QStringLiteral(":/effects/blur/shaders/downsample.frag"));
-@@ -181,14 +282,76 @@
+@@ -181,14 +279,112 @@
          slotWindowAdded(window);
      }
  
 +    // Follow the Plasma style: only the dark Liquid Glass has the bevel. Watched as a file, since its
-+    // settings page doesn't notify about the change.
++    // settings page doesn't notify about the change; and the glass's own settings, which
++    // plasma-glass-tune writes as you move its sliders.
 +    m_plasmarc = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/plasmarc");
++    m_glassrc = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/plasma-glassrc");
 +    KDirWatch::self()->addFile(m_plasmarc);
-+    const auto plasmarcChanged = [this](const QString &path) {
++    KDirWatch::self()->addFile(m_glassrc);
++    const auto configChanged = [this](const QString &path) {
 +        if (path == m_plasmarc) {
 +            updateLiquidGlass();
++        } else if (path == m_glassrc) {
++            loadLiquidGlassSettings();
 +        }
 +    };
-+    connect(KDirWatch::self(), &KDirWatch::dirty, this, plasmarcChanged);
-+    connect(KDirWatch::self(), &KDirWatch::created, this, plasmarcChanged);
-+    connect(KDirWatch::self(), &KDirWatch::deleted, this, plasmarcChanged);
++    connect(KDirWatch::self(), &KDirWatch::dirty, this, configChanged);
++    connect(KDirWatch::self(), &KDirWatch::created, this, configChanged);
++    connect(KDirWatch::self(), &KDirWatch::deleted, this, configChanged);
 +    updateLiquidGlass();
++    loadLiquidGlassSettings();
 +    QDBusConnection::sessionBus().registerObject(QStringLiteral("/org/kde/KWin/LiquidGlass"), QStringLiteral("org.kde.KWin.LiquidGlass"),
 +                                                 this, QDBusConnection::ExportScriptableSlots);
 +
@@ -334,6 +337,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  {
 +    if (!m_plasmarc.isEmpty()) {
 +        KDirWatch::self()->removeFile(m_plasmarc);
++        KDirWatch::self()->removeFile(m_glassrc);
 +        QDBusConnection::sessionBus().unregisterObject(QStringLiteral("/org/kde/KWin/LiquidGlass"));
 +    }
      waylandServer()->backgroundEffectManager()->removeBlurCapability();
@@ -346,6 +350,30 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +    const bool liquidGlass = plasmarc->group(QStringLiteral("Theme")).readEntry("name", QString()) == s_liquidGlassTheme;
 +    if (liquidGlass != m_liquidGlass) {
 +        m_liquidGlass = liquidGlass;
++        effects->addRepaintFull();
++    }
++}
++
++void BlurEffect::loadLiquidGlassSettings()
++{
++    KSharedConfig::Ptr glassrc = KSharedConfig::openConfig(QStringLiteral("plasma-glassrc"), KConfig::NoGlobals);
++    glassrc->reparseConfiguration();
++    const KConfigGroup glass = glassrc->group(QStringLiteral("Glass"));
++    QVector4D bevel(glass.readEntry("bevelWidth", double(s_liquidGlassBevel.x())), glass.readEntry("refraction", double(s_liquidGlassBevel.y())),
++                    glass.readEntry("dispersion", double(s_liquidGlassBevel.z())), glass.readEntry("sharpness", double(s_liquidGlassBevel.w())));
++    int frost = glass.readEntry("frost", s_liquidGlassFrost);
++    if (const QStringList env = qEnvironmentVariable("KWIN_LIQUID_GLASS_BEVEL").split(QLatin1Char(',')); env.size() == 4) {
++        bevel = QVector4D(env[0].toFloat(), env[1].toFloat(), env[2].toFloat(), env[3].toFloat());
++    }
++    if (const int envFrost = qEnvironmentVariableIntValue("KWIN_LIQUID_GLASS_FROST"); envFrost > 0) {
++        frost = envFrost;
++    }
++    // a bevel at least 1 px wide (the shader divides by it), sharpness a share
++    bevel = QVector4D(std::max(bevel.x(), 1.0f), std::max(bevel.y(), 0.0f), std::max(bevel.z(), 0.0f), std::clamp(bevel.w(), 0.0f, 1.0f));
++    frost = std::clamp(frost, 1, 15);
++    if (bevel != m_bevel || frost != m_frost) {
++        m_bevel = bevel;
++        m_frost = frost;
 +        effects->addRepaintFull();
 +    }
 +}
@@ -369,6 +397,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        .damping = wave.value(QStringLiteral("damping"), 36.0).toDouble(),
 +        .life = wave.value(QStringLiteral("life"), 9.5).toDouble(),
 +        .steep = wave.value(QStringLiteral("steep"), 0.5).toDouble(),
++        .lean = wave.value(QStringLiteral("lean"), s_liquidGlassRipple).toDouble(),
++        .dispersion = wave.value(QStringLiteral("dispersion"), s_liquidGlassRippleDispersion).toDouble(),
++        .ring = std::max(wave.value(QStringLiteral("ring"), 1.7).toDouble(), 0.1),
++        .norm = std::max(wave.value(QStringLiteral("norm"), 0.991).toDouble(), 0.01),
++        .edge = std::max(wave.value(QStringLiteral("edge"), 3.0).toDouble(), 0.5),
 +    };
 +    for (auto &[window, data] : m_windows) {
 +        if (window->pid() == pid_t(pid.value())) {
@@ -384,7 +417,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  void BlurEffect::initBlurStrengthValues()
  {
      // This function creates an array of blur strength values that are evenly distributed
-@@ -571,6 +734,20 @@
+@@ -571,6 +767,20 @@
  
      blurShape.translate(w->pos());
  
@@ -405,7 +438,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      const Rect backgroundRect = blurShape.boundingRect().rounded();
      const Rect scaledBackgroundRect = backgroundRect.scaled(viewport.scale()).rounded();
      const Rect deviceBackgroundRect = viewport.mapToDeviceCoordinates(backgroundRect).rounded();
-@@ -605,12 +782,12 @@
+@@ -605,12 +815,12 @@
          textureFormat = renderTarget.texture()->internalFormat();
      }
  
@@ -420,19 +453,23 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
              auto texture = GLTexture::allocate(textureFormat, backgroundRect.size() / (1 << i));
              if (!texture) {
                  qCWarning(KWIN_BLUR) << "Failed to allocate an offscreen texture";
-@@ -742,6 +919,68 @@
+@@ -742,6 +952,77 @@
  
      vbo->bindArrays();
  
 +    // KRunner's ripple, on a Liquid Glass surface: its waves' slope and height over the background, at half
-+    // size, for the bevel pass to lean and clear the glass by (what it multiplies them by; 0: no waves)
++    // size, for the bevel pass to lean and clear the glass by (what it multiplies them by; 0: no waves), and
++    // how far their colours part (device px, where one leans the glass fully). The latest knock's settings
++    // go for all of them.
 +    QVector2D ripple;
-+    if (!bevelCorners.isNull() && m_ripplePass.shader && m_rippleLean > 0) {
++    float rippleDispersion = 0;
++    if (!bevelCorners.isNull() && m_ripplePass.shader) {
 +        const double now = monotonicNow();
 +        std::erase_if(blurInfo.knocks, [now](const LiquidGlassKnock &knock) {
 +            return now - knock.born >= knock.life;
 +        });
-+        if (!blurInfo.knocks.empty()) {
++        const double lean = blurInfo.knocks.empty() ? 0 : m_rippleLean.value_or(blurInfo.knocks.back().lean);
++        if (lean > 0) {
 +            const QSize wavesSize((backgroundRect.width() + 1) / 2, (backgroundRect.height() + 1) / 2);
 +            if (!blurInfo.wavesTexture || blurInfo.wavesTexture->size() != wavesSize) {
 +                blurInfo.wavesFramebuffer.reset();
@@ -460,8 +497,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +                    knocks[i][3] = knock.bump + knock.spread * age;
 +                    shapes[i][0] = std::exp(-age / knock.damping) * smoothStep(0, 0.05, age) * (1 - smoothStep(0.8 * knock.life, knock.life, age));
 +                    shapes[i][1] = std::log(0.5) / std::log(along);
++                    shapes[i][2] = knock.ring;
++                    shapes[i][3] = knock.norm;
 +                }
-+                ripple = QVector2D(m_rippleLean / blurInfo.knocks.back().steep, m_rippleLean);
++                const LiquidGlassKnock &latest = blurInfo.knocks.back();
++                ripple = QVector2D(lean / latest.steep, lean);
++                rippleDispersion = m_rippleDispersion.value_or(latest.dispersion);
 +
 +                ShaderManager::instance()->pushShader(m_ripplePass.shader.get());
 +
@@ -472,7 +513,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +                m_ripplePass.shader->setUniform(m_ripplePass.sizeLocation, QVector2D(window.width(), window.height()));
 +                m_ripplePass.shader->setUniform(m_ripplePass.originLocation, QVector2D(backgroundRect.x() - window.x(), backgroundRect.y() - window.y()));
 +                m_ripplePass.shader->setUniform(m_ripplePass.areaLocation, QVector2D(backgroundRect.width(), backgroundRect.height()));
-+                m_ripplePass.shader->setUniform(m_ripplePass.steepLocation, float(blurInfo.knocks.back().steep));
++                m_ripplePass.shader->setUniform(m_ripplePass.steepLocation, float(latest.steep));
++                m_ripplePass.shader->setUniform(m_ripplePass.edgeLocation, float(latest.edge));
 +                glUniform4fv(m_ripplePass.knocksLocation, 8, &knocks[0][0]);
 +                glUniform4fv(m_ripplePass.shapesLocation, 8, &shapes[0][0]);
 +
@@ -489,7 +531,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      // The downsample pass of the dual Kawase algorithm: the background will be scaled down 50% every iteration.
      {
          ShaderManager::instance()->pushShader(m_downsamplePass.shader.get());
-@@ -750,7 +989,7 @@
+@@ -750,7 +1031,7 @@
          projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
  
          m_downsamplePass.shader->setUniform(m_downsamplePass.mvpMatrixLocation, projectionMatrix);
@@ -498,7 +540,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
          for (size_t i = 1; i < renderInfo.framebuffers.size(); ++i) {
              const auto &read = renderInfo.framebuffers[i - 1];
-@@ -777,7 +1016,7 @@
+@@ -777,7 +1058,7 @@
          projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
  
          m_upsamplePass.shader->setUniform(m_upsamplePass.mvpMatrixLocation, projectionMatrix);
@@ -507,7 +549,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
          for (size_t i = renderInfo.framebuffers.size() - 1; i > 1; --i) {
              GLFramebuffer::popFramebuffer();
-@@ -824,7 +1063,7 @@
+@@ -824,7 +1105,7 @@
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.mvpMatrixLocation, projectionMatrix);
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.colorMatrixLocation, m_colorMatrix);
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.halfpixelLocation, halfpixel);
@@ -516,7 +558,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.boxLocation, QVector4D(nativeBox.horizontalCenter(), nativeBox.verticalCenter(), nativeBox.width() * 0.5, nativeBox.height() * 0.5));
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.cornerRadiusLocation, nativeCornerRadius.toVector());
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.opacityLocation, modulation);
-@@ -839,6 +1078,60 @@
+@@ -839,6 +1120,60 @@
          glDisable(GL_BLEND);
  
          ShaderManager::instance()->popShader();
@@ -546,7 +588,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.bevelLocation, QVector4D(m_bevel.x() * scale, m_bevel.y() * scale, m_bevel.z() * scale, m_bevel.w()));
 +        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.sharpUnitLocation, 1);
 +        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.wavesUnitLocation, 2);
-+        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.rippleLocation, QVector3D(ripple.x(), ripple.y(), m_rippleDispersion * scale));
++        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.rippleLocation, QVector3D(ripple.x(), ripple.y(), rippleDispersion * scale));
 +
 +        // the background as it is, before the blur; the ripple's waves
 +        glActiveTexture(GL_TEXTURE1);
@@ -577,7 +619,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      } else {
          ShaderManager::instance()->pushShader(m_onscreenPass.shader.get());
  
-@@ -854,7 +1147,7 @@
+@@ -854,7 +1189,7 @@
          m_onscreenPass.shader->setUniform(m_onscreenPass.mvpMatrixLocation, projectionMatrix);
          m_onscreenPass.shader->setUniform(m_onscreenPass.colorMatrixLocation, m_colorMatrix);
          m_onscreenPass.shader->setUniform(m_onscreenPass.halfpixelLocation, halfpixel);
@@ -589,7 +631,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/plugins/blur/blur.h
 --- a/src/plugins/blur/blur.h
 +++ b/src/plugins/blur/blur.h
-@@ -11,7 +11,9 @@
+@@ -11,8 +11,11 @@
  #include "opengl/glutils.h"
  #include "scene/item.h"
  
@@ -597,9 +639,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  #include <QList>
 +#include <QVariantMap>
  
++#include <optional>
  #include <unordered_map>
  
-@@ -28,6 +30,20 @@
+ namespace KWin
+@@ -28,6 +31,25 @@
      std::vector<std::unique_ptr<GLFramebuffer>> framebuffers;
  };
  
@@ -615,12 +659,17 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
 +    double damping; // s
 +    double life; // s
 +    double steep; // a fresh wave's steepest slope
++    double lean; // how far it leans the glass there, against the bevel at its edge (1)
++    double dispersion; // logical px its colours part by each way where it leans the glass fully
++    double ring; // half-widths over which the ringing behind its crest fades by e
++    double norm; // the steepest slope of its profile (with that ringing), which steep stands for
++    double edge; // px: heading into the rim, it fades over about twice this
 +};
 +
  struct BlurEffectData
  {
      /// The region that should be blurred behind the window
-@@ -43,9 +59,14 @@
+@@ -43,9 +65,14 @@
      std::unordered_map<RenderView *, BlurRenderData> render;
  
      std::unique_ptr<BackgroundEffectItem> blurItem;
@@ -636,7 +685,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  {
      Q_OBJECT
  
-@@ -81,6 +102,11 @@
+@@ -81,6 +108,11 @@
  #endif
      void setupDecorationConnections(EffectWindow *w);
  
@@ -648,7 +697,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  private:
      void initBlurStrengthValues();
      RegionF blurRegion(EffectWindow *w) const;
-@@ -90,6 +116,7 @@
+@@ -90,6 +122,7 @@
      void updateBlurRegion(EffectWindow *w);
      void blur(const RenderTarget &renderTarget, const RenderViewport &viewport, EffectWindow *w, int mask, const Region &deviceRegion, WindowPaintData &data);
      GLTexture *ensureNoiseTexture();
@@ -656,7 +705,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  
  private:
      struct
-@@ -113,6 +140,42 @@
+@@ -113,6 +146,48 @@
          int opacityLocation;
      } m_roundedOnscreenPass;
  
@@ -688,13 +737,19 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
 +        int knocksLocation;
 +        int shapesLocation;
 +        int steepLocation;
++        int edgeLocation;
 +    } m_ripplePass;
++    void loadLiquidGlassSettings();
 +    QString m_plasmarc; // the Plasma style is set in there
++    QString m_glassrc; // plasma-glass's own settings (plasma-glass-tune edits them)
 +    bool m_liquidGlass = false; // it's the dark Liquid Glass
 +    QVector4D m_bevel; // logical px: width, refraction, dispersion; sharpness at the edge
 +    int m_frost; // its blur strength, at most (as BlurStrength)
-+    double m_rippleLean; // how far KRunner's ripple leans the glass, against the bevel's edge (0: not at all)
-+    double m_rippleDispersion; // logical px its colours part by each way where a wave leans the glass fully
++    // KWIN_LIQUID_GLASS_RIPPLE: how far KRunner's ripple leans the glass, against the bevel's edge (0: not at
++    // all), and how far its colours part (logical px each way where a wave leans it fully), over what each
++    // knock says
++    std::optional<double> m_rippleLean;
++    std::optional<double> m_rippleDispersion;
 +
      struct
      {
@@ -827,7 +882,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/onscre
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple.frag b/src/plugins/blur/shaders/ripple.frag
 --- a/src/plugins/blur/shaders/ripple.frag
 +++ b/src/plugins/blur/shaders/ripple.frag
-@@ -0,0 +1,137 @@
+@@ -0,0 +1,139 @@
 +#version 140
 +
 +// The waves of KRunner's busy ripple (plasma-glass), worked out again here so the glass bends what's
@@ -842,10 +897,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple
 +uniform vec2 area;   // the background's size
 +// per knock: side (0 left, 1 right, 2 top, 3 bottom), px along it, how far its wave has come (px), the
 +// wave's half-width (px); and how much of the wave is left with age (0: none), the exponent that puts the
-+// side's flex peak at the knock
++// side's flex peak at the knock, the half-widths over which its ringing fades by e, and its profile's
++// steepest slope with that ringing
 +uniform vec4 knocks[8];
 +uniform vec4 shapes[8];
 +uniform float steep; // steepest slope of a fresh wave
++uniform float edge;  // px: a wave heading into the rim fades over about twice this
 +
 +in vec2 uv;
 +
@@ -853,17 +910,16 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple
 +
 +// A wave's profile across its front, x half-widths ahead of its crest (behind it, x < 0), as a knock leaves
 +// it in a dispersive medium: a smooth rise ahead, the crest, then a ringing train behind, ripples that get
-+// shorter and fade (an Airy function's tail, damped): -0.42, +0.18, -0.09, +0.05 of the crest, under 1%
-+// from 9 half-widths behind. Out: the height and its slope per half-width, whose steepest is 0.991 (just
-+// behind the crest; the front's is 0.858).
-+vec2 profile(float x)
++// shorter and fade (an Airy function's tail, damped), over D half-widths by e: at D 1.7, -0.42, +0.18,
++// -0.09, +0.05 of the crest, under 1% from 9 half-widths behind (1.4 + 4.6 D). Out: the height and its
++// slope per half-width, whose steepest at D 1.7 is 0.991 (just behind the crest; the front's is 0.858).
++vec2 profile(float x, float D)
 +{
 +    if (x >= 0.0) {
 +        float h = exp(-x * x);
 +        return vec2(h, -2.0 * x * h);
 +    }
 +    const float C = 1.4; // half-widths over which the envelope rounds off at the crest
-+    const float D = 1.7; // and then over which it fades by e
 +    const float U = 2.6; // half-widths behind the crest to the first trough; the ripples' phase goes as u^1.5
 +    float u = -x;
 +    float r = sqrt(u * u + C * C);
@@ -901,8 +957,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple
 +    float wb = k.w;
 +    float a = abs(s - k.y);
 +    // The wave has come between n and the straight line from the knock; 2.5 half-widths ahead of its crest
-+    // and 9 behind (its ringing), what's left (under 1% of its height) doesn't show
-+    float behind = front - 9.0 * wb;
++    // and past its ringing behind (1.4 + 4.6 x its fade, 9 at the default), what's left (under 1% of its
++    // height) doesn't show
++    float behind = front - (1.4 + 4.6 * shape.z) * wb;
 +    if (front + 2.5 * wb < n || (behind > 0.0 && behind * behind > a * a + n * n))
 +        return;
 +    // The first wave to reach p left the side where the flex's time to get there plus the path on to p is
@@ -936,8 +993,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple
 +    // how strongly the side moves there: sin^2 of a warped position that puts its peak at the knock
 +    float flex = sin(3.14159265 * pow(clamp(s / len, 0.0, 1.0), shape.y));
 +    float fade = flex * flex * shape.x * mix(1.0, die, smoothstep(-0.3, 0.3, dot(dir, toRim)));
-+    vec2 shape_ = profile((from - front) / wb);
-+    slope += steep * fade * (shape_.y / 0.991) * dir; // its steepest is a fresh wave's steepest
++    vec2 shape_ = profile((from - front) / wb, shape.z);
++    slope += steep * fade * (shape_.y / shape.w) * dir; // its steepest is a fresh wave's steepest
 +    height += fade * shape_.x;
 +}
 +
@@ -946,12 +1003,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple
 +    // the background is drawn with v from 1 at its top, as the blur's passes are
 +    vec2 p = origin + vec2(uv.x, 1.0 - uv.y) * area;
 +    vec4 dist = vec4(p.x, size.x - p.x, p.y, size.y - p.y); // to the left, right, top, bottom edge
-+    // a wave heading into the rim runs on across the bevel and fades out only at the very edge: half of it
-+    // is left 3 px from the rim, 90% 6 px in (from 15 px in, all of it)
++    // a wave heading into the rim runs on across the bevel and fades out only at the very edge: at an edge
++    // of 3, half of it is left 3 px from the rim, 90% 6 px in (from 15 px in, all of it)
 +    float die = 1.0;
 +    vec2 toRim = vec2(0.0);
-+    if (min(min(dist.x, dist.y), min(dist.z, dist.w)) < 15.0) {
-+        vec4 ed = exp(-dist / 3.0);
++    if (min(min(dist.x, dist.y), min(dist.z, dist.w)) < 5.0 * edge) {
++        vec4 ed = exp(-dist / edge);
 +        float near = ed.x + ed.y + ed.z + ed.w;
 +        die = exp(-(near * near) / (0.45 * 0.45));
 +        vec4 e = exp(-dist / 20.0);

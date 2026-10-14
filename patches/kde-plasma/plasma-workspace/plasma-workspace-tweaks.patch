@@ -215,7 +215,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunne
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -16,11 +16,249 @@
+@@ -16,11 +16,294 @@
  import org.kde.milou as Milou
  import org.kde.krunner.private.view
  import org.kde.kirigami as Kirigami
@@ -226,7 +226,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
      required property RunnerWindow runnerWindow
 +    // a search has run for half a second (queryTimer): busy feedback (busyRipple, or busyPulse without shaders)
-+    readonly property bool busy: queryTimer.queryDisplay || root.runnerWindow.busyDemo
++    readonly property bool busy: queryTimer.queryDisplay || root.runnerWindow.busyDemo || root.runnerWindow.tuning
 +
 +    // Drag the floating window from any spot nothing else uses (the glass rim beside the content). It sits
 +    // under this layout, across the whole window, and the window remembers where it was left.
@@ -334,26 +334,63 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        // Liquid Glass Light: a flat foil sheen; other styles show the waves only by what KWin bends behind
 +        // the glass (no light of their own, and the content stays as it is)
 +        readonly property bool lightStyle: KSvg.ImageSet.imageSetName === "liquid-glass-light"
-+        property real sheen: 0.35
++        property real sheen: 0.35 * amplitude
 +        property real foilTile: busyFoil.width
 +        property real foilSat: 0.8
 +        property real time: clock
 +
-+        readonly property real speed: 120 // px/s
-+        readonly property real bump: 21 // px: half-width of a fresh wave
-+        readonly property real spread: 8 // px/s it widens
-+        readonly property real damping: 36 // s a wave takes to fall by e (84% of it is left across the glass)
-+        // s a knock's wave lasts: it and its ringing cross the glass in about 9, and at a knock each 1.2 s no
-+        // more than 8 are alive, as many as the shaders take
-+        readonly property real life: 9.5
-+        readonly property real period: 1.2 // s between knocks
-+        // where the knocks land on the left side: beside the query while the window shows only that; once
-+        // results show, this far down the glass's height (never above the query)
-+        readonly property real knockAlong: 1 / 3
++        // The ripple's settings: ~/.config/plasma-glassrc's [Ripple] group, which plasma-glass-tune edits live
++        // (each knock takes them as they are when it lands); these are the defaults
++        readonly property var tuned: root.runnerWindow.liquidGlass
++        function tunedNumber(key: string, fallback: real): real {
++            const value = tuned[key];
++            return typeof value === "number" && isFinite(value) ? value : fallback;
++        }
++        readonly property real speed: Math.max(1, tunedNumber("speed", 120)) // px/s
++        readonly property real bump: Math.max(1, tunedNumber("width", 21)) // px: half-width of a fresh wave
++        readonly property real spread: Math.max(0, tunedNumber("widening", 8)) // px/s it widens
++        // s a wave takes to fall by e (84% of it is left across the glass)
++        readonly property real damping: Math.max(0.1, tunedNumber("damping", 36))
++        readonly property real period: Math.max(0.2, tunedNumber("interval", 1.2)) // s between knocks
++        // s a knock's wave lasts: it and its ringing cross the glass in about 9; never so long that more than
++        // 8 are alive, as many as the shaders take
++        readonly property real life: Math.min(Math.max(0.5, tunedNumber("lifetime", 9.5)), 8 * period - 0.05)
++        // how far a fresh wave's steepest slope leans the glass, against the bevel at its edge (KWin), and how
++        // strong the light sheen is
++        readonly property real amplitude: Math.max(0, tunedNumber("amplitude", 1))
++        // px red and blue part each way where a wave leans the glass fully (KWin; the bevel's is 2)
++        readonly property real aberration: Math.max(0, tunedNumber("aberration", 3))
++        // half-widths over which the ringing behind a crest fades by e, and the profile's steepest slope with
++        // that ringing, which a fresh wave's steepest stands for
++        readonly property real ringing: Math.min(Math.max(0.3, tunedNumber("ringing", 1.7)), 6)
++        readonly property real slopeNorm: steepest(ringing)
++        // px: heading into the rim, a wave fades over about twice this
++        readonly property real edgeFade: Math.max(0.5, tunedNumber("edgeFade", 3))
++        // where the knocks land: on the left side (or right, top, bottom), beside the query while the window
++        // shows only that and, once results show, this far down the glass (never above the query); along the
++        // top or bottom, this far across
++        readonly property int knockSide: {
++            const side = tuned.side;
++            const index = typeof side === "number" ? Math.round(side) : ["left", "right", "top", "bottom"].indexOf(String(side));
++            return index >= 0 && index <= 3 ? index : 0;
++        }
++        readonly property real knockAlong: Math.min(1, Math.max(0, tunedNumber("position", 1 / 3)))
++        // the steepest slope of busywaves.frag's profile() with ringing d: ahead of the crest 0.858, or behind
++        function steepest(d: real): real {
++            let most = 0.858;
++            for (let u = 0.01; u < 1.4 + 4.6 * d; u += 0.01) {
++                const r = Math.sqrt(u * u + 1.96);
++                const e = Math.exp(-(r - 1.4) / d);
++                const ph = Math.PI * Math.pow(u / 2.6, 1.5);
++                const dph = 1.5 * Math.PI / 2.6 * Math.sqrt(u / 2.6);
++                most = Math.max(most, Math.abs(-u / (r * d) * e * Math.cos(ph) - e * Math.sin(ph) * dph));
++            }
++            return most;
++        }
 +        // s, on the monotonic clock, which KWin's half of the ripple runs on too
 +        property real clock: root.runnerWindow.monotonicTime()
 +        property real nextKnock: 0
-+        property var knocks: [] // {side, at, born}: side 0 is the left one, at px along it
++        property var knocks: [] // {side, at, born} and the wave's settings: side 0 is the left one, at px along it
 +        onActiveChanged: if (active && knocks.length === 0) {
 +            nextKnock = root.runnerWindow.monotonicTime(); // knock at once
 +        }
@@ -363,29 +400,36 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        }
 +        function advance(): void {
 +            clock = root.runnerWindow.monotonicTime();
-+            const list = knocks.filter(k => clock - k.born < life);
++            const list = knocks.filter(k => clock - k.born < k.life);
 +            if (active && clock >= nextKnock) {
-+                const beside = queryField.mapToItem(busyRipple, 0, queryField.height / 2).y;
-+                const y = root.listHeight > 0 ? Math.max(beside, height * knockAlong) : beside;
-+                list.push({side: 0, at: y, born: clock});
++                let at = width * knockAlong;
++                if (knockSide < 2) {
++                    const beside = queryField.mapToItem(busyRipple, 0, queryField.height / 2).y;
++                    at = root.listHeight > 0 ? Math.max(beside, height * knockAlong) : beside;
++                }
++                // each knock keeps the settings it landed with, here and in KWin, so changing them doesn't jolt
++                // the waves under way
++                const wave = {speed, bump, spread, damping, life, steep, lean: amplitude, dispersion: aberration,
++                              ring: ringing, norm: slopeNorm, edge: edgeFade};
++                list.push(Object.assign({side: knockSide, at, born: clock}, wave));
 +                // the same wave bends what's behind the glass, which only KWin has (plasma-glass's KWin patch)
-+                root.runnerWindow.knock(clock, 0, y, {speed, bump, spread, damping, life, steep});
++                root.runnerWindow.knock(clock, knockSide, at, wave);
 +                nextKnock = clock + period;
 +            }
 +            knocks = list;
 +            // what's the same for every pixel, worked out here once a frame: how far each wave has come and
-+            // its half-width; how much of it is left with age, and the exponent that puts the side's flex
-+            // peak at the knock
++            // its half-width; how much of it is left with age, the exponent that puts the side's flex peak at
++            // the knock, its ringing and its profile's steepest slope
 +            const smooth = (a, b, x) => {
 +                const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
 +                return t * t * (3 - 2 * t);
 +            };
-+            const kv = list.slice(-8).map(k => Qt.vector4d(k.side, k.at, speed * (clock - k.born), bump + spread * (clock - k.born)));
++            const kv = list.slice(-8).map(k => Qt.vector4d(k.side, k.at, k.speed * (clock - k.born), k.bump + k.spread * (clock - k.born)));
 +            const sh = list.slice(-8).map(k => {
 +                const age = clock - k.born;
 +                const along = Math.min(0.98, Math.max(0.02, k.at / (k.side < 2 ? height : width)));
-+                return Qt.vector4d(Math.exp(-age / damping) * smooth(0, 0.05, age) * (1 - smooth(0.8 * life, life, age)),
-+                                   Math.log(0.5) / Math.log(along), 0, 0);
++                return Qt.vector4d(Math.exp(-age / k.damping) * smooth(0, 0.05, age) * (1 - smooth(0.8 * k.life, k.life, age)),
++                                   Math.log(0.5) / Math.log(along), k.ring, k.norm);
 +            });
 +            const none = Qt.vector4d(0, 0, 0, 0);
 +            busyWaves.knock0 = kv[0] ?? none; busyWaves.shape0 = sh[0] ?? none;
@@ -421,6 +465,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        fragmentShader: Qt.resolvedUrl("busywaves.frag.qsb")
 +        property size itemSize: Qt.size(width, height)
 +        property real steep: busyRipple.steep
++        property real edge: busyRipple.edgeFade
 +        property vector4d knock0 // set by busyRipple.advance()
 +        property vector4d knock1
 +        property vector4d knock2
@@ -465,7 +510,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
      property string query
      property string singleRunner
      property bool showHistory: false
-@@ -62,6 +300,13 @@
+@@ -62,6 +345,13 @@
      Connections {
          target: root.runnerWindow
          function onVisibleChanged() {
@@ -479,7 +524,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              if (root.runnerWindow.visible) {
                  queryField.forceActiveFocus();
                  listView.currentIndex = -1
-@@ -74,6 +319,8 @@
+@@ -74,6 +364,8 @@
                      }
                  }
              } else {
@@ -488,7 +533,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
                  if (root.runnerWindow.retainPriorSearch) {
                      root.priorSearch = root.query
                  }
-@@ -98,6 +345,7 @@
+@@ -98,6 +390,7 @@
      }
      
      RowLayout {
@@ -496,7 +541,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          Layout.alignment: Qt.AlignTop
          PlasmaComponents3.ToolButton {
              visible: root.runnerWindow.helpEnabled
-@@ -131,14 +379,33 @@
+@@ -131,14 +424,33 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -533,7 +578,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              QQC2.Label {
                  id: fadedTextCompletion
-@@ -157,35 +424,25 @@
+@@ -157,35 +469,25 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -581,7 +626,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              }
  
              function focusCurrentListView() {
-@@ -301,6 +558,7 @@
+@@ -301,6 +603,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -589,7 +634,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -313,12 +571,102 @@
+@@ -313,12 +616,102 @@
          }
      }
  
@@ -695,7 +740,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -327,6 +675,10 @@
+@@ -327,6 +720,10 @@
              queryString: root.query
              queryField: queryField
              singleRunner: root.singleRunner
@@ -706,7 +751,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              Keys.onEscapePressed: {
                  root.runnerWindow.visible = false
-@@ -347,9 +699,18 @@
+@@ -347,9 +744,18 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -726,7 +771,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
          visible: root.query.length === 0 && listView.count > 0
-@@ -358,6 +719,8 @@
+@@ -358,6 +764,8 @@
  
          ListView {
              id: listView // needs this id so the delegate can access it
@@ -865,7 +910,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busyripple.frag b/k
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/krunner/qml/busywaves.frag
 --- a/krunner/qml/busywaves.frag
 +++ b/krunner/qml/busywaves.frag
-@@ -0,0 +1,161 @@
+@@ -0,0 +1,163 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Alex Aralis
 +
@@ -897,7 +942,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/kr
 +    vec4 knock6;
 +    vec4 knock7;
 +    // and: how much of the wave is left with age (0: none, nothing to add), the exponent that puts the
-+    // side's flex peak at the knock
++    // side's flex peak at the knock, the half-widths over which its ringing fades by e, and its profile's
++    // steepest slope with that ringing
 +    vec4 shape0;
 +    vec4 shape1;
 +    vec4 shape2;
@@ -907,21 +953,21 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/kr
 +    vec4 shape6;
 +    vec4 shape7;
 +    float steep; // steepest slope of a fresh wave
++    float edge;  // px: a wave heading into the rim fades over about twice this
 +};
 +
 +// A wave's profile across its front, x half-widths ahead of its crest (behind it, x < 0), as a knock leaves
 +// it in a dispersive medium: a smooth rise ahead, the crest, then a ringing train behind, ripples that get
-+// shorter and fade (an Airy function's tail, damped): -0.42, +0.18, -0.09, +0.05 of the crest, under 1%
-+// from 9 half-widths behind. Out: the height and its slope per half-width, whose steepest is 0.991 (just
-+// behind the crest; the front's is 0.858).
-+vec2 profile(float x)
++// shorter and fade (an Airy function's tail, damped), over D half-widths by e: at D 1.7, -0.42, +0.18,
++// -0.09, +0.05 of the crest, under 1% from 9 half-widths behind (1.4 + 4.6 D). Out: the height and its
++// slope per half-width, whose steepest at D 1.7 is 0.991 (just behind the crest; the front's is 0.858).
++vec2 profile(float x, float D)
 +{
 +    if (x >= 0.0) {
 +        float h = exp(-x * x);
 +        return vec2(h, -2.0 * x * h);
 +    }
 +    const float C = 1.4; // half-widths over which the envelope rounds off at the crest
-+    const float D = 1.7; // and then over which it fades by e
 +    const float U = 2.6; // half-widths behind the crest to the first trough; the ripples' phase goes as u^1.5
 +    float u = -x;
 +    float r = sqrt(u * u + C * C);
@@ -959,8 +1005,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/kr
 +    float wb = k.w;
 +    float a = abs(s - k.y);
 +    // The wave has come between n and the straight line from the knock; 2.5 half-widths ahead of its crest
-+    // and 9 behind (its ringing), what's left (under 1% of its height) doesn't show
-+    float behind = front - 9.0 * wb;
++    // and past its ringing behind (1.4 + 4.6 x its fade, 9 at the default), what's left (under 1% of its
++    // height) doesn't show
++    float behind = front - (1.4 + 4.6 * shape.z) * wb;
 +    if (front + 2.5 * wb < n || (behind > 0.0 && behind * behind > a * a + n * n))
 +        return;
 +    // The first wave to reach p left the side where the flex's time to get there plus the path on to p is
@@ -994,8 +1041,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/kr
 +    // how strongly the side moves there: sin^2 of a warped position that puts its peak at the knock
 +    float flex = sin(3.14159265 * pow(clamp(s / len, 0.0, 1.0), shape.y));
 +    float fade = flex * flex * shape.x * mix(1.0, die, smoothstep(-0.3, 0.3, dot(dir, toRim)));
-+    vec2 shape_ = profile((from - front) / wb);
-+    slope += steep * fade * (shape_.y / 0.991) * dir; // its steepest is a fresh wave's steepest
++    vec2 shape_ = profile((from - front) / wb, shape.z);
++    slope += steep * fade * (shape_.y / shape.w) * dir; // its steepest is a fresh wave's steepest
 +    height += fade * shape_.x;
 +}
 +
@@ -1003,12 +1050,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/kr
 +{
 +    vec2 p = qt_TexCoord0 * itemSize;
 +    vec4 dist = vec4(p.x, itemSize.x - p.x, p.y, itemSize.y - p.y); // to the left, right, top, bottom edge
-+    // a wave heading into the rim runs on across the bevel and fades out only at the very edge: half of it
-+    // is left 3 px from the rim, 90% 6 px in (from 15 px in, all of it)
++    // a wave heading into the rim runs on across the bevel and fades out only at the very edge: at an edge
++    // of 3, half of it is left 3 px from the rim, 90% 6 px in (from 15 px in, all of it)
 +    float die = 1.0;
 +    vec2 toRim = vec2(0.0);
-+    if (min(min(dist.x, dist.y), min(dist.z, dist.w)) < 15.0) {
-+        vec4 ed = exp(-dist / 3.0);
++    if (min(min(dist.x, dist.y), min(dist.z, dist.w)) < 5.0 * edge) {
++        vec4 ed = exp(-dist / edge);
 +        float near = ed.x + ed.y + ed.z + ed.w;
 +        die = exp(-(near * near) / (0.45 * 0.45));
 +        vec4 e = exp(-dist / 20.0);
@@ -1170,7 +1217,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/relative-pointer-unstab
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view.cpp
 --- a/krunner/view.cpp
 +++ b/krunner/view.cpp
-@@ -8,6 +8,12 @@
+@@ -8,6 +8,13 @@
  
  #include <QAction>
  #include <QClipboard>
@@ -1180,10 +1227,23 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
 +#include <QDBusPendingReply>
 +#include <QDBusServiceWatcher>
 +#include <QDBusVariant>
++#include <QDateTime>
  #include <QDebug>
  #include <QGuiApplication>
  #include <QPlatformSurfaceEvent>
-@@ -26,12 +32,113 @@
+@@ -15,9 +22,11 @@
+ #include <QQmlEngine>
+ #include <QQuickItem>
+ #include <QScreen>
++#include <QStandardPaths>
+ 
+ #include <KAuthorized>
+ #include <KCrash>
++#include <KDirWatch>
+ #include <KIO/CommandLauncherJob>
+ #include <KLocalizedString>
+ #include <KService>
+@@ -26,12 +35,113 @@
  #include <KX11Extras>
  
  #include <LayerShellQt/Window>
@@ -1297,15 +1357,33 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
  KCONFIGGROUP_DECLARE_ENUM_QOBJECT(View, HistoryBehavior)
  
  View::View(PlasmaQuick::SharedQmlEngine *engine, QWindow *)
-@@ -66,6 +173,7 @@
+@@ -65,7 +175,25 @@
+     connect(&m_consumer, &KActivities::Consumer::currentActivityChanged, this, &View::activityChanged);
      Q_EMIT activityChanged(m_consumer.currentActivity());
  
++    // the busy ripple's settings, followed as a file: plasma-glass-tune writes them as you move its sliders
++    m_liquidGlassConfig = KSharedConfig::openConfig(u"plasma-glassrc"_s, KConfig::NoGlobals);
++    const QString liquidGlassFile = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + u"/plasma-glassrc"_s;
++    KDirWatch::self()->addFile(liquidGlassFile);
++    const auto liquidGlassChanged = [this, liquidGlassFile](const QString &path) {
++        if (path == liquidGlassFile) {
++            m_liquidGlassConfig->reparseConfiguration();
++            loadLiquidGlass();
++        }
++    };
++    connect(KDirWatch::self(), &KDirWatch::dirty, this, liquidGlassChanged);
++    connect(KDirWatch::self(), &KDirWatch::created, this, liquidGlassChanged);
++    connect(KDirWatch::self(), &KDirWatch::deleted, this, liquidGlassChanged);
++    m_tuningTimer.setSingleShot(true);
++    connect(&m_tuningTimer, &QTimer::timeout, this, &View::loadLiquidGlass);
++    loadLiquidGlass();
++
      loadConfig();
 +    watchIndexer();
  
      new AppAdaptor(this);
      QDBusConnection::sessionBus().registerObject(u"/App"_s, this);
-@@ -93,7 +201,8 @@
+@@ -93,7 +221,8 @@
  {
      if (m_floating) {
          const QRect r = screen()->availableGeometry();
@@ -1315,17 +1393,55 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      } else {
          return {}; // Zeros
      }
-@@ -119,7 +228,8 @@
+@@ -119,11 +248,46 @@
          displayWithClipboardContents();
      }
  
 -    if (!QGuiApplication::focusWindow() && !m_pinned) {
-+    // the focus goes while the window moves to another screen (and comes back after the drag)
-+    if (!QGuiApplication::focusWindow() && !m_pinned && !m_dragging && !m_changingScreen) {
++    // the focus goes while the window moves to another screen (and comes back after the drag); and to
++    // plasma-glass-tune, which may have only just said so
++    if (!QGuiApplication::focusWindow() && !m_tuning) {
++        m_liquidGlassConfig->reparseConfiguration();
++        loadLiquidGlass();
++    }
++    if (!QGuiApplication::focusWindow() && !m_pinned && !m_dragging && !m_changingScreen && !m_tuning) {
          setVisible(false);
      }
  }
-@@ -145,6 +255,9 @@
+ 
++void View::loadLiquidGlass()
++{
++    QVariantMap settings;
++    const QMap<QString, QString> entries = m_liquidGlassConfig->group(u"Ripple"_s).entryMap();
++    for (auto it = entries.cbegin(); it != entries.cend(); ++it) {
++        bool number = false;
++        const double value = it.value().toDouble(&number);
++        settings.insert(it.key(), number ? QVariant(value) : QVariant(it.value()));
++    }
++    // the heartbeat comes every 2 s; the settings only change while someone tunes them
++    const double left = settings.take(u"tuning"_s).toDouble() - QDateTime::currentMSecsSinceEpoch() / 1000.0;
++    if (settings != m_liquidGlass) {
++        m_liquidGlass = settings;
++        Q_EMIT liquidGlassChanged();
++    }
++    const bool tuning = left > 0;
++    if (tuning) {
++        m_tuningTimer.start(std::chrono::milliseconds(qint64(left * 1000) + 50));
++    }
++    if (tuning != m_tuning) {
++        m_tuning = tuning;
++        Q_EMIT tuningChanged();
++        // tuning is over: close as losing the focus would have
++        if (!tuning && isVisible()) {
++            slotFocusWindowChanged();
++        }
++    }
++}
++
+ bool View::freeFloating() const
+ {
+     return m_floating;
+@@ -145,6 +309,9 @@
  
  void View::loadConfig()
  {
@@ -1335,7 +1451,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      setFreeFloating(m_config.readEntry("FreeFloating", false));
      setRetainPriorSearch(m_config.readEntry("RetainPriorSearch", true));
      setPinned(m_stateData.readEntry("Pinned", false));
-@@ -157,6 +270,7 @@
+@@ -157,6 +324,7 @@
          KX11Extras::setOnAllDesktops(winId(), true);
      }
      QQuickWindow::showEvent(event);
@@ -1343,7 +1459,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      requestActivate();
      if (KWindowSystem::isPlatformX11()) {
          KX11Extras::forceActiveWindow(winId());
-@@ -167,7 +281,15 @@
+@@ -167,7 +335,15 @@
  {
      const auto screens = QGuiApplication::screens();
      auto screenIt = screens.cend();
@@ -1360,7 +1476,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
          auto message = QDBusMessage::createMethodCall(u"org.kde.KWin"_s, u"/KWin"_s, u"org.kde.KWin"_s, u"activeOutputName"_s);
          QDBusReply<QString> reply = QDBusConnection::sessionBus().call(message);
          if (reply.isValid()) {
-@@ -187,11 +309,10 @@
+@@ -187,11 +363,10 @@
  
      if (KWindowSystem::isPlatformWayland()) {
          auto layerWindow = LayerShellQt::Window::get(this);
@@ -1373,7 +1489,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
          if (m_floating) {
              layerWindow->setScreen(shownOnScreen);
          } else {
-@@ -209,6 +330,267 @@
+@@ -209,6 +384,267 @@
      }
  }
  
@@ -1644,17 +1760,19 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 --- a/krunner/view.h
 +++ b/krunner/view.h
-@@ -11,7 +11,9 @@
+@@ -11,7 +11,11 @@
  #include <KPluginMetaData>
  #include <KSharedConfig>
  #include <PlasmaActivities/Consumer>
 +#include <QCursor>
  #include <QQuickView>
++#include <QTimer>
++#include <QVariantMap>
 +#include <memory>
  #include <qqmlregistration.h>
  
  #include <PlasmaQuick/PlasmaWindow>
-@@ -21,6 +23,9 @@
+@@ -21,6 +25,9 @@
  
  class X11WindowScreenRelativePositioner;
  class ViewPrivate;
@@ -1664,7 +1782,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  
  class View : public PlasmaQuick::PlasmaWindow
  {
-@@ -47,6 +52,39 @@
+@@ -47,6 +54,54 @@
  
      void positionOnScreen();
  
@@ -1686,6 +1804,21 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 +        return qEnvironmentVariableIntValue("KRUNNER_BUSY_DEMO") > 0;
 +    }
 +
++    // The busy ripple's settings: ~/.config/plasma-glassrc's [Ripple] group (numbers as numbers, the rest as
++    // text), which plasma-glass-tune edits; read again whenever the file changes
++    Q_PROPERTY(QVariantMap liquidGlass READ liquidGlass NOTIFY liquidGlassChanged)
++    QVariantMap liquidGlass() const
++    {
++        return m_liquidGlass;
++    }
++    // plasma-glass-tune is open (its heartbeat, [Ripple] tuning, s since the epoch, hasn't run out): the
++    // ripple runs all the time and the window stays open when it loses focus, to tune it live
++    Q_PROPERTY(bool tuning READ tuning NOTIFY tuningChanged)
++    bool tuning() const
++    {
++        return m_tuning;
++    }
++
 +    // The busy ripple's clock: seconds on the monotonic clock, which KWin runs the ripple on too
 +    Q_INVOKABLE double monotonicTime() const;
 +    // A knock of the busy ripple (born on monotonicTime(), side 0 left .. 3 bottom, px along it, and the wave:
@@ -1704,12 +1837,14 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
      bool freeFloating() const;
      void setFreeFloating(bool floating);
  
-@@ -82,12 +120,17 @@
+@@ -82,12 +137,19 @@
      }
  
  Q_SIGNALS:
 +    void changingScreenChanged();
 +    void indexingProgressChanged();
++    void liquidGlassChanged();
++    void tuningChanged();
      void pinnedChanged();
      void helpEnabledChanged();
      void activityChanged(const QString &activity);
@@ -1722,7 +1857,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  
  public Q_SLOTS:
      void display();
-@@ -97,6 +140,9 @@
+@@ -97,6 +159,9 @@
      void query(const QString &term);
      void querySingleRunner(const QString &runnerName, const QString &term);
  
@@ -1732,7 +1867,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  protected Q_SLOTS:
      void loadConfig();
      void objectIncubated();
-@@ -106,6 +152,35 @@
+@@ -106,6 +171,40 @@
      void writeHistory();
      QPoint m_customPos;
      QMargins margins();
@@ -1746,6 +1881,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 +    void fetchIndexingProgress();
 +    void setIndexingProgress(qreal progress);
 +    qreal m_indexingProgress = -1;
++    void loadLiquidGlass();
++    KSharedConfig::Ptr m_liquidGlassConfig;
++    QVariantMap m_liquidGlass;
++    bool m_tuning = false;
++    QTimer m_tuningTimer; // goes off when the heartbeat would run out
 +    // KWin's window-move modifier (kwinrc [MouseBindings] CommandAllKey: Meta or Alt)
 +    int moveModifier() const;
 +    double m_floatTop = 1.0 / 3.0; // top edge, fraction of the screen height (krunnerrc FloatingTop)

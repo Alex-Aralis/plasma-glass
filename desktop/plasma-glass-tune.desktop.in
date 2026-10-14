@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Liquid Glass Tuning
+GenericName=plasma-glass
+Comment=Tune KRunner's busy ripple and the dark glass, live
+Icon=preferences-desktop-theme-global
+Exec=@BIN@
+Categories=Settings;DesktopSettings;
+Keywords=glass;ripple;wave;krunner;tune;bevel;frost;aberration;

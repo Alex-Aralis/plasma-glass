@@ -74,6 +74,7 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 | `~/intel/openvino_telemetry` | `0`: opts out of OpenVINO's usage reporting to Google Analytics (sent on every import otherwise); an existing file is left alone |
 | `~/.local/share/krunner/dbusplugins/`, `~/.local/share/dbus-1/services/`, `~/.config/systemd/user/` | KRunner plugin and the service that runs it |
 | `~/.local/share/plasma/desktoptheme/liquid-glass/` | the Plasma Style (`generate.py` draws it) |
+| `~/.local/share/plasma-glass/`, `~/.local/bin/plasma-glass-tune`, `~/.local/share/applications/plasma-glass-tune.desktop` | Liquid Glass Tuning, which writes `~/.config/plasma-glassrc` (see [Tuning](#tuning-the-glass-and-krunners-ripple-live)) |
 | `krunnerrc`, `kdeglobals`, `kglobalshortcutsrc` | settings from [`desktop/plasma-settings.sh`](desktop/plasma-settings.sh) |
 | `~/.config/systemd/user/plasma-krunner.service.d/plasma-glass-software-render.conf` | only when KWin composites on an NVIDIA GPU and the Qt patches aren't installed: KRunner renders in software (otherwise a resizing KRunner shows its old frame shifted for a frame, so the results' unfold jumps); without the qtbase patch, Qt also skips viewporter/fractional scaling |
 | `/etc/portage/patches/kde-plasma/{plasma-workspace,milou}/`, `/etc/portage/patches/dev-qt/{qtbase,qtdeclarative}/` | the patches (root) |
@@ -105,6 +106,42 @@ appears on your screen.
 ```sh
 tools/preview/krunner.sh /tmp/krunner.png "some query"
 ```
+
+### Tuning the glass and KRunner's ripple, live
+
+"Liquid Glass Tuning" (`plasma-glass-tune`, in the start menu or KRunner) has a slider for each of
+the busy ripple's settings and the dark glass's: wave speed, width, widening, damping, lifetime,
+the time between knocks, amplitude, colour split, ringing and edge fade; the side the knocks land
+on and where along it; and the glass's frost, bevel width, refraction, colour split and sharpness.
+Changes apply as you drag: KRunner takes them with its next knock, KWin at once. While the window
+is open, KRunner keeps its ripple running and stays open when you click elsewhere, so open KRunner
+(Meta+Space) beside it and tune. Each row has a button back to its default, and "Reset All" resets
+everything. It needs the patched KRunner and KWin (`kwin-fixes.patch`, `plasma-workspace-tweaks.patch`).
+
+The settings live in `~/.config/plasma-glassrc`, which you can also edit by hand (plain `key=value`
+lines; the tuning window rewrites the file as you move its sliders):
+
+| Group | Key | Default | What |
+|---|---|---|---|
+| `[Ripple]` | `speed` | 120 | px/s |
+| | `width` | 21 | px, half the width of a fresh wave |
+| | `widening` | 8 | px/s |
+| | `damping` | 36 | s for a wave to fall to about a third of its height |
+| | `lifetime` | 9.5 | s; at most 8 waves at once, so capped at 8 x `interval` |
+| | `interval` | 1.2 | s between knocks |
+| | `amplitude` | 1 | how far a fresh wave leans the glass, against the bevel at its edge |
+| | `aberration` | 3 | px the colours part each way where a wave leans fully |
+| | `ringing` | 1.7 | half-widths over which the ripples behind a crest fade by e |
+| | `edgeFade` | 3 | px; heading into the rim, a wave fades over about twice this |
+| | `side` | left | `left`, `right`, `top` or `bottom` |
+| | `position` | 0.333 | how far along that side the knocks land once results show |
+| `[Glass]` | `frost` | 2 | blur strength 1-15, never more than KWin's Blur setting |
+| | `bevelWidth` | 24 | px |
+| | `refraction` | 9 | px |
+| | `dispersion` | 2 | px |
+| | `sharpness` | 1 | 0-1 |
+
+KWin's environment still overrides the glass for experiments (`KWIN_LIQUID_GLASS_*`, below).
 
 ## Patches
 

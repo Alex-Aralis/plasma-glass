@@ -69,6 +69,8 @@ QtObject {
     property real bottomPadding: 12
     property real indexingProgress: -1
     property bool busyDemo: false
+    property var liquidGlass: ({})
+    property bool tuning: false
     signal activityChanged(string activity)
     signal showHistoryChanged()
     function startFloatingDrag(x, y) {}

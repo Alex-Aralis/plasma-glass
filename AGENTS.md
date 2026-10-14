@@ -13,7 +13,7 @@ docs are in README.md; this file covers how to work on it.
 | `search/export_model.py` | one-time PyTorch to OpenVINO export with a parity check (run by install.sh in a throwaway venv) |
 | `theme/liquid-glass/generate.py` | draws both styles (`liquid-glass`, `liquid-glass-light`) into `~/.local/share/plasma/desktoptheme/` |
 | `patches/kde-plasma/{plasma-workspace,milou,kwin}/*.patch`, `patches/dev-qt/{qtbase,qtdeclarative}/*.patch` | Portage user patches, one per package |
-| `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc), `krunner-shortcut.sh` (KRunner on Meta+Space, or back on Alt+Space) |
+| `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc), `krunner-shortcut.sh` (KRunner on Meta+Space, or back on Alt+Space), `plasma-glass-tune.qml` (Liquid Glass Tuning: the ripple and the dark glass, live) |
 | `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` and `qt` build test copies, `kwin` compiles the edited KWin files |
 | `tools/check-patches.sh` | patches apply; patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
 | `tools/screenprobe/screen.sh` | probes on the real screens (small, never focused, ask first): `fps` measures Qt Quick frame rate and animation speed per screen, `glass` shows the style's glass over a grey square (screenshot or by eye) |
@@ -319,6 +319,29 @@ docs are in README.md; this file covers how to work on it.
   27 samples, 1.40 and 2.12-2.15); with the wallpaper scrolling and
   KRunner idle it went from 2.04 (no bevel, strength 15) to 2.25-2.28 (bevel, strength 4). Over a smooth
   wallpaper (Next) it hardly shows: tuned on ColorfulCups and a scrolling image of code.
+- **The ripple and the dark glass are tunable live** (2026-10-14, the user asked for a settings menu to
+  fiddle with damping, aberration, strike location, speed, amplitude and width).
+  `~/.config/plasma-glassrc` holds them: `[Ripple]` is KRunner's (`View::liquidGlass`, numbers as
+  numbers, read again on every change through KDirWatch; RunCommand.qml falls back to its defaults key
+  by key), and each knock carries its wave's settings to KWin, amplitude (`lean`), colour split
+  (`dispersion`), ringing (`ring`) with the profile's steepest slope for it (`norm`, worked out in
+  `steepest()`: 0.991 at the default 1.7) and edge fade (`edge`) included. So waves under way keep
+  theirs when a setting changes, here and in KWin, which takes the latest knock's amplitude, split and
+  edge fade for the whole glass and each knock's ringing (`shapes[i].zw`). `[Glass]` is KWin's (frost,
+  bevel), read again on every change too; `KWIN_LIQUID_GLASS_*` still win over the file, so the
+  preview's before/after recordings work as before. The ringing culls at 1.4 + 4.6 x its fade
+  half-widths behind the crest (9 at the default), where what's left is under 1%. The tuning window
+  (`desktop/plasma-glass-tune.qml`, `qml6 -a widget`; install.sh installs it as `plasma-glass-tune`
+  with a launcher) writes through QtCore's `Settings` (QSettings' INI, which KConfig reads, but neither
+  takes comments after a value), at most every 0.1 s with `setValue()` and `sync()`: the declared
+  properties write only 0.5 s after the last change, so a drag only arrived when it paused. A heartbeat,
+  `[Ripple] tuning` (s since the epoch, 5 s ahead, every 2 s), keeps KRunner rippling and open when it
+  loses the focus (`View::tuning`); a crash lets it run out. KRunner reads the file again before
+  closing on focus loss, in case the heartbeat has only just come. Sliders snap to their step in code:
+  Breeze draws a tick for each step. With no file, the waves measured the same as before (the right
+  third moved 2.87 against 2.88 from the reference recording). Checked live in the preview, the tuning
+  window beside KRunner and its sliders dragged with fakeinput: frost changed at once, speed, split and
+  width with the next knock. The preview copies `plasma-glassrc` into its config, like your KDE files.
 - **Without shaders (software rendering) the busy pulse is a gradient, not a mask.** The band of
   light that stands in for the ripple is the gradient of a rounded Rectangle over the glass (stops
   moved by a 0..1 progress), so it keeps to the corners at every size. A MultiEffect mask (the

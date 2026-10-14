@@ -2,7 +2,7 @@
 
 Screenshots of KRunner and Plasma dialogs with a given Plasma Style, without touching your desktop.
 Each run starts a virtual KWin display on its own D-Bus session, with throwaway copies of your Plasma
-config and a private data dir. Nothing appears on screen, nothing takes keyboard focus, and your real
+config (your Liquid Glass tuning, `plasma-glassrc`, included) and a private data dir. Nothing appears on screen, nothing takes keyboard focus, and your real
 settings and services are left alone. Background services the session starts are stopped at the end.
 
 ```sh
