@@ -366,7 +366,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        .speed = wave.value(QStringLiteral("speed"), 120.0).toDouble(),
 +        .bump = wave.value(QStringLiteral("bump"), 21.0).toDouble(),
 +        .spread = wave.value(QStringLiteral("spread"), 8.0).toDouble(),
-+        .damping = wave.value(QStringLiteral("damping"), 18.0).toDouble(),
++        .damping = wave.value(QStringLiteral("damping"), 36.0).toDouble(),
 +        .life = wave.value(QStringLiteral("life"), 9.5).toDouble(),
 +        .steep = wave.value(QStringLiteral("steep"), 0.5).toDouble(),
 +    };

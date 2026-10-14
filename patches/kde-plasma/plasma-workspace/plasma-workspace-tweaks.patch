@@ -342,7 +342,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        readonly property real speed: 120 // px/s
 +        readonly property real bump: 21 // px: half-width of a fresh wave
 +        readonly property real spread: 8 // px/s it widens
-+        readonly property real damping: 18 // s a wave takes to fall by e (70% of it is left across the glass)
++        readonly property real damping: 36 // s a wave takes to fall by e (84% of it is left across the glass)
 +        // s a knock's wave lasts: it and its ringing cross the glass in about 9, and at a knock each 1.2 s no
 +        // more than 8 are alive, as many as the shaders take
 +        readonly property real life: 9.5

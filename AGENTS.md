@@ -187,9 +187,10 @@ docs are in README.md; this file covers how to work on it.
   14 px, so at each point across they're now 1.5x as wide). With knocks still 1.2 s apart their crests
   are 144 px apart, not 216, and the wider waves crowd into each other (the sheen on light glass nearly
   merges); a knock every 1.8 s keeps them as far apart as before, recorded for the user to compare.
-  Waves fade with time, by e in 18 s, so a crest keeps 70% of itself across the 744 px glass, and a
-  knock's wave lasts 9.5 s, long enough for its ringing to cross too, and short enough that no more than
-  8 live at once (as many as the shaders take); heading into a rim they fade only in its last few px
+  Waves fade with time, by e in 36 s, so a crest keeps 84% of itself across the 744 px glass (2026-10-14,
+  "it's fading too fast": 18 s and 70% before), and a knock's wave lasts 9.5 s, long enough for its
+  ringing to cross too, and short enough that no more than 8 live at once (as many as the shaders take);
+  heading into a rim they fade only in its last few px
   (half is left 3 px from it), so they run on across KWin's bevel (2026-10-14: the user wanted them to
   travel farther and the damping backed off the bevel's edges; before, by e in 5 s and gone after 4.8, a
   crest kept a third of itself across, and the rim faded them from 15 px in, over the whole bevel). Each
