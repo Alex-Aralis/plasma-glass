@@ -16,24 +16,29 @@
 #                                qtdeclarative, libQt6Quick. A few minutes the first time, then seconds.
 #                                Prints the environment that runs an app on them instead of the installed ones:
 #                                    KRUNNER_ENV="$(tools/patch-dev.sh qt)" tools/preview/unfold.sh
+#   tools/patch-dev.sh kwin      compile the edited KWin files in a KWin tree configured like its ebuild, with
+#                                Gentoo's patchset, to check them before the emerge (a few minutes the first
+#                                time, then seconds). The patched KWin only runs after the emerge and a relogin.
 #   tools/patch-dev.sh install [PKG...]  (root) put the patches in /etc/portage/patches and rebuild the
 #                                packages whose patch changed or that weren't rebuilt since (or the PKGs named)
 #
-# Packages: plasma-workspace, milou (kde-plasma), qtbase and qtdeclarative (dev-qt). Each has a single patch file; setup
+# Packages: plasma-workspace, milou, kwin (kde-plasma), qtbase and qtdeclarative (dev-qt). Each has a single patch file; setup
 # extracts whole directories (DIRS below), so any file in them can be edited and refresh picks it up. To
 # touch another directory, add it to DIRS and re-run setup.
 set -eu
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 DEV="${XDG_CACHE_HOME:-$HOME/.cache}/plasma-glass/dev"
 DISTDIR=$(portageq envvar DISTDIR 2>/dev/null || echo /var/cache/distfiles)
-PKGS="plasma-workspace milou qtbase qtdeclarative"
-CAT_plasma_workspace=kde-plasma CAT_milou=kde-plasma CAT_qtbase=dev-qt CAT_qtdeclarative=dev-qt
+PKGS="plasma-workspace milou kwin qtbase qtdeclarative"
+CAT_plasma_workspace=kde-plasma CAT_milou=kde-plasma CAT_kwin=kde-plasma CAT_qtbase=dev-qt CAT_qtdeclarative=dev-qt
 DIRS_plasma_workspace="krunner applets/notifications"
 DIRS_milou="lib"
+DIRS_kwin="src"
 DIRS_qtbase="src/plugins/platforms/wayland"
 DIRS_qtdeclarative="src/quick/scenegraph"
 PATCH_plasma_workspace=plasma-workspace-tweaks.patch
 PATCH_milou=milou-section-headers.patch
+PATCH_kwin=kwin-frame-pacing.patch
 PATCH_qtbase=qtbase-wayland.patch
 PATCH_qtdeclarative=qtdeclarative-quick.patch
 RUN="$DEV/qt-run"  # the libraries `qt` builds, where its environment points
@@ -215,6 +220,50 @@ build_qt() {
     echo "LD_LIBRARY_PATH=$RUN/lib $(cat "$RUN/qtbase.env" 2>/dev/null)"
 }
 
+# The edited KWin files compiled in the release's tree with Gentoo's patchset (the ebuild's PATCHSET) and
+# its CMakeLists edits, configured from the installed kwin's USE flags. Only files that differ from the
+# release are copied in, so the rest keep Gentoo's patches; files no longer edited go back to those.
+build_kwin() {
+    [ -d "$DEV/b/kwin" ] || die "run setup kwin first"
+    ver=$(version kwin) k="$DEV/kwin"
+    src="$k/src" bld="$k/build"
+    if [ "$(cat "$k/version" 2>/dev/null)" != "$ver" ]; then
+        rm -rf "${k:?}" && mkdir -p "$src"
+        tar -xJf "$DISTDIR/kwin-$ver.tar.xz" -C "$src" --strip-components=1
+        ebuild=$(ls /var/db/pkg/kde-plasma/kwin-"$ver"*/kwin-*.ebuild)
+        ps=$(sed -n 's/^PATCHSET="\${P}\(.*\)"$/kwin-'"$ver"'\1/p' "$ebuild")
+        if [ -n "$ps" ]; then
+            tar -xJf "$DISTDIR/$ps.tar.xz" -C "$k" || die "$ps.tar.xz missing (emerge --fetchonly kde-plasma/kwin)"
+            for p in "$k/$ps"/*.patch; do patch -s -p1 -d "$src" < "$p" || die "Gentoo's $(basename "$p") does not apply"; done
+        fi
+        use=" $(cat /var/db/pkg/kde-plasma/kwin-"$ver"*/USE) "
+        for x in gamepad:libevdev screencast:PipeWire systemd:libsystemd; do  # the ebuild's src_prepare
+            case "$use" in *" ${x%%:*} "*) ;; *) sed -i "s/^pkg_check_modules.*${x#*:}/#&/" "$src/CMakeLists.txt" ;; esac
+        done
+        on() { case "$use" in *" $1 "*) echo ON ;; *) echo OFF ;; esac; }
+        cmake -S "$src" -B "$bld" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_TESTING=OFF \
+            -DKWIN_BUILD_SCREENLOCKER="$(on lock)" -DKWIN_BUILD_GLOBALSHORTCUTS="$(on shortcuts)" \
+            -DKWIN_BUILD_X11="$(on X)" -DCMAKE_DISABLE_FIND_PACKAGE_QAccessibilityClient6="$(case $(on accessibility) in ON) echo OFF ;; *) echo ON ;; esac)" \
+            >"$k/configure.log" 2>&1 || die "cmake failed, see $k/configure.log"
+        cp -a "$src" "$k/base"
+        echo "$ver" > "$k/version"
+    fi
+    edited=$(cd "$DEV/b/kwin" && find . -type f | while read -r f; do cmp -s "$f" "$DEV/a/kwin/$f" || echo "${f#./}"; done)
+    for f in $(cat "$k/edited" 2>/dev/null); do
+        echo "$edited" | grep -qx "$f" || cp "$k/base/$f" "$src/$f"
+    done
+    for f in $edited; do cmp -s "$DEV/b/kwin/$f" "$src/$f" || cp "$DEV/b/kwin/$f" "$src/$f"; done
+    echo "$edited" > "$k/edited"
+    # the objects built from each edited .cpp (FILE^ would pick ECM's clang-format target)
+    objs=$(for f in $edited; do
+        case "$f" in *.cpp) ninja -C "$bld" -t query "$src/$f" | sed -n 's/^ *\(.*\.o\)$/\1/p' ;; esac
+    done)
+    [ -n "$objs" ] || die "no edited .cpp files"
+    # shellcheck disable=SC2086
+    ninja -C "$bld" $objs >"$k/build.log" 2>&1 || { grep -m5 -A3 error "$k/build.log" >&2; die "build failed, see $k/build.log"; }
+    echo "compiled: $edited" | tr '\n' ' '; echo
+}
+
 # Installs the patches and rebuilds the packages whose patch changed, or which weren't rebuilt after
 # their patch was installed (an earlier emerge failed); named PKGs are rebuilt regardless.
 install_patches() {
@@ -234,6 +283,7 @@ install_patches() {
     # shellcheck disable=SC2086
     emerge --oneshot --verbose $todo
     echo "As your user: systemctl --user restart plasma-plasmashell.service; kquitapp6 krunner"
+    case "$todo" in *kwin*) echo "The new KWin runs from the next login." ;; esac
     case "$todo" in *qtbase*) echo "Running Qt apps keep the old Qt until they restart (log out and in to restart them all)." ;; esac
 }
 
@@ -243,6 +293,7 @@ case "${1:-}" in
     check) exec sh "$REPO/tools/check-patches.sh" ;;
     krunner) build_krunner ;;
     qt) build_qt ;;
+    kwin) build_kwin ;;
     install) shift; install_patches "$@" ;;
-    *) sed -n '2,23p' "$0"; exit 2 ;;
+    *) sed -n '2,27p' "$0"; exit 2 ;;
 esac

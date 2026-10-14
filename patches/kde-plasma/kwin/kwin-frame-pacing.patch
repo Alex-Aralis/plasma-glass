@@ -1,0 +1,24 @@
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/compositor.cpp b/src/compositor.cpp
+--- a/src/compositor.cpp
++++ b/src/compositor.cpp
+@@ -35,6 +35,7 @@
+ #include "scene/workspacescene.h"
+ #include "utils/common.h"
+ #include "utils/envvar.h"
++#include "wayland/display.h"
+ #include "wayland/surface.h"
+ #include "wayland_server.h"
+ #include "window.h"
+@@ -902,6 +903,12 @@
+         // we're currently running an animation to change the brightness
+         renderLoop->scheduleRepaint();
+     }
++
++    // Send the frame callbacks now, not when the event loop goes idle (Display::flush on aboutToBlock):
++    // with several outputs another output's composite is often due already and runs first, and the
++    // callbacks waited for it too. A 165 Hz output whose frames go to another GPU took 2.5 ms, so a
++    // 240 Hz output's clients started their next frame that late and often missed its next refresh.
++    waylandServer()->display()->flush();
+ }
+ 
+ void Compositor::handleOutputsChanged()

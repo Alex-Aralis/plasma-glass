@@ -3,9 +3,10 @@
 #   1. each patch applies to the source of the installed package version
 #   2. the patched QML loads under Qt, with stubs for modules that only exist inside krunner or
 #      plasmashell (this catches errors that only show at runtime, like assigning to a grouped property)
-#   3. patched KRunner and Qt C++ passes a compiler syntax check
-# Needs the source tarballs in Portage's DISTDIR (kept after a build; otherwise
-# `emerge --fetchonly kde-plasma/plasma-workspace kde-plasma/milou dev-qt/qtbase dev-qt/qtdeclarative`). Exit status 1 on any failure.
+#   3. patched KRunner and Qt C++ passes a compiler syntax check (KWin's needs its build tree's generated
+#      headers: `tools/patch-dev.sh kwin` compiles it)
+# Needs the source tarballs in Portage's DISTDIR (kept after a build; otherwise `emerge --fetchonly
+# kde-plasma/plasma-workspace kde-plasma/milou kde-plasma/kwin dev-qt/qtbase dev-qt/qtdeclarative`). Exit status 1 on any failure.
 set -eu
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 WORK=$(mktemp -d)
@@ -138,6 +139,7 @@ load_qml() {
 echo "Patches"
 prepare kde-plasma/plasma-workspace
 prepare kde-plasma/milou
+prepare kde-plasma/kwin
 prepare dev-qt/qtbase
 prepare dev-qt/qtdeclarative
 PW=$(cat "$WORK/plasma-workspace.dir" 2>/dev/null || true)

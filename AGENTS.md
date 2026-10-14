@@ -1,7 +1,7 @@
 # plasma-glass: notes for development
 
 Liquid Glass Plasma Styles, semantic KRunner search (EmbeddingGemma 2 on the Intel iGPU via OpenVINO)
-and Portage patches for KRunner, notification popups, milou and Qt (Wayland client, Qt Quick). Gentoo, Plasma
+and Portage patches for KRunner, notification popups, milou, KWin (frame callbacks) and Qt (Wayland client, Qt Quick). Gentoo, Plasma
 6.7.5, Qt 6.11.2, Wayland. User
 docs are in README.md; this file covers how to work on it.
 
@@ -12,9 +12,9 @@ docs are in README.md; this file covers how to work on it.
 | `search/embedsearch.py` | search service: indexer, KRunner D-Bus runner (`local.embedsearch`), CLI. Installed copy: `~/.local/share/embedsearch/` (service `embedsearch.service`) |
 | `search/export_model.py` | one-time PyTorch to OpenVINO export with a parity check (run by install.sh in a throwaway venv) |
 | `theme/liquid-glass/generate.py` | draws both styles (`liquid-glass`, `liquid-glass-light`) into `~/.local/share/plasma/desktoptheme/` |
-| `patches/kde-plasma/{plasma-workspace,milou}/*.patch`, `patches/dev-qt/{qtbase,qtdeclarative}/*.patch` | Portage user patches, one per package |
+| `patches/kde-plasma/{plasma-workspace,milou,kwin}/*.patch`, `patches/dev-qt/{qtbase,qtdeclarative}/*.patch` | Portage user patches, one per package |
 | `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc), `krunner-shortcut.sh` (KRunner on Meta+Space, or back on Alt+Space) |
-| `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` and `qt` build test copies |
+| `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` and `qt` build test copies, `kwin` compiles the edited KWin files |
 | `tools/check-patches.sh` | patches apply; patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
 | `tools/screenprobe/screen.sh` | probes on the real screens (small, never focused, ask first): `fps` measures Qt Quick frame rate and animation speed per screen, `glass` shows the style's glass over a grey square (screenshot or by eye) |
 | `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh`, `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`); `fakeinput.c` for pointer input |
@@ -32,8 +32,9 @@ docs are in README.md; this file covers how to work on it.
   `journalctl --user -u plasma-plasmashell.service` for QML errors. The real popups only appear in
   plasmashell, so the user looks at them; `tools/preview/dialog.sh` only approximates them.
   milou rebuilds in about 2 min, plasma-workspace in about 25 min on the laptop (about 6 min on the
-  main box), qtbase in about 3 min on the main box. After a Qt rebuild, running apps keep the old
-  libraries until they restart (a relogin restarts them all).
+  main box), qtbase in about 3 min and kwin in about 3½ min on the main box. After a Qt rebuild, running
+  apps keep the old libraries until they restart (a relogin restarts them all); a new KWin runs from
+  the next login. `tools/patch-dev.sh kwin` compiles the edited KWin files first (20 s the first time).
 - **KRunner C++/QML without an emerge:** `tools/patch-dev.sh krunner` builds just KRunner from the
   edited tree (about 20 s the first time, then seconds) and refreshes a milou QML overlay. Preview:
   `QML_IMPORT_PATH=~/.cache/plasma-glass/dev/qml KRUNNER=$(tools/patch-dev.sh krunner) tools/preview/krunner.sh /tmp/k.png "q"`.
@@ -183,6 +184,25 @@ docs are in README.md; this file covers how to work on it.
   per `drm-client-id`; KWin's isn't readable as a user). Frame pacing is in a `WAYLAND_DEBUG=client`
   log: the time from `wl_surface.frame` to its `wl_callback.done` is KWin's, from the done to the
   next commit the client's.
+- **KWin sends clients their messages only when its event loop is about to sleep** (`Display::flush`
+  on `aboutToBlock`), so a frame callback queued at the end of one screen's composite also waited for
+  any composite due next on another screen. On the main box that's long: with KWin on the NVIDIA card,
+  every frame for the iGPU's screens is copied there through the CPU (`EglGbmLayerSurface::importWithCpu`,
+  a `glReadnPixels` on the main thread; "chose cpu import" in the journal with
+  `QT_LOGGING_RULES=kwin_wayland_drm.debug=true` on KWin's unit), 2.6 ms per DP-1 frame. So KRunner's
+  ripple on DP-4 got its callbacks that much later, and 20.6% of its frames missed DP-4's next composite
+  while DP-1 animated (1.6% with DP-1 idle). `kwin-frame-pacing.patch` flushes clients at the end of each
+  composite: 4.0% with DP-1 busy (2026-10-13). What's left is KWin's own: those CPU copies took 55% of its
+  main thread with DP-1 and HDMI-A-1 both animating, and DP-4's composites waited behind them (1.4-8.7%
+  of DP-4's refreshes got no frame then, 0.3-1.4% with only DP-1 animating). KWin's Vulkan copy
+  (`MultiGpuSwapchain::copyWithVulkan`: changed areas only, fences, no CPU wait) could do it on the
+  GPU, but KWin only lets the screen's own GPU copy, and the iGPU can't read NVIDIA's buffers. The
+  NVIDIA driver (615) can write into the iGPU's: its OpenGL takes linear dma-bufs as "external only"
+  (sampling, no framebuffer), but its Vulkan imports a linear buffer allocated by the iGPU and copies a
+  2560x1440 frame into it in 3.4 ms of GPU time and 0.006 ms of CPU (a test program, 2026-10-13). To
+  measure: `KWIN_LOG_PERFORMANCE_DATA=1` on KWin's unit makes it write `~/kwin perf statistics
+  <output>.csv` per screen (truncated when KWin starts), on the monotonic clock of the clients' frame
+  callbacks, so a client's `WAYLAND_DEBUG` log lines up with KWin's frames.
 - **Without shaders (software rendering) the busy pulse is a gradient, not a mask.** The band of
   light that stands in for the ripple is the gradient of a rounded Rectangle over the glass (stops
   moved by a 0..1 progress), so it keeps to the corners at every size. A MultiEffect mask (the
@@ -306,8 +326,9 @@ docs are in README.md; this file covers how to work on it.
   darker glass and a dark fringe on the corner arcs (whole-pixel blur region under anti-aliased
   edges). It was gone with blur unloaded, on the iGPU monitors, and everywhere once KWin composited
   on NVIDIA, so it only hits iGPU-rendered frames shown on the NVIDIA card. The preview can't
-  reproduce it (one GPU). Both Qt patches are installed here (2026-10-12), so KRunner renders on the
-  GPU with no drop-in.
+  reproduce it (one GPU). The 2080 Ti's link runs at PCIe 3.0 x8 (it can do x16), which bounds any
+  copy between the GPUs at about 7 GB/s. Both Qt patches are installed here (2026-10-12), so KRunner
+  renders on the GPU with no drop-in.
 
 ## Open items
 
