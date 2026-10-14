@@ -162,3 +162,56 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/multigpuswapchain.h b/src/m
  
  private:
      std::optional<Ret> copyWithVulkan(GraphicsBuffer *buffer, const Region &damage, FileDescriptor &&sync, OutputFrame *frame,
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/scripting/scripting.cpp b/src/scripting/scripting.cpp
+--- a/src/scripting/scripting.cpp
++++ b/src/scripting/scripting.cpp
+@@ -844,6 +844,15 @@
+     return false;
+ }
+ 
++void KWin::Scripting::unloadScripts()
++{
++    QMutexLocker locker(m_scriptsLock.get());
++    // a copy: each script takes itself off the list as it's destroyed (scriptDestroyed; the lock is
++    // recursive), and a declarative script's Component.onDestruction runs then
++    const QList<AbstractScript *> loaded = scripts;
++    qDeleteAll(loaded);
++}
++
+ void KWin::Scripting::runScripts()
+ {
+     QMutexLocker locker(m_scriptsLock.get());
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/scripting/scripting.h b/src/scripting/scripting.h
+--- a/src/scripting/scripting.h
++++ b/src/scripting/scripting.h
+@@ -334,6 +334,11 @@
+     Q_SCRIPTABLE Q_INVOKABLE int loadDeclarativeScript(const QString &filePath, const QString &pluginName = QString());
+     Q_SCRIPTABLE Q_INVOKABLE bool isScriptLoaded(const QString &pluginName) const;
+     Q_SCRIPTABLE Q_INVOKABLE bool unloadScript(const QString &pluginName);
++    /**
++     * Unloads all scripts at once, not deferred like unloadScript, for when what they use is about to
++     * go (the workspace calls it as it's being destroyed).
++     */
++    void unloadScripts();
+ 
+     /**
+      * @brief Invokes all registered callbacks to add actions to the UserActionsMenu.
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/workspace.cpp b/src/workspace.cpp
+--- a/src/workspace.cpp
++++ b/src/workspace.cpp
+@@ -472,6 +472,15 @@
+ 
+ Workspace::~Workspace()
+ {
++    // Unload the scripts first, while the workspace still works. They went with Scripting, a child of
++    // the workspace, in ~QObject, after _self was reset, so a script that reads the workspace as it's
++    // destroyed (Remember Window Positions saves the stacking order in Component.onDestruction)
++    // dereferenced a null workspace() and crashed KWin on every logout. Scripting itself still goes
++    // last: its QML engine is shared with the window switcher, the outline, the OSD and effects.
++    if (Scripting *scripting = Scripting::self()) {
++        scripting->unloadScripts();
++    }
++
+     blockStackingUpdates(true);
+ 
+ #if KWIN_BUILD_X11

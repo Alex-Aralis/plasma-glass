@@ -1,7 +1,7 @@
 # plasma-glass: notes for development
 
 Liquid Glass Plasma Styles, semantic KRunner search (EmbeddingGemma 2 on the Intel iGPU via OpenVINO)
-and Portage patches for KRunner, notification popups, milou, KWin (frame pacing) and Qt (Wayland client, Qt Quick). Gentoo, Plasma
+and Portage patches for KRunner, notification popups, milou, KWin (frame pacing, a crash on exit) and Qt (Wayland client, Qt Quick). Gentoo, Plasma
 6.7.5, Qt 6.11.2, Wayland. User
 docs are in README.md; this file covers how to work on it.
 
@@ -191,7 +191,7 @@ docs are in README.md; this file covers how to work on it.
   a whole-frame `glReadnPixels` on the main thread; "chose cpu import" in the journal with
   `QT_LOGGING_RULES=kwin_wayland_drm.debug=true` on KWin's unit), 2.6 ms per DP-1 frame. KRunner's
   ripple on DP-4 got its callbacks that much later, and 20.6% of its frames missed DP-4's next composite
-  while DP-1 animated (1.6% with DP-1 idle). `kwin-frame-pacing.patch` flushes clients at the end of each
+  while DP-1 animated (1.6% with DP-1 idle). `kwin-fixes.patch` flushes clients at the end of each
   composite (4.0% then), and lets the render GPU make those copies when the display GPU can't (a
   `RenderGpuCopy` import mode, tried after the display GPU's copy and before the CPU's; "chose render gpu
   copy" in the journal, `KWIN_DRM_NO_RENDER_GPU_COPY=1` turns it off). KWin's Vulkan copy
@@ -206,6 +206,21 @@ docs are in README.md; this file covers how to work on it.
   measure: `KWIN_LOG_PERFORMANCE_DATA=1` on KWin's unit makes it write `~/kwin perf statistics
   <output>.csv` per screen (truncated when KWin starts), on the monotonic clock of the clients' frame
   callbacks, so a client's `WAYLAND_DEBUG` log lines up with KWin's frames.
+- **KWin crashed at every logout and shutdown** (SIGSEGV, 47 core dumps by 2026-10-13, preview KWins
+  included), in a QML script's `Component.onDestruction`: Remember Window Positions 7.0.0 (rxappdev, in
+  `~/.local/share/kwin/scripts`) saves the stacking order there. `Workspace::~Workspace()` resets
+  `_self` and only then deletes its children, Scripting among them, whose QML engine destroys the
+  scripts' objects; the script's `Workspace.stackingOrder` then went to `workspace()->stackingOrder()`
+  on a null `workspace()` (`WorkspaceWrapper::stackingOrder`, workspace_wrapper.cpp:340). So the
+  script's final save never ran either. `kwin-fixes.patch` unloads the scripts at the top of
+  `~Workspace()` (`Scripting::unloadScripts()`), while the workspace still works; Scripting itself
+  still goes last, since the window switcher, the outline, the OSD and effects share its QML engine.
+  Reproduce without logging out: a virtual KWin (`--virtual`, its own socket, private bus and
+  `XDG_CONFIG_HOME` with a copy of kwinrc, `~/.local/share` in `XDG_DATA_DIRS` for the script) under
+  gdb, two qml6 windows opened and closed, then SIGTERM, as at logout. Stock, it crashed every time;
+  fixed, it exits with 15 and the script logs its final save (`debugLogs=true` in its kwinrc group).
+  KWin's cores are root-only (kwin_wayland has a file capability), so use a debug build of the dev
+  tree (`ninja -C ~/.cache/plasma-glass/dev/kwin/build kwin_wayland`, RelWithDebInfo) for symbols.
 - **Without shaders (software rendering) the busy pulse is a gradient, not a mask.** The band of
   light that stands in for the ripple is the gradient of a rounded Rectangle over the glass (stops
   moved by a 0..1 progress), so it keeps to the corners at every size. A MultiEffect mask (the
