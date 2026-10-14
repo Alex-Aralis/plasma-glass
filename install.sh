@@ -16,13 +16,14 @@ STYLE_DIR="$DATA/plasma/desktoptheme/liquid-glass"
 EXPORT_VENV="${XDG_CACHE_HOME:-$HOME/.cache}/plasma-glass/export-venv"
 PYTHON="${PYTHON:-python3}"
 
-DO_SEARCH=1 DO_STYLE=1 DO_SETTINGS=1 REEXPORT=0 KEEP_EXPORT_VENV=0 STYLE=liquid-glass
+DO_SEARCH=1 DO_STYLE=1 DO_SETTINGS=1 REEXPORT=0 KEEP_EXPORT_VENV=0 STYLE=
 for arg in "$@"; do
     case "$arg" in
         --no-search) DO_SEARCH=0 ;;
         --no-style) DO_STYLE=0 ;;
         --no-settings) DO_SETTINGS=0 ;;
         --light) STYLE=liquid-glass-light ;;
+        --dark) STYLE=liquid-glass ;;
         --reexport) REEXPORT=1 ;;
         --keep-export-venv) KEEP_EXPORT_VENV=1 ;;
         -h|--help)
@@ -30,7 +31,8 @@ for arg in "$@"; do
 usage: ./install.sh [options]
   --no-search         skip the semantic search service and KRunner plugin
   --no-style          skip the Liquid Glass Plasma Styles
-  --light             apply Liquid Glass Light instead of Liquid Glass (both get installed)
+  --light, --dark     apply Liquid Glass Light or Liquid Glass (both get installed; by default the
+                      one in use stays, and Liquid Glass if neither is)
   --no-settings       skip the KRunner/Plasma settings (desktop/plasma-settings.sh)
   --reexport          re-export the model even if it is already installed
   --keep-export-venv  keep the PyTorch venv used for the model export (~3 GB)
@@ -39,6 +41,13 @@ EOF
         *) echo "unknown option: $arg (see --help)" >&2; exit 2 ;;
     esac
 done
+# keep Liquid Glass Light if it's in use (plasma-glass-mode switches between the two)
+if [ -z "$STYLE" ]; then
+    case "$(kreadconfig6 --file plasmarc --group Theme --key name 2>/dev/null)" in
+        liquid-glass-light) STYLE=liquid-glass-light ;;
+        *) STYLE=liquid-glass ;;
+    esac
+fi
 
 say() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 warn() { printf '\033[33mwarning:\033[0m %s\n' "$*" >&2; }
