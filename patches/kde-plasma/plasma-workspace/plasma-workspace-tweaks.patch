@@ -215,7 +215,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunne
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -16,11 +16,243 @@
+@@ -16,11 +16,247 @@
  import org.kde.milou as Milou
  import org.kde.krunner.private.view
  import org.kde.kirigami as Kirigami
@@ -345,6 +345,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        readonly property real damping: 12 // s a wave takes to fall by e (70% of it is left across the glass)
 +        readonly property real life: 7 // s a knock's wave lasts (it and its ringing cross the glass in about 6)
 +        readonly property real period: 1.2 // s between knocks
++        // where the knocks land on the left side: beside the query while the window shows only that; once
++        // results show, this far down the glass's height (never above the query)
++        readonly property real knockAlong: 1 / 3
 +        // s, on the monotonic clock, which KWin's half of the ripple runs on too
 +        property real clock: root.runnerWindow.monotonicTime()
 +        property real nextKnock: 0
@@ -360,7 +363,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +            clock = root.runnerWindow.monotonicTime();
 +            const list = knocks.filter(k => clock - k.born < life);
 +            if (active && clock >= nextKnock) {
-+                const y = queryField.mapToItem(busyRipple, 0, queryField.height / 2).y;
++                const beside = queryField.mapToItem(busyRipple, 0, queryField.height / 2).y;
++                const y = root.listHeight > 0 ? Math.max(beside, height * knockAlong) : beside;
 +                list.push({side: 0, at: y, born: clock});
 +                // the same wave bends what's behind the glass, which only KWin has (plasma-glass's KWin patch)
 +                root.runnerWindow.knock(clock, 0, y, {speed, bump, spread, damping, life, steep});
@@ -459,7 +463,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
      property string query
      property string singleRunner
      property bool showHistory: false
-@@ -62,6 +294,13 @@
+@@ -62,6 +298,13 @@
      Connections {
          target: root.runnerWindow
          function onVisibleChanged() {
@@ -473,7 +477,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              if (root.runnerWindow.visible) {
                  queryField.forceActiveFocus();
                  listView.currentIndex = -1
-@@ -74,6 +313,8 @@
+@@ -74,6 +317,8 @@
                      }
                  }
              } else {
@@ -482,7 +486,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
                  if (root.runnerWindow.retainPriorSearch) {
                      root.priorSearch = root.query
                  }
-@@ -98,6 +339,7 @@
+@@ -98,6 +343,7 @@
      }
      
      RowLayout {
@@ -490,7 +494,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          Layout.alignment: Qt.AlignTop
          PlasmaComponents3.ToolButton {
              visible: root.runnerWindow.helpEnabled
-@@ -131,14 +373,33 @@
+@@ -131,14 +377,33 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -527,7 +531,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              QQC2.Label {
                  id: fadedTextCompletion
-@@ -157,35 +418,25 @@
+@@ -157,35 +422,25 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -575,7 +579,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              }
  
              function focusCurrentListView() {
-@@ -301,6 +552,7 @@
+@@ -301,6 +556,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -583,7 +587,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -313,12 +565,102 @@
+@@ -313,12 +569,102 @@
          }
      }
  
@@ -689,7 +693,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -327,6 +669,10 @@
+@@ -327,6 +673,10 @@
              queryString: root.query
              queryField: queryField
              singleRunner: root.singleRunner
@@ -700,7 +704,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              Keys.onEscapePressed: {
                  root.runnerWindow.visible = false
-@@ -347,9 +693,18 @@
+@@ -347,9 +697,18 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -720,7 +724,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
          visible: root.query.length === 0 && listView.count > 0
-@@ -358,6 +713,8 @@
+@@ -358,6 +717,8 @@
  
          ListView {
              id: listView // needs this id so the delegate can access it

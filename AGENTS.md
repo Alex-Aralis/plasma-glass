@@ -43,7 +43,8 @@ docs are in README.md; this file covers how to work on it.
 - **Demos:** `tools/preview/record.sh OUT.mp4 "query"` (same `QML_IMPORT_PATH` and `KRUNNER` as above)
   records KRunner's window with the busy feedback running (`BUSY=0` for none; `SECONDS_CAPTURED`,
   default 6) at 60 fps, through KWin's `CaptureArea` on a 120 Hz virtual screen, and keeps a lossless
-  `OUT.mkv`. For a side-by-side the knocks have to line up: both recordings start 5.5 s after KRunner,
+  `OUT.mkv`; `QUERY2` follows `QUERY2_AT` s in, so a query of `""` records the results unfolding. For a
+  side-by-side the knocks have to line up: both recordings start 5.5 s after KRunner,
   and two of them came out within a frame of each other in the 1.2 s cycle (check where a knock's
   light peaks beside the query; `ffmpeg -i a.mkv -i b.mkv -filter_complex vstack`).
 - **KWin in the preview:** after `tools/patch-dev.sh kwin`, `ninja -C ~/.cache/plasma-glass/dev/kwin/build
@@ -175,8 +176,11 @@ docs are in README.md; this file covers how to work on it.
   in a loop (dbus-fast: the `h` argument is the index into `unix_fds`; raw BGRA, format 6).
 - **KRunner's busy feedback is a ripple shader** (`krunner/qml/busyripple.frag`, `busyRipple` in
   RunCommand.qml, built into the QML module by `qt6_add_shaders`). While busy, every 1.2 s, a knock on
-  the left rim beside the query sends a wave across the glass (a second knock near the bottom while
-  results showed was dropped, 2026-10-13: one is enough). A knock flexes its side (most at the knock,
+  the left rim sends a wave across the glass: beside the query while the window shows only that, and once
+  results show `knockAlong` (a third) of the way down the glass, never above the query (2026-10-14: the
+  user asked to keep the closed spot and try a third and the middle when open; checked by logging each
+  knock's spot, 31 of 62 px closed and 115 of 346 open). A second knock near the bottom while results
+  showed was dropped, 2026-10-13: one is enough. A knock flexes its side (most at the knock,
   none at the corners; a 1 px stretch moves at once, then the flex slows to the waves' speed over 30 px,
   so the front is rounded, not a cone). Waves fade with time, by e in 12 s, so a crest keeps 70% of
   itself across the 744 px glass, and a knock's wave lasts 7 s, long enough for its ringing to cross too;

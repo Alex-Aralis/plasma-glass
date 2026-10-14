@@ -2,14 +2,16 @@
 # Records KRunner on the preview's virtual display into a video, cropped to the window (PAD px around it):
 # results for QUERY with the busy feedback running all along (KRUNNER_BUSY_DEMO=1; BUSY=0 for none).
 #   tools/preview/record.sh OUT.mp4 ["query"]
-# SECONDS_CAPTURED: how long (default 6). The lossless capture stays next to OUT as OUT.mkv, for cuts and
-# side-by-sides. KRUNNER, KRUNNER_ENV and KWIN_ENV as in unfold.sh; STYLE, WALLPAPER, ... in common.sh.
+# SECONDS_CAPTURED: how long (default 6). QUERY2: a second query, QUERY2_AT s in (default 2), to record
+# the results changing or unfolding (QUERY "" or one with no results starts it folded away). The lossless
+# capture stays next to OUT as OUT.mkv, for cuts and side-by-sides. KRUNNER, KRUNNER_ENV and KWIN_ENV as
+# in unfold.sh; STYLE, WALLPAPER, ... in common.sh.
 # The virtual screen runs at 120 Hz (REFRESH, mHz), so each of the video's 60 frames a second shows
 # KRunner as it was at most 8 ms before; at scale 1, since that mode is WIDTH x HEIGHT device pixels.
 set -eu
 export WIDTH="${WIDTH:-1920}" HEIGHT="${HEIGHT:-1200}" SCALE="${SCALE:-1}"
 . "$(dirname "$0")/common.sh"
-OUT=$(realpath -m "${1:?usage: record.sh OUT.mp4 [query]}"); QUERY="${2:-system settings}"
+OUT=$(realpath -m "${1:?usage: record.sh OUT.mp4 [query]}"); QUERY="${2-system settings}"
 mkdir -p "$WORK"; TOOL_PYTHON=$(pil_python); export TOOL_PYTHON
 prepare
 # KRunner centred at a fixed spot, whatever your own krunnerrc says

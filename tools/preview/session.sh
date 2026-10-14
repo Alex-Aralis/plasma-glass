@@ -122,7 +122,9 @@ JS
         # shellcheck disable=SC2086
         env ${KRUNNER_ENV:-} "${KRUNNER:-krunner}" >"$WORK/app.log" 2>&1 &
         sleep 2
-        qdbus6 org.kde.krunner /App org.kde.krunner.App.query "$1"
+        # QUERY2: the recording starts on QUERY and this one follows QUERY2_AT s in (default 2); the
+        # window is measured with its results, so the recording takes in the larger of the two
+        qdbus6 org.kde.krunner /App org.kde.krunner.App.query "${QUERY2:-$1}"
         sleep 3  # results arrive and unfold
         cat >"$WORK/where.js" <<'JS'
 for (const w of workspace.windowList())
@@ -132,8 +134,17 @@ JS
         id=$(qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.loadScript "$WORK/where.js" preview-where)
         qdbus6 org.kde.KWin "/Scripting/Script$id" org.kde.kwin.Script.run >/dev/null 2>&1
         sleep 0.5
+        if [ -n "${QUERY2:-}" ]; then
+            qdbus6 org.kde.krunner /App org.kde.krunner.App.query "$1"
+            sleep 2  # the results change or fold away
+        fi
         "$TOOL_PYTHON" -I "$HERE/frames.py" record "$WORK/record.mkv" "${SECONDS_CAPTURED:-6}" \
-            "$(grep KRUNNER "$WORK/kwin.log" | tail -1)" >"$WORK/grab.log" 2>&1
+            "$(grep KRUNNER "$WORK/kwin.log" | tail -1)" >"$WORK/grab.log" 2>&1 &
+        REC=$!
+        if [ -n "${QUERY2:-}" ]; then
+            sleep "${QUERY2_AT:-2}"; qdbus6 org.kde.krunner /App org.kde.krunner.App.query "$QUERY2"
+        fi
+        wait $REC
         ;;
     popup)
         plasmashell --no-respawn >"$WORK/app.log" 2>&1 &
