@@ -1,14 +1,20 @@
-# Frame capture for the preview (used by unfold.sh).
+# Frame capture for the preview (used by unfold.sh and record.sh).
 #   frames.py grab DIR SECONDS   capture the screen through KWin's ScreenShot2 as fast as it renders
 #                                (the preview's KWin runs with KWIN_SCREENSHOT_NO_PERMISSION_CHECKS)
 #   frames.py track DIR          per frame, KRunner's top edge, the query text's top (relative to the
 #                                edge) and the first result lines; prints the changes and a summary.
 #                                Expects the light style on a flat wallpaper. With BOTTOMS=1 it also
 #                                prints every change of the bottom edge (how the height animates).
+#   frames.py record OUT SECONDS AREA [FPS]
+#                                capture AREA (JSON with x, y, width, height in logical px, as a KWin
+#                                script prints frameGeometry; PAD px are added around it) through
+#                                ScreenShot2.CaptureArea at a steady FPS (default 60) into OUT, a
+#                                lossless video (ffmpeg)
 import asyncio
 import glob
 import json
 import os
+import subprocess
 import sys
 import time
 
@@ -37,6 +43,56 @@ async def grab(outdir, seconds):
             f.write(data)
         n += 1
     print(f"{n} frames in {seconds} s")
+
+
+async def record(out, seconds, area, fps):
+    from dbus_fast import Message, MessageType, Variant
+    from dbus_fast.aio import MessageBus
+    bus = await MessageBus(negotiate_unix_fd=True).connect()
+    g = json.loads(area[area.index("{"):])
+    pad = int(os.environ.get("PAD", "24"))
+    x, y, w, h = int(g["x"]) - pad, int(g["y"]) - pad, int(g["width"]) + 2 * pad, int(g["height"]) + 2 * pad
+
+    async def capture():
+        r, wfd = os.pipe()
+        reply = await bus.call(Message(
+            destination="org.kde.KWin", path="/org/kde/KWin/ScreenShot2", interface="org.kde.KWin.ScreenShot2",
+            member="CaptureArea", signature="iiuua{sv}h",
+            body=[x, y, w, h, {"native-resolution": Variant("b", True)}, 0], unix_fds=[wfd]))
+        os.close(wfd)
+        if reply.message_type == MessageType.ERROR:
+            sys.exit(f"screenshot failed: {reply.error_name} {reply.body}")
+        with os.fdopen(r, "rb") as f:
+            data = f.read()
+        meta = {k: v.value for k, v in reply.body[0].items()}
+        width, height, stride = meta["width"], meta["height"], meta["stride"]
+        if stride != width * 4:  # rows without their padding
+            data = b"".join(data[i * stride:i * stride + width * 4] for i in range(height))
+        return width, height, data
+
+    # A steady clock of ticks: each capture is the screen as KWin has it at that tick (KWin renders it at
+    # once, with the clients' latest buffers). One that comes in late also stands for the ticks it missed,
+    # so the video keeps real time.
+    total = round(seconds * fps)
+    ffmpeg, n, late, t0 = None, 0, 0, time.monotonic()
+    while n < total:
+        delay = t0 + n / fps - time.monotonic()
+        if delay > 0:
+            await asyncio.sleep(delay)
+        width, height, data = await capture()
+        if ffmpeg is None:  # format 6: ARGB32 premultiplied, BGRA in memory (opaque: it's the screen)
+            ffmpeg = subprocess.Popen(
+                ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgra", "-s", f"{width}x{height}",
+                 "-r", str(fps), "-i", "-", "-c:v", "libx264rgb", "-qp", "0", "-preset", "ultrafast", out],
+                stdin=subprocess.PIPE)
+        upto = min(total, int((time.monotonic() - t0) * fps) + 1)
+        late += max(0, upto - n - 1)
+        for _ in range(max(1, upto - n)):
+            ffmpeg.stdin.write(data)
+        n = max(n + 1, upto)
+    ffmpeg.stdin.close()
+    ffmpeg.wait()
+    print(f"{total} frames at {fps} fps, {w}x{h} logical px at ({x}, {y}); {late} stood in for late captures")
 
 
 def track(outdir):
@@ -95,5 +151,7 @@ def track(outdir):
 if __name__ == "__main__":
     if sys.argv[1] == "grab":
         asyncio.run(grab(sys.argv[2], float(sys.argv[3])))
+    elif sys.argv[1] == "record":
+        asyncio.run(record(sys.argv[2], float(sys.argv[3]), sys.argv[4], int(sys.argv[5]) if len(sys.argv) > 5 else 60))
     else:
         track(sys.argv[2])

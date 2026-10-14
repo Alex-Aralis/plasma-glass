@@ -17,7 +17,7 @@ docs are in README.md; this file covers how to work on it.
 | `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` and `qt` build test copies, `kwin` compiles the edited KWin files |
 | `tools/check-patches.sh` | patches apply; patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
 | `tools/screenprobe/screen.sh` | probes on the real screens (small, never focused, ask first): `fps` measures Qt Quick frame rate and animation speed per screen, `glass` shows the style's glass over a grey square (screenshot or by eye) |
-| `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh`, `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`); `fakeinput.c` for pointer input |
+| `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh`, `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`); `record.sh` records KRunner into a video (demos); `fakeinput.c` for pointer input |
 | `desktop/test-notifications.sh` | sample popups (clickable, long and scrolling, image, critical); installed as `plasma-glass-test-notifications` with a "Test Notifications" launcher |
 
 ## Dev loops
@@ -40,6 +40,12 @@ docs are in README.md; this file covers how to work on it.
   `QML_IMPORT_PATH=~/.cache/plasma-glass/dev/qml KRUNNER=$(tools/patch-dev.sh krunner) tools/preview/krunner.sh /tmp/k.png "q"`.
   `tools/preview/fakeinput.c` (built by `common.sh`) sends pointer input to the preview's KWin, and a
   KWin script can print `frameGeometry` of each window, so drags can be measured, not just eyeballed.
+- **Demos:** `tools/preview/record.sh OUT.mp4 "query"` (same `QML_IMPORT_PATH` and `KRUNNER` as above)
+  records KRunner's window with the busy feedback running (`BUSY=0` for none; `SECONDS_CAPTURED`,
+  default 6) at 60 fps, through KWin's `CaptureArea` on a 120 Hz virtual screen, and keeps a lossless
+  `OUT.mkv`. For a side-by-side the knocks have to line up: both recordings start 5.5 s after KRunner,
+  and two of them came out within a frame of each other in the 1.2 s cycle (check where a knock's
+  light peaks beside the query; `ffmpeg -i a.mkv -i b.mkv -filter_complex vstack`).
 - **Qt without an emerge:** `tools/patch-dev.sh setup qtbase qtdeclarative`, edit under
   `~/.cache/plasma-glass/dev/b/qtbase/src/plugins/platforms/wayland/` or
   `.../b/qtdeclarative/src/quick/scenegraph/`, then `tools/patch-dev.sh qt` (about 2 min each the

@@ -7,6 +7,8 @@
 #   session.sh unfold QUERY    KRunner; capture frames while results for QUERY unfold, then fold
 #   session.sh drag QUERY      KRunner with results for QUERY, then FAKEINPUT < DRAG_INPUT, while a KWin
 #                              script logs KRunner's frame geometry and output (kwin.log, "KRUNNER" lines)
+#   session.sh record QUERY    KRunner with results for QUERY, then its window recorded for
+#                              SECONDS_CAPTURED into record.mkv (frames.py record)
 # Any mode: INDEXING="DELAY DURATION" starts a stand-in search service (fake-indexer.py) that reports
 # indexing progress for DURATION seconds after DELAY.
 MODE="$1"; shift
@@ -112,6 +114,23 @@ JS
             sleep 1.2; qdbus6 org.kde.krunner /App org.kde.krunner.App.query "${QUERY2:-}"  # QUERY2: then this query
         fi
         wait $GRAB
+        ;;
+    record)
+        # shellcheck disable=SC2086
+        env ${KRUNNER_ENV:-} "${KRUNNER:-krunner}" >"$WORK/app.log" 2>&1 &
+        sleep 2
+        qdbus6 org.kde.krunner /App org.kde.krunner.App.query "$1"
+        sleep 3  # results arrive and unfold
+        cat >"$WORK/where.js" <<'JS'
+for (const w of workspace.windowList())
+    if (String(w.resourceClass).indexOf("krunner") >= 0)
+        console.info("KRUNNER", JSON.stringify(w.frameGeometry));
+JS
+        id=$(qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.loadScript "$WORK/where.js" preview-where)
+        qdbus6 org.kde.KWin "/Scripting/Script$id" org.kde.kwin.Script.run >/dev/null 2>&1
+        sleep 0.5
+        "$TOOL_PYTHON" -I "$HERE/frames.py" record "$WORK/record.mkv" "${SECONDS_CAPTURED:-6}" \
+            "$(grep KRUNNER "$WORK/kwin.log" | tail -1)" >"$WORK/grab.log" 2>&1
         ;;
     popup)
         plasmashell --no-respawn >"$WORK/app.log" 2>&1 &
