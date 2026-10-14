@@ -366,6 +366,25 @@ docs are in README.md; this file covers how to work on it.
   all 0 is the old clockwork. The latest knock's chop, packet and front noise go for the whole glass,
   as with the edge fade. Cost in the preview: KWin 2.85-2.91 ms a frame against 2.78-2.79 with all
   four off, in the same run (the base drifted between runs that day: 1.97, 2.20, 2.78).
+- **The liquid has momentum** (2026-10-14, the user: "trigger waves when moving around the element and
+  it opening and closing, like the liquid inside has momentum"; `[Ripple] momentum`, 1, 0 for none).
+  `View::floatingMoved(from)` comes from `moveFloatingTo`, `floatingPosition()` says where the window is
+  on its screen (layer-shell clients can't ask the compositor), and busyRipple watches its own height
+  for the dropdown's bottom edge. While anything moves a FrameAnimation samples the speed per axis (x,
+  y, bottom edge) over the last 100 ms, and a swing detector turns changes of speed into knocks: once
+  the speed has swung 400 px/s or more from its anchor and then held for 60 ms or come back 30%, the wall
+  that pushed into the liquid knocks (speeding up rightwards the left wall, downwards the top one; the
+  bottom edge when it speeds up upwards, as the dropdown folds or stops unfolding), from 60% of its
+  length, as strong as the swing (`amp`, 1 at 1500 px/s, at most 1.3), at most once per side per 0.12 s;
+  the anchor moves to the swing's peak. Logged in the preview (a scratch scene Meta+dragging KRunner with
+  fakeinput, then folding and unfolding it), the first tries sent bursts: frame-to-frame speed flickered
+  with the pointer's 60 Hz steps against 120 Hz frames (a start made three small waves), acceleration's
+  sign flipped with that noise and split a stop's slowing into pieces too small to count (the stop sent
+  none), overshooting speed settling back sent a small opposite wave (now a rebound: back within 0.2 s
+  and under half the swing, it only moves the anchor), and over 60 ms a steady 1900 px/s drag still
+  wobbled 500 px/s (hence 100 ms and 400 px/s). Then, twice over: one wave per start and stop per axis,
+  one off the bottom per fold and per unfold's end. Momentum's knocks carry the busy knocks' side as
+  `chopSide`, which the chop runs from, so it doesn't turn with them.
 - **Liquid Glass Light's waves go beneath the frost** (2026-10-14: "the light version with frosted
   glass, the wave beneath the frosting", with a settings panel and the diffraction's etch size as a
   setting). KWin treats `liquid-glass-light` as Liquid Glass too: its own frost (`[Light] frost`, 5; it

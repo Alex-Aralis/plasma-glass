@@ -250,6 +250,11 @@ Kirigami.ApplicationWindow {
                 key: "Ripple/jitter"; fallback: 0.6; from: 0; to: 1; stepSize: 0.05; decimals: 2
             }
             Hint { text: "No two knocks alike: each lands a little up or down the side, comes a little early or late, and is stronger or weaker, wider or narrower." }
+            Tuner {
+                Kirigami.FormData.label: "Momentum:"
+                key: "Ripple/momentum"; fallback: 1; from: 0; to: 2; stepSize: 0.05; decimals: 2
+            }
+            Hint { text: "As if the liquid inside had momentum: when you drag KRunner and let go, or its dropdown opens or closes, a wave comes off the wall that pushes into it, as strong as the change in speed. Works when KRunner isn't busy too." }
 
             Kirigami.Separator {
                 Kirigami.FormData.isSection: true

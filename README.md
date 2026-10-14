@@ -127,11 +127,13 @@ saturation, where the foil lights up (beneath the frost, on top of the glass, or
 bevel. A "More natural waves" section adds small waves across the whole glass (chop, and its
 wavelength), two more waves out of each knock (packet), crests that wander and change strength (front
 noise) and knocks that differ in place, strength, width and timing (jitter); setting all four to 0
-gives one smooth wave per knock, like clockwork. Changes apply as you drag: KRunner takes them with its
-next knock, KWin at once. While the window is open, KRunner keeps its ripple running and stays open
-when you click elsewhere, so open KRunner (Meta+Space) beside it and tune. Each row has a button back
-to its default, and "Reset All" resets everything. It needs the patched KRunner and KWin
-(`kwin-fixes.patch`, `plasma-workspace-tweaks.patch`).
+gives one smooth wave per knock, like clockwork. Momentum makes the liquid feel heavy: when you drag
+KRunner, and when its dropdown opens or closes, a wave comes off the wall that pushes into it, as
+strong as the change in speed, busy or not. Changes apply as you drag: KRunner takes them with its next
+knock, KWin at once. While the window is open, KRunner keeps its ripple running and stays open when you
+click elsewhere, so open KRunner (Meta+Space) beside it and tune. Each row has a button back to its
+default, and "Reset All" resets everything. It needs the patched KRunner and KWin (`kwin-fixes.patch`,
+`plasma-workspace-tweaks.patch`).
 
 The settings live in `~/.config/plasma-glassrc`, which you can also edit by hand (plain `key=value`
 lines; the tuning window rewrites the file as you move its sliders):
@@ -157,6 +159,7 @@ lines; the tuning window rewrites the file as you move its sliders):
 | | `packet` | 0.7 | two more waves out of each knock, a shorter one ahead and a longer one lagging (0-1) |
 | | `frontNoise` | 0.5 | crests wander and change strength along their length (0-1) |
 | | `jitter` | 0.6 | each knock a little different in place, strength, width and timing (0-1) |
+| | `momentum` | 1 | waves off the wall that pushes into the liquid when KRunner is dragged or its dropdown opens or closes (0: none) |
 | `[Glass]` | `frost` | 2 | blur strength 1-15, never more than KWin's Blur setting |
 | | `bevelWidth` | 24 | px |
 | | `refraction` | 9 | px |

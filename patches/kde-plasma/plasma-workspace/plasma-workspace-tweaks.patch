@@ -215,7 +215,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunne
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -16,11 +16,329 @@
+@@ -16,11 +16,457 @@
  import org.kde.milou as Milou
  import org.kde.krunner.private.view
  import org.kde.kirigami as Kirigami
@@ -384,6 +384,133 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        readonly property real packet: Math.min(1, Math.max(0, tunedNumber("packet", 0.7)))
 +        readonly property real frontNoise: Math.min(1, Math.max(0, tunedNumber("frontNoise", 0.5)))
 +        readonly property real jitter: Math.min(1, Math.max(0, tunedNumber("jitter", 0.6)))
++        // The liquid's momentum ([Ripple] momentum, how strong; 0: none): when the window starts or stops
++        // moving (dragged), or the dropdown's bottom edge does (it unfolds or folds), the wall that pushes
++        // into the liquid sends a wave across it from most of its length, as strong as the change in speed.
++        // Sampled each frame while anything moves, the speed over the last 100 ms (frame to frame it
++        // flickered with the pointer's steps, and over 60 ms a steady fast drag still wobbled 500 px/s). A
++        // change of speed sends its wave once it's over: the speed has swung at least 400 px/s from where it
++        // was and then held for 60 ms or come back 30%, so a sudden stop makes one wave, not a burst; swings
++        // under 400 px/s just move the anchor on, and so do
++        // rebounds, a swing back within 0.2 s and under half as big (the speed settling after overshooting).
++        readonly property real momentum: Math.max(0, tunedNumber("momentum", 1))
++        // the window's place on its screen and its height over the last 100 ms: {t, x, y, h}
++        property var motionTrail: []
++        property real motionTime: 0
++        property real motionUntil: 0 // s, monotonic: sample until then at least
++        property real knownHeight: 0
++        // per axis (x, y, the bottom edge's): the speed where the current swing began, its furthest from
++        // there and when (px/s, s); and when each side last sent a wave
++        property var motion: ({anchor: [0, 0, 0], peak: [0, 0, 0], peakT: [0, 0, 0], last: [0, 0, 0], lastT: [0, 0, 0]})
++        property var lastPush: ({})
++        FrameAnimation {
++            id: sloshing
++            onTriggered: busyRipple.sampleMotion()
++        }
++        Connections {
++            target: root.runnerWindow
++            function onFloatingMoved(from: point): void {
++                busyRipple.moved(from, busyRipple.height);
++            }
++        }
++        onHeightChanged: {
++            const before = knownHeight;
++            knownHeight = height;
++            if (before > 0) {
++                moved(root.runnerWindow.floatingPosition(), before);
++            }
++        }
++        function moved(from: point, heightBefore: real): void {
++            if (momentum <= 0 || !root.runnerWindow.visible) {
++                return;
++            }
++            const now = root.runnerWindow.monotonicTime();
++            if (!sloshing.running) {
++                // from where it was before this change
++                motionTrail = [{t: now - 1 / 60, x: from.x, y: from.y, h: heightBefore}];
++                motionTime = now - 1 / 60;
++                motion = {anchor: [0, 0, 0], peak: [0, 0, 0], peakT: [now, now, now], last: [0, 0, 0], lastT: [0, 0, 0]};
++                sloshing.running = true;
++            }
++            motionUntil = now + 0.3;
++        }
++        function sampleMotion(): void {
++            const now = root.runnerWindow.monotonicTime();
++            const dt = now - motionTime;
++            if (dt < 0.002) {
++                return;
++            }
++            const pos = root.runnerWindow.floatingPosition();
++            const trail = motionTrail;
++            const last = trail[trail.length - 1];
++            const step = [(pos.x - last.x) / dt, (pos.y - last.y) / dt, (height - last.h) / dt];
++            trail.push({t: now, x: pos.x, y: pos.y, h: height});
++            motionTime = now;
++            const m = motion;
++            // a hop to another screen, a jump or a long gap: start over from here
++            if (root.runnerWindow.changingScreen || dt > 0.25 || step.some(r => Math.abs(r) > 12000)) {
++                motionTrail = [trail[trail.length - 1]];
++                motion = {anchor: [0, 0, 0], peak: [0, 0, 0], peakT: [now, now, now], last: [0, 0, 0], lastT: [0, 0, 0]};
++                return;
++            }
++            while (trail.length > 2 && now - trail[1].t >= 0.1) {
++                trail.shift();
++            }
++            const span = now - trail[0].t;
++            const speed = [(pos.x - trail[0].x) / span, (pos.y - trail[0].y) / span, (height - trail[0].h) / span];
++            for (let i = 0; i < 3; ++i) {
++                const v = speed[i];
++                if (Math.abs(v - m.anchor[i]) > Math.abs(m.peak[i] - m.anchor[i])) {
++                    m.peak[i] = v;
++                    m.peakT[i] = now;
++                }
++                const swing = m.peak[i] - m.anchor[i];
++                const held = now - m.peakT[i];
++                if (Math.abs(swing) >= 400 && (held >= 0.06 || Math.abs(m.peak[i] - v) > 0.3 * Math.abs(swing))) {
++                    const rebound = swing * m.last[i] < 0 && now - m.lastT[i] < 0.2 && Math.abs(swing) < 0.5 * Math.abs(m.last[i]);
++                    if (!rebound) {
++                        wallPushed(i, swing, now);
++                        m.last[i] = swing;
++                        m.lastT[i] = now;
++                    }
++                    m.anchor[i] = m.peak[i]; // the next swing starts from there
++                    m.peak[i] = v;
++                    m.peakT[i] = now;
++                } else if (Math.abs(swing) < 400 && held >= 0.12) {
++                    m.anchor[i] = v;
++                    m.peak[i] = v;
++                    m.peakT[i] = now;
++                }
++            }
++            if (now > motionUntil && speed.every(v => Math.abs(v) < 20)) {
++                sloshing.running = false;
++            }
++        }
++        // speeding up rightwards the left wall pushes into the liquid, downwards the top one; the bottom
++        // edge only pushes in when it speeds up upwards (the dropdown folds, or stops unfolding)
++        function wallPushed(axis: int, dv: real, now: real): void {
++            let side;
++            if (axis === 0) {
++                side = dv > 0 ? 0 : 1;
++            } else if (axis === 1) {
++                side = dv > 0 ? 2 : 3;
++            } else if (dv < 0) {
++                side = 3;
++            } else {
++                return;
++            }
++            if (now - (lastPush[side] ?? -1) < 0.12) {
++                return;
++            }
++            lastPush[side] = now;
++            const sideLength = side < 2 ? height : width;
++            const wave = {speed, bump, spread, damping, life, steep, lean: amplitude, dispersion: aberration,
++                          ring: ringing, norm: slopeNorm, edge: edgeFade, standoff: edgeStandoff,
++                          strike: 0.6 * sideLength, amp: momentum * Math.min(1.3, Math.abs(dv) / 1500),
++                          chop, chopScale, packet, frontNoise, chopSide: knockSide};
++            knocks = knocks.concat([Object.assign({side, at: sideLength / 2, born: now}, wave)]);
++            root.runnerWindow.knock(now, side, sideLength / 2, wave);
++        }
 +        // where the knocks land: on the left side (or right, top, bottom), beside the query while the window
 +        // shows only that and, once results show, this far down the glass (never above the query); along the
 +        // top or bottom, this far across
@@ -432,7 +559,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +                // the waves under way
 +                const wave = {speed, bump: bump * (1 + jit() * 0.8), spread, damping, life, steep, lean: amplitude,
 +                              dispersion: aberration, ring: ringing, norm: slopeNorm, edge: edgeFade,
-+                              standoff: edgeStandoff, strike, amp: 1 + jit() * 1.2, chop, chopScale, packet, frontNoise};
++                              standoff: edgeStandoff, strike, amp: 1 + jit() * 1.2, chop, chopScale, packet, frontNoise,
++                              chopSide: knockSide};
 +                list.push(Object.assign({side: knockSide, at, born: clock}, wave));
 +                // the same wave bends what's behind the glass, which only KWin has (plasma-glass's KWin patch)
 +                root.runnerWindow.knock(clock, knockSide, at, wave);
@@ -457,7 +585,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +            const latest = list[list.length - 1];
 +            if (latest) {
 +                busyWaves.nature = Qt.vector4d(latest.chop, latest.packet, latest.frontNoise, latest.chopScale);
-+                busyWaves.mainAngle = [0, Math.PI, Math.PI / 2, -Math.PI / 2][latest.side];
++                busyWaves.mainAngle = [0, Math.PI, Math.PI / 2, -Math.PI / 2][latest.chopSide ?? latest.side];
 +            }
 +            const none = Qt.vector4d(0, 0, 0, 0);
 +            busyWaves.knock0 = kv[0] ?? none; busyWaves.shape0 = sh[0] ?? none;
@@ -545,7 +673,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
      property string query
      property string singleRunner
      property bool showHistory: false
-@@ -62,6 +380,13 @@
+@@ -62,6 +508,13 @@
      Connections {
          target: root.runnerWindow
          function onVisibleChanged() {
@@ -559,7 +687,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              if (root.runnerWindow.visible) {
                  queryField.forceActiveFocus();
                  listView.currentIndex = -1
-@@ -74,6 +399,8 @@
+@@ -74,6 +527,8 @@
                      }
                  }
              } else {
@@ -568,7 +696,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
                  if (root.runnerWindow.retainPriorSearch) {
                      root.priorSearch = root.query
                  }
-@@ -98,6 +425,7 @@
+@@ -98,6 +553,7 @@
      }
      
      RowLayout {
@@ -576,7 +704,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          Layout.alignment: Qt.AlignTop
          PlasmaComponents3.ToolButton {
              visible: root.runnerWindow.helpEnabled
-@@ -131,14 +459,33 @@
+@@ -131,14 +587,33 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -613,7 +741,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              QQC2.Label {
                  id: fadedTextCompletion
-@@ -157,35 +504,25 @@
+@@ -157,35 +632,25 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -661,7 +789,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              }
  
              function focusCurrentListView() {
-@@ -301,6 +638,7 @@
+@@ -301,6 +766,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -669,7 +797,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -313,12 +651,102 @@
+@@ -313,12 +779,102 @@
          }
      }
  
@@ -775,7 +903,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -327,6 +755,10 @@
+@@ -327,6 +883,10 @@
              queryString: root.query
              queryField: queryField
              singleRunner: root.singleRunner
@@ -786,7 +914,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              Keys.onEscapePressed: {
                  root.runnerWindow.visible = false
-@@ -347,9 +779,18 @@
+@@ -347,9 +907,18 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -806,7 +934,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
          visible: root.query.length === 0 && listView.count > 0
-@@ -358,6 +799,8 @@
+@@ -358,6 +927,8 @@
  
          ListView {
              id: listView // needs this id so the delegate can access it
@@ -1587,7 +1715,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
          if (m_floating) {
              layerWindow->setScreen(shownOnScreen);
          } else {
-@@ -209,6 +386,267 @@
+@@ -209,6 +386,269 @@
      }
  }
  
@@ -1625,10 +1753,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
 +    }
 +    const qreal left = std::clamp(topLeft.x(), 0.0, std::max(0.0, qreal(r.width() - width())));
 +    const qreal top = std::clamp(topLeft.y(), 0.0, std::max(0.0, qreal(r.height() - height())));
++    const QPointF from = floatingTopLeft();
 +    m_floatCenterX = (left + width() / 2.0) / r.width();
 +    m_floatTop = top / r.height();
 +    applyFloatingMargins();
 +    update(); // margins only take effect with a commit, so render a frame even if nothing changed
++    Q_EMIT floatingMoved(from);
 +}
 +
 +// A relative pointer for the current wl_pointer, kept while KRunner runs so no motion is missed at a press.
@@ -1880,7 +2010,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  
  class View : public PlasmaQuick::PlasmaWindow
  {
-@@ -47,6 +54,55 @@
+@@ -47,6 +54,62 @@
  
      void positionOnScreen();
  
@@ -1918,6 +2048,13 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 +        return m_tuning;
 +    }
 +
++    // Where the floating window is on its screen (logical px, its top left), for the busy ripple's momentum:
++    // floatingMoved() says it moved, and from where
++    Q_INVOKABLE QPointF floatingPosition()
++    {
++        return floatingTopLeft();
++    }
++
 +    // The busy ripple's clock: seconds on the monotonic clock, which KWin runs the ripple on too
 +    Q_INVOKABLE double monotonicTime() const;
 +    // A knock of the busy ripple (born on monotonicTime(), side 0 left .. 3 bottom, px along it, and the wave:
@@ -1936,7 +2073,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
      bool freeFloating() const;
      void setFreeFloating(bool floating);
  
-@@ -82,12 +138,19 @@
+@@ -82,12 +145,20 @@
      }
  
  Q_SIGNALS:
@@ -1944,6 +2081,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 +    void indexingProgressChanged();
 +    void liquidGlassChanged();
 +    void tuningChanged();
++    void floatingMoved(QPointF from);
      void pinnedChanged();
      void helpEnabledChanged();
      void activityChanged(const QString &activity);
@@ -1956,7 +2094,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  
  public Q_SLOTS:
      void display();
-@@ -97,6 +160,9 @@
+@@ -97,6 +168,9 @@
      void query(const QString &term);
      void querySingleRunner(const QString &runnerName, const QString &term);
  
@@ -1966,7 +2104,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  protected Q_SLOTS:
      void loadConfig();
      void objectIncubated();
-@@ -106,6 +172,40 @@
+@@ -106,6 +180,40 @@
      void writeHistory();
      QPoint m_customPos;
      QMargins margins();
