@@ -359,8 +359,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        .speed = wave.value(QStringLiteral("speed"), 180.0).toDouble(),
 +        .bump = wave.value(QStringLiteral("bump"), 14.0).toDouble(),
 +        .spread = wave.value(QStringLiteral("spread"), 8.0).toDouble(),
-+        .damping = wave.value(QStringLiteral("damping"), 5.0).toDouble(),
-+        .life = wave.value(QStringLiteral("life"), 4.8).toDouble(),
++        .damping = wave.value(QStringLiteral("damping"), 12.0).toDouble(),
++        .life = wave.value(QStringLiteral("life"), 7.0).toDouble(),
 +        .steep = wave.value(QStringLiteral("steep"), 0.5).toDouble(),
 +    };
 +    for (auto &[window, data] : m_windows) {
@@ -814,7 +814,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/onscre
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple.frag b/src/plugins/blur/shaders/ripple.frag
 --- a/src/plugins/blur/shaders/ripple.frag
 +++ b/src/plugins/blur/shaders/ripple.frag
-@@ -0,0 +1,136 @@
+@@ -0,0 +1,137 @@
 +#version 140
 +
 +// The waves of KRunner's busy ripple (plasma-glass), worked out again here so the glass bends what's
@@ -933,11 +933,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple
 +    // the background is drawn with v from 1 at its top, as the blur's passes are
 +    vec2 p = origin + vec2(uv.x, 1.0 - uv.y) * area;
 +    vec4 dist = vec4(p.x, size.x - p.x, p.y, size.y - p.y); // to the left, right, top, bottom edge
-+    // a wave heading into the rim fades out within a few px of it (from 40 px in, all of it is left)
++    // a wave heading into the rim runs on across the bevel and fades out only at the very edge: half of it
++    // is left 3 px from the rim, 90% 6 px in (from 15 px in, all of it)
 +    float die = 1.0;
 +    vec2 toRim = vec2(0.0);
-+    if (min(min(dist.x, dist.y), min(dist.z, dist.w)) < 40.0) {
-+        vec4 ed = exp(-dist / 8.0);
++    if (min(min(dist.x, dist.y), min(dist.z, dist.w)) < 15.0) {
++        vec4 ed = exp(-dist / 3.0);
 +        float near = ed.x + ed.y + ed.z + ed.w;
 +        die = exp(-(near * near) / (0.45 * 0.45));
 +        vec4 e = exp(-dist / 20.0);

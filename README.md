@@ -147,8 +147,8 @@ build stops at the patch step until the patch is refreshed.
     behind shows through as soft shapes; and within 24 px of the edge a bevel that bends that view (seen
     from up to 9 px further in at the very edge), turns sharp toward the rim and splits it in colour by
     up to 2 px each way. KRunner's busy ripple bends what's behind the glass the same way as its waves
-    run, ringing behind each crest and clear across each wave (KRunner tells KWin about each knock over
-    D-Bus). Only while that style
+    run, ringing behind each crest, clear across each wave and on into the bevel at the far edge
+    (KRunner tells KWin about each knock over D-Bus). Only while that style
     is selected (it follows `plasmarc`, no relogin), on Plasma's own surfaces (KRunner, popups,
     notifications, panels with rounded corners), not on windows with title bars. In KWin's environment,
     `KWIN_LIQUID_GLASS_FROST=strength`, `KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness`

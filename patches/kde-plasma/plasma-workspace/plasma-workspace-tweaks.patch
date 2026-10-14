@@ -342,8 +342,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        readonly property real speed: 180 // px/s
 +        readonly property real bump: 14 // px: half-width of a fresh wave
 +        readonly property real spread: 8 // px/s it widens
-+        readonly property real damping: 5 // s
-+        readonly property real life: 4.8 // s a knock's wave lasts (it takes about 4 to cross the glass)
++        readonly property real damping: 12 // s a wave takes to fall by e (70% of it is left across the glass)
++        readonly property real life: 7 // s a knock's wave lasts (it and its ringing cross the glass in about 6)
 +        readonly property real period: 1.2 // s between knocks
 +        // s, on the monotonic clock, which KWin's half of the ripple runs on too
 +        property real clock: root.runnerWindow.monotonicTime()
@@ -859,7 +859,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busyripple.frag b/k
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/krunner/qml/busywaves.frag
 --- a/krunner/qml/busywaves.frag
 +++ b/krunner/qml/busywaves.frag
-@@ -0,0 +1,160 @@
+@@ -0,0 +1,161 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Alex Aralis
 +
@@ -997,11 +997,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/kr
 +{
 +    vec2 p = qt_TexCoord0 * itemSize;
 +    vec4 dist = vec4(p.x, itemSize.x - p.x, p.y, itemSize.y - p.y); // to the left, right, top, bottom edge
-+    // a wave heading into the rim fades out within a few px of it (from 40 px in, all of it is left)
++    // a wave heading into the rim runs on across the bevel and fades out only at the very edge: half of it
++    // is left 3 px from the rim, 90% 6 px in (from 15 px in, all of it)
 +    float die = 1.0;
 +    vec2 toRim = vec2(0.0);
-+    if (min(min(dist.x, dist.y), min(dist.z, dist.w)) < 40.0) {
-+        vec4 ed = exp(-dist / 8.0);
++    if (min(min(dist.x, dist.y), min(dist.z, dist.w)) < 15.0) {
++        vec4 ed = exp(-dist / 3.0);
 +        float near = ed.x + ed.y + ed.z + ed.w;
 +        die = exp(-(near * near) / (0.45 * 0.45));
 +        vec4 e = exp(-dist / 20.0);
