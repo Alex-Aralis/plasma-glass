@@ -213,7 +213,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +static const QVector4D s_liquidGlassBevel(24, 9, 2, 1);
 +// The glass is frosted lightly all over, so what's behind still shows through and the bevel bends that
 +// same frost: a blur strength (BlurStrength's 1..15) it never goes above. KWIN_LIQUID_GLASS_FROST=strength
-+static constexpr int s_liquidGlassFrost = 3;
++static constexpr int s_liquidGlassFrost = 2;
 +// KRunner's busy ripple leans the glass too: a fresh wave's steepest slope as far as the bevel at its edge
 +// (1), times this. KWIN_LIQUID_GLASS_RIPPLE=scale (0: the waves only show in KRunner's own drawing)
 +static constexpr double s_liquidGlassRipple = 1;
@@ -417,9 +417,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
      vbo->bindArrays();
  
-+    // KRunner's ripple, on a Liquid Glass surface: its waves' slope over the background, at half size, for
-+    // the bevel pass to lean the glass by (0: no waves)
-+    float ripple = 0;
++    // KRunner's ripple, on a Liquid Glass surface: its waves' slope and height over the background, at half
++    // size, for the bevel pass to lean and clear the glass by (what it multiplies them by; 0: no waves)
++    QVector2D ripple;
 +    if (!bevelCorners.isNull() && m_ripplePass.shader && m_rippleLean > 0) {
 +        const double now = monotonicNow();
 +        std::erase_if(blurInfo.knocks, [now](const LiquidGlassKnock &knock) {
@@ -454,7 +454,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +                    shapes[i][0] = std::exp(-age / knock.damping) * smoothStep(0, 0.05, age) * (1 - smoothStep(0.8 * knock.life, knock.life, age));
 +                    shapes[i][1] = std::log(0.5) / std::log(along);
 +                }
-+                ripple = blurInfo.knocks.back().steep / m_rippleLean;
++                ripple = QVector2D(m_rippleLean / blurInfo.knocks.back().steep, m_rippleLean);
 +
 +                ShaderManager::instance()->pushShader(m_ripplePass.shader.get());
 +
@@ -544,7 +544,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        // the background as it is, before the blur; the ripple's waves
 +        glActiveTexture(GL_TEXTURE1);
 +        renderInfo.textures[0]->bind();
-+        if (ripple > 0) {
++        if (ripple.x() > 0) {
 +            glActiveTexture(GL_TEXTURE2);
 +            blurInfo.wavesTexture->bind();
 +        }
@@ -560,7 +560,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +
 +        glActiveTexture(GL_TEXTURE1);
 +        renderInfo.textures[0]->unbind();
-+        if (ripple > 0) {
++        if (ripple.x() > 0) {
 +            glActiveTexture(GL_TEXTURE2);
 +            blurInfo.wavesTexture->unbind();
 +        }
@@ -708,7 +708,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.qrc b/src
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/onscreen_bevel.frag b/src/plugins/blur/shaders/onscreen_bevel.frag
 --- a/src/plugins/blur/shaders/onscreen_bevel.frag
 +++ b/src/plugins/blur/shaders/onscreen_bevel.frag
-@@ -0,0 +1,93 @@
+@@ -0,0 +1,102 @@
 +#version 140
 +
 +#include "sdf.glsl"
@@ -719,7 +719,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/onscre
 +// where it's polished (bevel.w: how much of what's behind shows as it is, at the very edge). Blue bends
 +// more than red: the colours part along the edge by bevel.z each way. While KRunner's busy ripple runs,
 +// its waves lean the glass too, and bend what's behind it the same way: a fresh wave's steepest slope as
-+// far as the bevel at its edge.
++// far as the bevel at its edge. A wave clears the glass where it runs, over its crest too, where it doesn't
++// lean: by its height, where that's more.
 +
 +uniform sampler2D texUnit;   // the blurred background at half size (its last upsample step is done here)
 +uniform sampler2D sharpUnit; // the background as it is
@@ -731,8 +732,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/onscre
 +uniform float opacity;
 +uniform vec2 size;         // the background's size
 +uniform vec4 bevel;        // width, refraction, dispersion (device px), sharpness at the edge (0..1)
-+uniform sampler2D wavesUnit; // the ripple's waves: the glass's slope (x, y), at half size
-+uniform float ripple;        // their steepest slope, while they run (0: none)
++uniform sampler2D wavesUnit; // the ripple's waves: the glass's slope (x, y) and their height, at half size
++uniform vec2 ripple;         // while they run: what a wave's slope is multiplied by to lean the glass, and
++                             // its height to clear it (0: no waves)
 +
 +in vec2 uv;
 +in vec2 vertex; // device px from the background's top left
@@ -769,23 +771,30 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/onscre
 +    float df = fwidth(f);
 +    float d = -f; // px inside the glass
 +
-+    // which way the glass faces here, and how far it leans that way (the sine of its tilt)
++    // which way the glass faces here, and how far it leans that way (the sine of its tilt); and how clear
++    // it is, from frosted (0) to clear (1)
 +    vec2 lean = vec2(0.0);
++    float clear = 0.0;
 +    if (d < bevel.x) {
 +        // the bevel: out of the glass, across the outline; a quarter circle, so 1 at the edge and 0 where
-+        // the glass turns flat
++        // the glass turns flat; clear as far as it leans
 +        vec2 g = vec2(outline(vertex + vec2(0.5, 0.0)) - outline(vertex - vec2(0.5, 0.0)),
 +                      outline(vertex + vec2(0.0, 0.5)) - outline(vertex - vec2(0.0, 0.5)));
 +        lean = g / max(length(g), 1e-4) * (1.0 - max(d, 0.0) / bevel.x);
++        clear = length(lean);
 +    }
-+    if (ripple > 0.0) {
-+        lean -= texture(wavesUnit, uv).xy / ripple; // a wave faces downhill
++    if (ripple.x > 0.0) {
++        vec3 wave = texture(wavesUnit, uv).xyz;
++        vec2 waveLean = -wave.xy * ripple.x; // a wave faces downhill
++        lean += waveLean;
++        clear = max(clear, max(length(waveLean), wave.z * ripple.y));
 +    }
 +    float tilt = min(length(lean), 1.0);
++    clear = min(clear, 1.0);
 +
 +    vec4 color;
-+    if (tilt > 1e-3) {
-+        vec2 facing = lean / length(lean);
++    if (tilt > 1e-3 || clear > 1e-3) {
++        vec2 facing = lean / max(length(lean), 1e-6);
 +        vec2 p = vertex - facing * bevel.y * tilt * tilt; // refracted: seen from further in, most where it's steep
 +        // (a smooth start where the glass is flat; keep bevel.y under half bevel.x, or the bevel folds over)
 +        vec2 split = facing * bevel.z * tilt; // red from a little further out, blue from further in
@@ -794,7 +803,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/onscre
 +        vec4 sharp = texture(sharpUnit, at(p));
 +        sharp.r = texture(sharpUnit, at(p + split)).r;
 +        sharp.b = texture(sharpUnit, at(p - split)).b;
-+        color = mix(blurred(at(p)), sharp, bevel.w * tilt);
++        color = mix(blurred(at(p)), sharp, bevel.w * clear);
 +    } else {
 +        color = blurred(uv);
 +    }

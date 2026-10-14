@@ -141,15 +141,15 @@ build stops at the patch step until the patch is refreshed.
   instead of a 10-grid-unit column beside every row; result text 1.2x
 - `kwin-fixes.patch` (kde-plasma/kwin; a new KWin runs from the next login)
   - the dark Liquid Glass style's glass, as in [liquidglass](https://github.com/ybouane/liquidglass):
-    frosted lightly all over (blur strength 3 of 15, never more than your own setting), so what's
+    frosted lightly all over (blur strength 2 of 15, never more than your own setting), so what's
     behind shows through as soft shapes; and within 24 px of the edge a bevel that bends that view (seen
     from up to 9 px further in at the very edge), turns sharp toward the rim and splits it in colour by
     up to 2 px each way. KRunner's busy ripple bends what's behind the glass the same way as its waves
-    run (KRunner tells KWin about each knock over D-Bus). Only while that style is selected (it follows
-    `plasmarc`, no relogin), on Plasma's own surfaces (KRunner, popups, notifications, panels with
-    rounded corners), not on windows with title bars. In KWin's environment,
+    run, clear across each wave (KRunner tells KWin about each knock over D-Bus). Only while that style
+    is selected (it follows `plasmarc`, no relogin), on Plasma's own surfaces (KRunner, popups,
+    notifications, panels with rounded corners), not on windows with title bars. In KWin's environment,
     `KWIN_LIQUID_GLASS_FROST=strength`, `KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness`
-    and `KWIN_LIQUID_GLASS_RIPPLE=scale` override them (3; 24,9,2,1; 1, 0 for no waves)
+    and `KWIN_LIQUID_GLASS_RIPPLE=scale` override them (2; 24,9,2,1; 1, 0 for no waves)
   - frame callbacks go out after each screen's composite, not only when KWin is about to sleep, so a
     window on one screen doesn't wait for another screen's composite (KRunner's ripple missed frames
     on the 240 Hz screen while another one animated)
