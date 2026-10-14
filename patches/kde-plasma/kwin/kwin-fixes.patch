@@ -363,11 +363,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        .born = born,
 +        .side = side,
 +        .at = at,
-+        .speed = wave.value(QStringLiteral("speed"), 180.0).toDouble(),
-+        .bump = wave.value(QStringLiteral("bump"), 14.0).toDouble(),
++        .speed = wave.value(QStringLiteral("speed"), 120.0).toDouble(),
++        .bump = wave.value(QStringLiteral("bump"), 21.0).toDouble(),
 +        .spread = wave.value(QStringLiteral("spread"), 8.0).toDouble(),
-+        .damping = wave.value(QStringLiteral("damping"), 12.0).toDouble(),
-+        .life = wave.value(QStringLiteral("life"), 7.0).toDouble(),
++        .damping = wave.value(QStringLiteral("damping"), 18.0).toDouble(),
++        .life = wave.value(QStringLiteral("life"), 9.5).toDouble(),
 +        .steep = wave.value(QStringLiteral("steep"), 0.5).toDouble(),
 +    };
 +    for (auto &[window, data] : m_windows) {

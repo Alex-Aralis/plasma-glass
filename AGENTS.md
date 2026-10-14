@@ -182,12 +182,18 @@ docs are in README.md; this file covers how to work on it.
   knock's spot, 31 of 62 px closed and 115 of 346 open). A second knock near the bottom while results
   showed was dropped, 2026-10-13: one is enough. A knock flexes its side (most at the knock,
   none at the corners; a 1 px stretch moves at once, then the flex slows to the waves' speed over 30 px,
-  so the front is rounded, not a cone). Waves fade with time, by e in 12 s, so a crest keeps 70% of
-  itself across the 744 px glass, and a knock's wave lasts 7 s, long enough for its ringing to cross too;
-  heading into a rim they fade only in its last few px (half is left 3 px from it), so they run on
-  across KWin's bevel (2026-10-14: the user wanted them to travel farther and the damping backed off the
-  bevel's edges; before, by e in 5 s and gone after 4.8, a crest kept a third of itself across, and the
-  rim faded them from 15 px in, over the whole bevel). Each wave is a crest with a ringing train behind
+  so the front is rounded, not a cone). Waves run at 120 px/s, 21 px half-width when fresh and widening
+  8 px/s (2026-10-14: the user asked to slow them to 2/3 and widen them by as much; from 180 px/s and
+  14 px, so at each point across they're now 1.5x as wide). With knocks still 1.2 s apart their crests
+  are 144 px apart, not 216, and the wider waves crowd into each other (the sheen on light glass nearly
+  merges); a knock every 1.8 s keeps them as far apart as before, recorded for the user to compare.
+  Waves fade with time, by e in 18 s, so a crest keeps 70% of itself across the 744 px glass, and a
+  knock's wave lasts 9.5 s, long enough for its ringing to cross too, and short enough that no more than
+  8 live at once (as many as the shaders take); heading into a rim they fade only in its last few px
+  (half is left 3 px from it), so they run on across KWin's bevel (2026-10-14: the user wanted them to
+  travel farther and the damping backed off the bevel's edges; before, by e in 5 s and gone after 4.8, a
+  crest kept a third of itself across, and the rim faded them from 15 px in, over the whole bevel). Each
+  wave is a crest with a ringing train behind
   it (`profile()`, the same in busywaves.frag and KWin's ripple.frag): a smooth rise ahead, then ripples
   that get shorter and fade, -0.42, +0.18, -0.09, +0.05 of the crest, a damped Airy function's tail, as
   an impulse leaves it in a dispersive medium (2026-10-14: "trailing reverb closer to a real impulse";
@@ -305,10 +311,11 @@ docs are in README.md; this file covers how to work on it.
   KWin keeps repainting while knocks live, whatever KRunner draws. The colours part only in the sharp
   samples: on the frost it doesn't show, and the blur's 8 samples three times over cost twice as much
   once the waves spread the per-pixel path over most of the window. In the preview (UHD 770 through
-  Mesa, KRunner busy at 744x346, scale 1) KWin's GPU time is 1.15-1.20 ms a frame with the bevel and
-  frost 2 and 1.66-1.69 with the ringing waves, six knocks' at once (1.56-1.59 while they lasted 4.8 s,
-  four at once, both once that many lived; with single waves 1.49-1.52; at frost 3, 1.25 and 1.57-1.62;
-  with all 27 samples, 1.40 and 2.12-2.15); with the wallpaper scrolling and
+  Mesa, KRunner busy at 744x346, scale 1) KWin's GPU time is 1.12-1.20 ms a frame with the bevel and
+  frost 2 and 1.96-1.98 with the slow, wide waves, eight knocks' at once (1.78-1.80 with a knock every
+  1.8 s; at 180 px/s and 14 px 1.66-1.69, six at once, and 1.56-1.59 while they lasted 4.8 s, four at
+  once, all once that many lived; with single waves 1.49-1.52; at frost 3, 1.25 and 1.57-1.62; with all
+  27 samples, 1.40 and 2.12-2.15); with the wallpaper scrolling and
   KRunner idle it went from 2.04 (no bevel, strength 15) to 2.25-2.28 (bevel, strength 4). Over a smooth
   wallpaper (Next) it hardly shows: tuned on ColorfulCups and a scrolling image of code.
 - **Without shaders (software rendering) the busy pulse is a gradient, not a mask.** The band of
