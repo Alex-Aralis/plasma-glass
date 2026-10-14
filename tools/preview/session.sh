@@ -19,10 +19,12 @@ export XDG_CONFIG_HOME="$WORK/cfg"
 # checks are off so tools/preview/fakeinput.c may send pointer input; this KWin only serves the preview.
 shortcuts=--no-global-shortcuts
 [ "$MODE" = popup ] && shortcuts=
-# KWIN_ENV: extra environment for KWin only, e.g. to composite on another GPU like the real session
+# KWIN_ENV: extra environment for KWin only, e.g. to composite on another GPU like the real session.
+# KWIN_WAYLAND: a dev build of KWin to run instead of the installed one (tools/patch-dev.sh kwin, then
+# ninja -C ~/.cache/plasma-glass/dev/kwin/build kwin_wayland)
 # shellcheck disable=SC2086
 env -u WAYLAND_DISPLAY KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1 ${KWIN_ENV:-} \
-    kwin_wayland --virtual --width "$WIDTH" --height "$HEIGHT" --scale "$SCALE" --output-count "${OUTPUTS:-1}" --socket "$SOCK" \
+    "${KWIN_WAYLAND:-kwin_wayland}" --virtual --width "$WIDTH" --height "$HEIGHT" --scale "$SCALE" --output-count "${OUTPUTS:-1}" --socket "$SOCK" \
     --no-lockscreen $shortcuts >"$WORK/kwin.log" 2>&1 &
 KWIN=$!
 for _ in $(seq 100); do [ -S "$XDG_RUNTIME_DIR/$SOCK" ] && break; sleep 0.1; done
@@ -35,7 +37,8 @@ if [ -n "${REFRESH:-}" ]; then
 fi
 
 if [ "$MODE" != popup ]; then  # plasmashell draws its own wallpaper
-    qml6 "$HERE/qml/wallpaper.qml" -- "$WALLPAPER_FILE" >"$WORK/wallpaper.log" 2>&1 &
+    # WALLPAPER_PAN=px/s: it scrolls up and down behind KRunner (record.sh; screenshots crop to everything)
+    qml6 "$HERE/qml/wallpaper.qml" -- "$WALLPAPER_FILE" ${WALLPAPER_PAN:+"$WALLPAPER_PAN"} >"$WORK/wallpaper.log" 2>&1 &
     sleep 1.5
     spectacle -b -n -f -o "$WORK/shots/bg.png" >/dev/null 2>&1
 fi

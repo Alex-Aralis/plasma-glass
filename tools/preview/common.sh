@@ -8,6 +8,9 @@
 #                      installed style id
 #   WALLPAPER=path     background image (default: your desktop wallpaper, else Breeze's "Next")
 #   WIDTH/HEIGHT/SCALE virtual screen (default 1920x1200 at 1.1)
+#   WALLPAPER_PAN=px/s the wallpaper scrolls up and down at this speed (record.sh: content moving behind
+#                      the glass)
+#   KWIN_WAYLAND=path  a dev build of KWin as the preview's compositor (KWIN_ENV: its environment)
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/../.." && pwd)

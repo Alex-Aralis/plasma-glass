@@ -46,6 +46,13 @@ docs are in README.md; this file covers how to work on it.
   `OUT.mkv`. For a side-by-side the knocks have to line up: both recordings start 5.5 s after KRunner,
   and two of them came out within a frame of each other in the 1.2 s cycle (check where a knock's
   light peaks beside the query; `ffmpeg -i a.mkv -i b.mkv -filter_complex vstack`).
+- **KWin in the preview:** after `tools/patch-dev.sh kwin`, `ninja -C ~/.cache/plasma-glass/dev/kwin/build
+  kwin_wayland` links a whole KWin (2¼ min the first time on the main box, then about 12 s; effects
+  like blur are built in), and `KWIN_WAYLAND=~/.cache/plasma-glass/dev/kwin/build/bin/kwin_wayland` runs
+  it as the preview's compositor instead of the installed one (`KWIN_ENV` for its environment). KWin
+  only redraws what changes, so to see or measure the blur behind KRunner over time, scroll the
+  wallpaper: `WALLPAPER_PAN=40` (px/s; with record.sh, since screenshots crop to what changed). A still
+  scene made KWin's GPU time read 0.05 ms a frame instead of 2.
 - **Qt without an emerge:** `tools/patch-dev.sh setup qtbase qtdeclarative`, edit under
   `~/.cache/plasma-glass/dev/b/qtbase/src/plugins/platforms/wayland/` or
   `.../b/qtdeclarative/src/quick/scenegraph/`, then `tools/patch-dev.sh qt` (about 2 min each the

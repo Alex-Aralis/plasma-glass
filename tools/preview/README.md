@@ -19,6 +19,9 @@ previews an installed style instead. `WALLPAPER=path` and `WIDTH`/`HEIGHT`/`SCAL
 backdrop and virtual screen; see [`common.sh`](common.sh). `KWIN_ENV` passes extra environment to the
 preview's KWin only, e.g. `__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json`
 to composite on the Intel iGPU instead of the NVIDIA card.
+`KWIN_WAYLAND=path` runs a development build of KWin instead of the installed one (see AGENTS.md),
+and `WALLPAPER_PAN=40` scrolls the wallpaper at 40 px/s, so what's behind the glass moves and KWin
+redraws its blur every frame (for `record.sh`; screenshots crop to everything that changed).
 
 | Command | What it does |
 |---|---|
