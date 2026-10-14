@@ -296,10 +296,12 @@ docs are in README.md; this file covers how to work on it.
   (`Knock()`, matched to the window by the caller's PID), works the waves out again at half size
   (`shaders/ripple.frag`, a copy of busywaves.frag, in window coordinates), and adds their downhill slope
   over the steepest to the bevel's lean, so the bend and the colours' parting follow from one lean per
-  pixel; a fresh wave's steepest slope leans as far as the bevel's edge (`KWIN_LIQUID_GLASS_RIPPLE=scale`,
-  0 for none). How clear the glass is follows the bevel's lean, and under a wave its lean or its height
-  (up or down), whichever is more: by the lean alone the glass frosted over again at each crest, which is
-  flat (the user didn't like it).
+  pixel; a fresh wave's steepest slope leans as far as the bevel's edge. A wave parts the colours a little
+  more than the bevel, 3 px each way where it leans fully against the bevel's 2 (2026-10-14: "a tiny bit
+  more aberration on the wave"): the split adds the waves' own lean, up to 1, times the difference
+  (`KWIN_LIQUID_GLASS_RIPPLE=scale[,dispersion]`, 1,3; scale 0 for no waves). How clear the glass is
+  follows the bevel's lean, and under a wave its lean or its height (up or down), whichever is more: by
+  the lean alone the glass frosted over again at each crest, which is flat (the user didn't like it).
   KWin keeps repainting while knocks live, whatever KRunner draws. The colours part only in the sharp
   samples: on the frost it doesn't show, and the blur's 8 samples three times over cost twice as much
   once the waves spread the per-pixel path over most of the window. In the preview (UHD 770 through

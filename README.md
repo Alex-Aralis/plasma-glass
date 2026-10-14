@@ -147,12 +147,13 @@ build stops at the patch step until the patch is refreshed.
     behind shows through as soft shapes; and within 24 px of the edge a bevel that bends that view (seen
     from up to 9 px further in at the very edge), turns sharp toward the rim and splits it in colour by
     up to 2 px each way. KRunner's busy ripple bends what's behind the glass the same way as its waves
-    run, ringing behind each crest, clear across each wave and on into the bevel at the far edge
-    (KRunner tells KWin about each knock over D-Bus). Only while that style
-    is selected (it follows `plasmarc`, no relogin), on Plasma's own surfaces (KRunner, popups,
-    notifications, panels with rounded corners), not on windows with title bars. In KWin's environment,
-    `KWIN_LIQUID_GLASS_FROST=strength`, `KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness`
-    and `KWIN_LIQUID_GLASS_RIPPLE=scale` override them (2; 24,9,2,1; 1, 0 for no waves)
+    run, ringing behind each crest, clear across each wave and on into the bevel at the far edge, its
+    colours parting a little more than the bevel's (KRunner tells KWin about each knock over D-Bus).
+    Only while that style is selected (it follows `plasmarc`, no relogin), on Plasma's own surfaces
+    (KRunner, popups, notifications, panels with rounded corners), not on windows with title bars. In
+    KWin's environment, `KWIN_LIQUID_GLASS_FROST=strength`,
+    `KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness` and
+    `KWIN_LIQUID_GLASS_RIPPLE=scale,dispersion` override them (2; 24,9,2,1; 1,3, scale 0 for no waves)
   - frame callbacks go out after each screen's composite, not only when KWin is about to sleep, so a
     window on one screen doesn't wait for another screen's composite (KRunner's ripple missed frames
     on the 240 Hz screen while another one animated)
