@@ -1,7 +1,7 @@
 # plasma-glass: notes for development
 
 Liquid Glass Plasma Styles, semantic KRunner search (EmbeddingGemma 2 on the Intel iGPU via OpenVINO)
-and Portage patches for KRunner, notification popups, milou, KWin (frame callbacks) and Qt (Wayland client, Qt Quick). Gentoo, Plasma
+and Portage patches for KRunner, notification popups, milou, KWin (frame pacing) and Qt (Wayland client, Qt Quick). Gentoo, Plasma
 6.7.5, Qt 6.11.2, Wayland. User
 docs are in README.md; this file covers how to work on it.
 
@@ -184,22 +184,25 @@ docs are in README.md; this file covers how to work on it.
   per `drm-client-id`; KWin's isn't readable as a user). Frame pacing is in a `WAYLAND_DEBUG=client`
   log: the time from `wl_surface.frame` to its `wl_callback.done` is KWin's, from the done to the
   next commit the client's.
-- **KWin sends clients their messages only when its event loop is about to sleep** (`Display::flush`
+- **KWin sent clients their messages only when its event loop was about to sleep** (`Display::flush`
   on `aboutToBlock`), so a frame callback queued at the end of one screen's composite also waited for
-  any composite due next on another screen. On the main box that's long: with KWin on the NVIDIA card,
-  every frame for the iGPU's screens is copied there through the CPU (`EglGbmLayerSurface::importWithCpu`,
-  a `glReadnPixels` on the main thread; "chose cpu import" in the journal with
-  `QT_LOGGING_RULES=kwin_wayland_drm.debug=true` on KWin's unit), 2.6 ms per DP-1 frame. So KRunner's
+  any composite due next on another screen. On the main box that was long: with KWin on the NVIDIA card,
+  every frame for the iGPU's screens was copied there through the CPU (`EglGbmLayerSurface::importWithCpu`,
+  a whole-frame `glReadnPixels` on the main thread; "chose cpu import" in the journal with
+  `QT_LOGGING_RULES=kwin_wayland_drm.debug=true` on KWin's unit), 2.6 ms per DP-1 frame. KRunner's
   ripple on DP-4 got its callbacks that much later, and 20.6% of its frames missed DP-4's next composite
   while DP-1 animated (1.6% with DP-1 idle). `kwin-frame-pacing.patch` flushes clients at the end of each
-  composite: 4.0% with DP-1 busy (2026-10-13). What's left is KWin's own: those CPU copies took 55% of its
-  main thread with DP-1 and HDMI-A-1 both animating, and DP-4's composites waited behind them (1.4-8.7%
-  of DP-4's refreshes got no frame then, 0.3-1.4% with only DP-1 animating). KWin's Vulkan copy
-  (`MultiGpuSwapchain::copyWithVulkan`: changed areas only, fences, no CPU wait) could do it on the
-  GPU, but KWin only lets the screen's own GPU copy, and the iGPU can't read NVIDIA's buffers. The
-  NVIDIA driver (615) can write into the iGPU's: its OpenGL takes linear dma-bufs as "external only"
-  (sampling, no framebuffer), but its Vulkan imports a linear buffer allocated by the iGPU and copies a
-  2560x1440 frame into it in 3.4 ms of GPU time and 0.006 ms of CPU (a test program, 2026-10-13). To
+  composite (4.0% then), and lets the render GPU make those copies when the display GPU can't (a
+  `RenderGpuCopy` import mode, tried after the display GPU's copy and before the CPU's; "chose render gpu
+  copy" in the journal, `KWIN_DRM_NO_RENDER_GPU_COPY=1` turns it off). KWin's Vulkan copy
+  (`MultiGpuSwapchain::copyWithVulkan`: changed areas only, fences, no CPU wait) only ever ran on the
+  screen's own GPU, and the iGPU can't read NVIDIA's buffers. NVIDIA's OpenGL (driver 615) takes linear
+  dma-bufs as "external only" (sampling, no framebuffer), but its Vulkan imports a linear buffer the
+  iGPU allocated and writes into it: a test program on KWin's exact path (an NVIDIA-tiled source,
+  KWin's barriers and blit, the render's sync fd imported as a semaphore) got 60 of 60 copies right,
+  3.7 ms of GPU time per 2560x1440 frame. Measured 2026-10-13 with DP-1 animating: KRunner 236.5 fps
+  with 1.0% late (228 and 10% before), 0.8% missed, a new DP-4 frame at every refresh; with DP-1 and
+  HDMI-A-1 both animating, DP-4 went from 1.4-8.7% of refreshes without a frame to 0.0-0.1%. To
   measure: `KWIN_LOG_PERFORMANCE_DATA=1` on KWin's unit makes it write `~/kwin perf statistics
   <output>.csv` per screen (truncated when KWin starts), on the monotonic clock of the clients' frame
   callbacks, so a client's `WAYLAND_DEBUG` log lines up with KWin's frames.
@@ -371,5 +374,11 @@ docs are in README.md; this file covers how to work on it.
      copy to the NVIDIA card would only show to the eye. A KWin bug report draft was written for the
      user earlier (not filed; kept outside the repo); don't file it unless this comes back. KWin
      composites on the NVIDIA card again since 2026-10-13, so this watch has ended.
+- **KWin runs without real-time priority on the main box:** every start logs "Failed to gain real
+  time thread priority", and all its threads are SCHED_OTHER, although `kwin_wayland` has
+  `cap_sys_nice=ep` and gets it. The kernel (gentoo-dist 7.2.8) has `CONFIG_RT_GROUP_SCHED=y`, so a
+  task outside the root cgroup can't be made real-time until its group is given RT runtime, and cgroup
+  v2 has no way to give it. The kernel has the `rt_group_sched=0` boot parameter to turn that off
+  (`setup_rt_group_sched` in System.map); not applied yet (2026-10-13).
 - **Remember password:** the laptop's ksshaskpass passphrase wasn't saved to KWallet yet (tick it
   at login).

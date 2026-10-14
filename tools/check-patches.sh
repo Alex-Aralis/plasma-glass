@@ -32,7 +32,9 @@ prepare() {
     dirs=$(cat $patches | sed -n 's|^+++ b/||p' | awk -F/ '{
         if ($1 == "applets" && NF > 2) print $1 "/" $2
         else if ($1 == "src") { n = (NF - 1 < 4) ? NF - 1 : 4; d = $1; for (i = 2; i <= n; i++) d = d "/" $i; print d }
-        else print $1 }' | sort -u)
+        else print $1 }' | sort -u \
+        | awk '{ for (i = 1; i <= n; i++) if (index($0 "/", d[i] "/") == 1) next; d[++n] = $0; print }')
+    # (without the ones inside another: tar reports a name it already extracted under its parent as missing)
     # one pass over the tarball (xz has to be decompressed in full each time)
     # shellcheck disable=SC2046
     tar -xJf "$tarball" -C "$WORK" $(for d in $dirs; do echo "$top/$d"; done)

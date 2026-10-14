@@ -1,3 +1,106 @@
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/backends/drm/drm_egl_layer_surface.cpp b/src/backends/drm/drm_egl_layer_surface.cpp
+--- a/src/backends/drm/drm_egl_layer_surface.cpp
++++ b/src/backends/drm/drm_egl_layer_surface.cpp
+@@ -26,6 +26,7 @@
+ #include "opengl/icc_shader.h"
+ #include "qpainter/qpainterswapchain.h"
+ #include "utils/envvar.h"
++#include "vulkan/vulkan_device.h"
+ 
+ #include <drm_fourcc.h>
+ #include <errno.h>
+@@ -42,6 +43,7 @@
+ static const bool bufferAgeEnabled = environmentVariableBoolValue("KWIN_USE_BUFFER_AGE").value_or(true);
+ static const bool s_forceMGPUSync = environmentVariableBoolValue("KWIN_DRM_FORCE_GL_FINISH_MGPU_COPY").value_or(false);
+ static const bool s_forcePresentSync = environmentVariableBoolValue("KWIN_DRM_FORCE_GL_FINISH_PRESENT").value_or(false);
++static const bool s_noRenderGpuCopy = environmentVariableBoolValue("KWIN_DRM_NO_RENDER_GPU_COPY").value_or(false);
+ 
+ static gbm_format_name_desc formatName(uint32_t format)
+ {
+@@ -379,6 +381,7 @@
+     case MultiGpuImportMode::DumbBuffer:
+         return formats.contains(surface->importDumbSwapchain->format());
+     case MultiGpuImportMode::GpuCopy:
++    case MultiGpuImportMode::RenderGpuCopy:
+         return !surface->importSwapchain->needsRecreation()
+             && formats.containsFormat(surface->importSwapchain->format(), surface->importSwapchain->modifier());
+     }
+@@ -432,6 +435,15 @@
+         // qCDebug(KWIN_DRM) << "chose egl import with format" << formatName(surface->gbmSwapchain->format()).name << "and modifier" << surface->gbmSwapchain->modifier();
+         return surface;
+     }
++    // the CPU copy blocks the main thread, and with it every output's composites, until the render GPU has
++    // finished the frame and it has been read back (2.6 ms per 2560x1440 frame from an NVidia card on
++    // PCIe 3.0 x8). A copy by the render GPU's Vulkan device takes no CPU time and copies only what changed.
++    if (!s_noRenderGpuCopy) {
++        if (auto surface = doTestFormats(sortedFormats, MultiGpuImportMode::RenderGpuCopy)) {
++            qCDebug(KWIN_DRM) << "chose render gpu copy with format" << formatName(surface->importSwapchain->format()).name << "and modifier" << surface->importSwapchain->modifier();
++            return surface;
++        }
++    }
+     if (auto surface = doTestFormats(sortedFormats, MultiGpuImportMode::DumbBuffer)) {
+         qCDebug(KWIN_DRM) << "chose cpu import with format" << formatName(surface->gbmSwapchain->format()).name << "and modifier" << surface->gbmSwapchain->modifier();
+         return surface;
+@@ -454,6 +466,14 @@
+         renderModifiers.intersect(m_gpu->renderDevice()->allImportableFormats().value(format));
+         // transferring non-linear buffers with implicit modifiers between GPUs is likely to yield wrong results
+         renderModifiers.erase(DRM_FORMAT_MOD_INVALID);
++    } else if (importMode == MultiGpuImportMode::RenderGpuCopy) {
++        const auto renderDevice = m_eglBackend->gpu()->renderDevice();
++        if (cpuCopy || !renderDevice || !renderDevice->vulkanDevice() || renderDevice->isSoftwareDevice()) {
++            return nullptr;
++        }
++        // the copy imports the frame into the render GPU's Vulkan device, with an explicit modifier
++        renderModifiers.intersect(renderDevice->vulkanDevice()->supportedFormats().value(format));
++        renderModifiers.erase(DRM_FORMAT_MOD_INVALID);
+     } else if (cpuCopy) {
+         if (!cpuCopyFormats.contains(format)) {
+             return nullptr;
+@@ -480,6 +500,13 @@
+         if (!ret->importSwapchain) {
+             return nullptr;
+         }
++    } else if (importMode == MultiGpuImportMode::RenderGpuCopy) {
++        // into buffers the display GPU allocates, with a modifier both GPUs support (linear, for an NVidia
++        // card and an Intel iGPU)
++        ret->importSwapchain = MultiGpuSwapchain::create(m_eglBackend->gpu()->renderDevice(), m_gpu->drmDevice(), format, ret->gbmSwapchain->modifier(), size, FormatModifierMap{{format, modifiers}}, true);
++        if (!ret->importSwapchain) {
++            return nullptr;
++        }
+     }
+     if (!doRenderTestBuffer(ret.get())) {
+         return nullptr;
+@@ -528,7 +555,7 @@
+ {
+     if (surface->bufferTarget == BufferTarget::Dumb || surface->importMode == MultiGpuImportMode::DumbBuffer) {
+         return importWithCpu(surface, slot, frame);
+-    } else if (surface->importMode == MultiGpuImportMode::GpuCopy) {
++    } else if (surface->importMode == MultiGpuImportMode::GpuCopy || surface->importMode == MultiGpuImportMode::RenderGpuCopy) {
+         return importWithCopy(surface, slot, std::move(readFence), frame, damagedDeviceRegion);
+     } else {
+         const auto ret = m_gpu->importBuffer(slot->buffer(), std::move(readFence));
+@@ -543,7 +570,7 @@
+ {
+     Q_ASSERT(surface->importSwapchain);
+ 
+-    const auto renderDevice = m_gpu->renderDevice();
++    const auto renderDevice = surface->importMode == MultiGpuImportMode::RenderGpuCopy ? m_eglBackend->gpu()->renderDevice() : m_gpu->renderDevice();
+     // older versions of the NVidia proprietary driver support neither implicit sync nor EGL_ANDROID_native_fence_sync
+     if (!readFence.isValid() || !renderDevice->eglDisplay()->supportsNativeFence() || s_forceMGPUSync) {
+         glFinish();
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/backends/drm/drm_egl_layer_surface.h b/src/backends/drm/drm_egl_layer_surface.h
+--- a/src/backends/drm/drm_egl_layer_surface.h
++++ b/src/backends/drm/drm_egl_layer_surface.h
+@@ -72,6 +72,9 @@
+     enum class MultiGpuImportMode {
+         None,
+         GpuCopy,
++        // the render GPU copies its frames into buffers of the display GPU, for when the display GPU can't
++        // read the render GPU's (an NVidia card rendering for screens on an Intel iGPU)
++        RenderGpuCopy,
+         DumbBuffer,
+     };
+     struct Surface
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/compositor.cpp b/src/compositor.cpp
 --- a/src/compositor.cpp
 +++ b/src/compositor.cpp
@@ -22,3 +125,40 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/compositor.cpp b/src/compos
  }
  
  void Compositor::handleOutputsChanged()
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/multigpuswapchain.cpp b/src/multigpuswapchain.cpp
+--- a/src/multigpuswapchain.cpp
++++ b/src/multigpuswapchain.cpp
+@@ -68,7 +68,7 @@
+ 
+ static const auto s_forceLinear = environmentVariableBoolValue("KWIN_VULKAN_FORCE_LINEAR_DST");
+ 
+-std::unique_ptr<MultiGpuSwapchain> MultiGpuSwapchain::create(RenderDevice *copyDevice, DrmDevice *targetDevice, uint32_t format, uint64_t modifier, const QSize &size, const FormatModifierMap &importFormats)
++std::unique_ptr<MultiGpuSwapchain> MultiGpuSwapchain::create(RenderDevice *copyDevice, DrmDevice *targetDevice, uint32_t format, uint64_t modifier, const QSize &size, const FormatModifierMap &importFormats, bool vulkanOnly)
+ {
+     if (copyDevice->isInReset()) {
+         // avoid creating a suboptimal swapchain while in a reset
+@@ -86,7 +86,7 @@
+             }
+         }
+     }
+-    if (copyDevice->eglDisplay() && copyDevice->eglDisplay()->nonExternalOnlySupportedDrmFormats().containsFormat(format, modifier)) {
++    if (!vulkanOnly && copyDevice->eglDisplay() && copyDevice->eglDisplay()->nonExternalOnlySupportedDrmFormats().containsFormat(format, modifier)) {
+         // creating the copy context will make it current
+         const auto restoreContext = qScopeGuard([ctx = EglContext::currentContext()]() {
+             if (ctx) {
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/multigpuswapchain.h b/src/multigpuswapchain.h
+--- a/src/multigpuswapchain.h
++++ b/src/multigpuswapchain.h
+@@ -60,8 +60,11 @@
+      * If for example a buffer on a dedicated GPU is imported to an integrated GPU, it will be moved
+      * to system memory, and rendering performance on the dedicated GPU will suffer.
+      * Scanning out buffers from one GPU while it's on another GPU is also usually impossible.
++     *
++     * With @p vulkanOnly, only a Vulkan copy is tried. The EGL copy renders into buffers from the copy
++     * device's own allocator, which is only right when the copy device is the target device's GPU.
+      */
+-    static std::unique_ptr<MultiGpuSwapchain> create(RenderDevice *copyDevice, DrmDevice *targetDevice, uint32_t format, uint64_t modifier, const QSize &size, const FormatModifierMap &importFormats);
++    static std::unique_ptr<MultiGpuSwapchain> create(RenderDevice *copyDevice, DrmDevice *targetDevice, uint32_t format, uint64_t modifier, const QSize &size, const FormatModifierMap &importFormats, bool vulkanOnly = false);
+ 
+ private:
+     std::optional<Ret> copyWithVulkan(GraphicsBuffer *buffer, const Region &damage, FileDescriptor &&sync, OutputFrame *frame,
