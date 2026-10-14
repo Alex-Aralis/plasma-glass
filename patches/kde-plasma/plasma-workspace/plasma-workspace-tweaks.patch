@@ -215,7 +215,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunne
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -16,11 +16,238 @@
+@@ -16,11 +16,242 @@
  import org.kde.milou as Milou
  import org.kde.krunner.private.view
  import org.kde.kirigami as Kirigami
@@ -329,9 +329,13 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        property real radius: 26 // Liquid Glass's corner radius (generate.py R)
 +        property real steep: 0.5 // steepest slope of a fresh wave
 +        // Liquid Glass Light: a flat foil sheen, drawn straight; other styles: light from the rim where the
-+        // waves' slopes face it (generate.py RIM: top, sides, bottom; px it reaches in), and refraction
++        // waves' slopes face it (generate.py RIM: top, sides, bottom; px it reaches in), and refraction with a
++        // bit of dispersion: blue shifts further than green and red less, by up to 1 px each way on the
++        // content (more and its colours part into copies) and 3 px on the light
 +        readonly property bool lightStyle: KSvg.ImageSet.imageSetName === "liquid-glass-light"
 +        property real refraction: lightStyle ? 0 : 4 // px per unit of slope
++        property real dispersion: lightStyle ? 0 : 2 // px per unit of slope, for the content
++        property real lightDispersion: lightStyle ? 0 : 6 // and for the light let out at the slopes
 +        property vector4d rim: Qt.vector4d(0.34, 0.18, 0.12, 80)
 +        property real sheen: lightStyle ? 0.35 : 0
 +        property real foilTile: busyFoil.width
@@ -454,7 +458,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
      property string query
      property string singleRunner
      property bool showHistory: false
-@@ -62,6 +289,13 @@
+@@ -62,6 +293,13 @@
      Connections {
          target: root.runnerWindow
          function onVisibleChanged() {
@@ -468,7 +472,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              if (root.runnerWindow.visible) {
                  queryField.forceActiveFocus();
                  listView.currentIndex = -1
-@@ -74,6 +308,8 @@
+@@ -74,6 +312,8 @@
                      }
                  }
              } else {
@@ -477,7 +481,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
                  if (root.runnerWindow.retainPriorSearch) {
                      root.priorSearch = root.query
                  }
-@@ -98,6 +334,7 @@
+@@ -98,6 +338,7 @@
      }
      
      RowLayout {
@@ -485,7 +489,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          Layout.alignment: Qt.AlignTop
          PlasmaComponents3.ToolButton {
              visible: root.runnerWindow.helpEnabled
-@@ -131,14 +368,33 @@
+@@ -131,14 +372,33 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -522,7 +526,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              QQC2.Label {
                  id: fadedTextCompletion
-@@ -157,35 +413,25 @@
+@@ -157,35 +417,25 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -570,7 +574,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              }
  
              function focusCurrentListView() {
-@@ -301,6 +547,7 @@
+@@ -301,6 +551,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -578,7 +582,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -313,12 +560,102 @@
+@@ -313,12 +564,102 @@
          }
      }
  
@@ -684,7 +688,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -327,6 +664,10 @@
+@@ -327,6 +668,10 @@
              queryString: root.query
              queryField: queryField
              singleRunner: root.singleRunner
@@ -695,7 +699,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              Keys.onEscapePressed: {
                  root.runnerWindow.visible = false
-@@ -347,9 +688,18 @@
+@@ -347,9 +692,18 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -715,7 +719,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
          visible: root.query.length === 0 && listView.count > 0
-@@ -358,6 +708,8 @@
+@@ -358,6 +712,8 @@
  
          ListView {
              id: listView // needs this id so the delegate can access it
@@ -787,7 +791,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busyfoil.frag b/kru
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busyripple.frag b/krunner/qml/busyripple.frag
 --- a/krunner/qml/busyripple.frag
 +++ b/krunner/qml/busyripple.frag
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,108 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Alex Aralis
 +
@@ -797,7 +801,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busyripple.frag b/k
 +// KRunner's busy feedback (RunCommand.qml): waves run across the glass (their slope and height come from
 +// busywaves.frag, at half resolution). On dark glass the light that comes in at the rim lets out where a
 +// wave's slope faces it, and the content seen through the glass shifts along the slope, as refraction
-+// does; on light glass a wave is a flat foil sheen in shards of colour instead.
++// does; blue a little more than red (dispersion), so a wave fringes what it passes and its light in
++// colour. On light glass a wave is a flat foil sheen in shards of colour instead.
 +#version 440
 +
 +layout(location = 0) in vec2 qt_TexCoord0;
@@ -814,6 +819,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busyripple.frag b/k
 +    float foilTile;    // px: the size of the foil's tile
 +    float foilSat;     // how saturated the shards are (0: white)
 +    float time;        // s, for the shards' slow colour drift
++    float dispersion;  // px per unit of slope that blue shifts further than green, and red less
++    float lightDispersion; // the same for the light let out at the slopes
 +};
 +layout(binding = 1) uniform sampler2D source; // the content (query, results), over the whole glass
 +layout(binding = 2) uniform sampler2D waves;  // the glass's slope (x, y) and the waves' height
@@ -823,6 +830,20 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busyripple.frag b/k
 +{
 +    vec2 q = abs(p) - halfSize + r;
 +    return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
++}
++
++// The light let out where the glass has slope `s`: light comes in at the rim (`edgeLight`: from the left,
++// right, top and bottom edges, as strong as the style's rim there and fading going in), and a slope lets an
++// edge's light out where it faces that edge, half of it side-on and none facing away.
++float letOut(vec2 s, vec4 edgeLight)
++{
++    vec2 tilt = -s / steep; // where the surface faces; 1 for a fresh wave's steepest slope
++    float t = length(tilt);
++    if (t <= 1e-3)
++        return 0.0;
++    vec2 f = tilt / t;
++    vec4 towards = clamp(0.5 + 0.5 * vec4(-f.x, f.x, -f.y, f.y), 0.0, 1.0);
++    return min(smoothstep(0.0, 1.0, t) * dot(edgeLight, towards), max(rim.x, max(rim.y, rim.z)));
 +}
 +
 +// a rainbow: w 0 (red) .. 1 (violet)
@@ -854,22 +875,29 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busyripple.frag b/k
 +                           vec3(1.0));
 +            surface = vec4(col, max(col.r, max(col.g, col.b))) * cover;
 +        }
-+    } else {
-+        // light comes in at the rim, as strong as the style's rim there, and fades going in. A slope lets
-+        // an edge's light out where it faces that edge, half of it side-on and none facing away.
-+        vec2 tilt = -slope / steep; // where the surface faces; 1 for a fresh wave's steepest slope
-+        float t = length(tilt);
-+        if (t > 1e-3) {
-+            vec4 dist = vec4(p.x, itemSize.x - p.x, p.y, itemSize.y - p.y); // to the left, right, top, bottom
-+            vec4 edgeLight = vec4(rim.y, rim.y, rim.x, rim.z) * exp(-dist / rim.w);
-+            vec2 f = tilt / t;
-+            vec4 towards = clamp(0.5 + 0.5 * vec4(-f.x, f.x, -f.y, f.y), 0.0, 1.0);
-+            float light = min(smoothstep(0.0, 1.0, t) * dot(edgeLight, towards), max(rim.x, max(rim.y, rim.z)));
-+            surface = vec4(light) * cover; // white, premultiplied
++    } else if (length(slope) > 1e-3 * steep) {
++        vec4 dist = vec4(p.x, itemSize.x - p.x, p.y, itemSize.y - p.y); // to the left, right, top, bottom
++        vec4 edgeLight = vec4(rim.y, rim.y, rim.x, rim.z) * exp(-dist / rim.w);
++        float light = letOut(slope, edgeLight);
++        vec3 col = vec3(light);
++        // split as through a prism, like the content below: blue shifted the way refraction shifts the
++        // content, red the other way (under 0.25 px that wouldn't show: the light is broad, and faint there)
++        if (lightDispersion * length(slope) > 0.25) {
++            vec2 o = lightDispersion * slope / itemSize;
++            col.r = letOut(textureLod(waves, qt_TexCoord0 - o, 0.0).xy * inside, edgeLight);
++            col.b = letOut(textureLod(waves, qt_TexCoord0 + o, 0.0).xy * inside, edgeLight);
 +        }
++        surface = vec4(col, light) * cover; // premultiplied; covers as much as green's light
 +    }
-+    // the content seen through the glass, shifted along the slope as refraction does
-+    vec4 content = texture(source, qt_TexCoord0 + refraction * slope / itemSize);
++    // the content seen through the glass, shifted along the slope as refraction does; blue light bends
++    // more than red, so each colour shifts by its own amount. Coverage goes with green, which shifts by
++    // `refraction`: red and blue fringe a shape without moving it.
++    vec2 shift = slope / itemSize;
++    vec4 content = texture(source, qt_TexCoord0 + refraction * shift);
++    if (dispersion * length(slope) > 0.05) {
++        content.r = textureLod(source, qt_TexCoord0 + (refraction - dispersion) * shift, 0.0).r;
++        content.b = textureLod(source, qt_TexCoord0 + (refraction + dispersion) * shift, 0.0).b;
++    }
 +    fragColor = (content + surface * (1.0 - content.a)) * qt_Opacity;
 +}
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/krunner/qml/busywaves.frag

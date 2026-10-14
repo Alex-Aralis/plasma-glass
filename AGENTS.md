@@ -174,10 +174,17 @@ docs are in README.md; this file covers how to work on it.
   with time and as they head into a rim. Liquid Glass: light comes in at the rim (generate.py RIM) and
   lets out where a slope faces an edge, and the content refracts: the ShaderEffect draws it from a
   ShaderEffectSource of the layout, hidden while the ripple runs (the dividers aren't in it, so they
-  don't bend). Liquid Glass Light: a flat foil sheen of fixed-colour shards, no refraction (colours that
-  moved with the wave's tilt flickered). `KRUNNER_BUSY_DEMO=1` keeps it running, to look at it (also in
-  `tools/preview/krunner.sh`). dFdx/dFdy are undefined after a per-pixel early exit, so a wave's
-  direction is computed, not differentiated (the unit vector from where it left the side). Tried and
+  don't bend). With a bit of dispersion (2026-10-14): blue shifts further than green and red less, by
+  2 px per unit of slope (`dispersion`), so a fresh wave's steepest slope (0.5) fringes text by 1 px
+  each way; at 2.5 the colours already part into green and magenta copies. Coverage goes with green, so
+  shapes stay put. The light let out splits the same way, 6 px per unit (`lightDispersion`; it's broad,
+  so less doesn't show). The extra samples only run where the split is over 0.05 px (0.25 for the
+  light, which is faint there); in the preview (scale 1.1, KRunner on the UHD 770 through Mesa, a
+  744x702 window) KRunner's GPU time went from 1.33 to 1.43 ms a frame. Liquid Glass Light: a flat
+  foil sheen of fixed-colour shards, no refraction (colours that moved with the wave's tilt flickered).
+  `KRUNNER_BUSY_DEMO=1` keeps it running, to look at it (also in `tools/preview/krunner.sh`, and
+  `tools/preview/record.sh` records it). dFdx/dFdy are undefined after a per-pixel early exit, so a
+  wave's direction is computed, not differentiated (the unit vector from where it left the side). Tried and
   dropped: slowing waves near the rim (a kink where it starts; tails along the rims when it piled up),
   shading on light glass (a white smear, then heavy relief), glitter specks. Designed in a lab copy of
   KRunner (a `PlasmaCore.Window` with the same layout), recorded on the virtual display.
