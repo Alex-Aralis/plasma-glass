@@ -215,7 +215,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunne
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -16,11 +16,246 @@
+@@ -16,11 +16,243 @@
  import org.kde.milou as Milou
  import org.kde.krunner.private.view
  import org.kde.kirigami as Kirigami
@@ -292,10 +292,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        }
 +    }
 +    // While a search takes a while: the glass is knocked on its left rim beside the query every 1.2 s, and
-+    // each knock sends a wave across the glass. The waves' slope and height (busyWaves, busywaves.frag) are
-+    // worked out at half resolution, since they're broad; busyRipple (busyripple.frag) draws them and the
-+    // content too, as seen through the rippled glass, so it sits over the content, which is hidden while it
-+    // runs. Waves under way when the search ends run out.
++    // each knock sends a wave across the glass, a crest with a ringing train behind. On dark glass nothing
++    // here draws them: each knock goes to KWin, which bends what's behind the glass under the same waves
++    // (plasma-glass's KWin patch), and the content stays as it is. On Liquid Glass Light, busyRipple
++    // (busyripple.frag) draws them as a foil sheen, from their slope and height (busyWaves, busywaves.frag,
++    // at half resolution, since they're broad); it draws the content too, over the sheen, so it sits over
++    // the content, which is hidden while it runs. Waves under way when the search ends run out.
 +    property Item busyRipple: ShaderEffect {
 +        id: busyRipple
 +        parent: root.parent
@@ -303,7 +305,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        z: 0.5 // over the query and the results, which it draws
 +        readonly property bool shaders: GraphicsInfo.api !== GraphicsInfo.Software
 +        readonly property bool active: root.busy && shaders && Kirigami.Units.longDuration > 0 // reduced motion: none
-+        visible: active || knocks.length > 0
++        readonly property bool rippling: active || knocks.length > 0
++        visible: lightStyle && rippling
 +        fragmentShader: Qt.resolvedUrl("busyripple.frag.qsb")
 +        property var source: ShaderEffectSource {
 +            sourceItem: root
@@ -328,16 +331,10 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        property size itemSize: Qt.size(width, height)
 +        property real radius: 26 // Liquid Glass's corner radius (generate.py R)
 +        property real steep: 0.5 // steepest slope of a fresh wave
-+        // Liquid Glass Light: a flat foil sheen, drawn straight; other styles: refraction with a bit of
-+        // dispersion, as plasma-glass's KWin patch bends what's behind the glass at its bevel and under these
-+        // same waves: by how far the glass leans (1 at a fresh wave's steepest slope), the content is seen
-+        // from further uphill (refraction x lean²), and blue further than green and red less (dispersion x
-+        // lean; more than 1 px each way and its colours part into copies). No light of its own: the waves
-+        // show by what they bend.
++        // Liquid Glass Light: a flat foil sheen; other styles show the waves only by what KWin bends behind
++        // the glass (no light of their own, and the content stays as it is)
 +        readonly property bool lightStyle: KSvg.ImageSet.imageSetName === "liquid-glass-light"
-+        property real refraction: lightStyle ? 0 : 2 // px, where the glass leans fully
-+        property real dispersion: lightStyle ? 0 : 1 // px each way, there
-+        property real sheen: lightStyle ? 0.35 : 0
++        property real sheen: 0.35
 +        property real foilTile: busyFoil.width
 +        property real foilSat: 0.8
 +        property real time: clock
@@ -356,7 +353,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +            nextKnock = root.runnerWindow.monotonicTime(); // knock at once
 +        }
 +        FrameAnimation {
-+            running: busyRipple.visible
++            running: busyRipple.rippling
 +            onTriggered: busyRipple.advance()
 +        }
 +        function advance(): void {
@@ -462,7 +459,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
      property string query
      property string singleRunner
      property bool showHistory: false
-@@ -62,6 +297,13 @@
+@@ -62,6 +294,13 @@
      Connections {
          target: root.runnerWindow
          function onVisibleChanged() {
@@ -476,7 +473,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              if (root.runnerWindow.visible) {
                  queryField.forceActiveFocus();
                  listView.currentIndex = -1
-@@ -74,6 +316,8 @@
+@@ -74,6 +313,8 @@
                      }
                  }
              } else {
@@ -485,7 +482,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
                  if (root.runnerWindow.retainPriorSearch) {
                      root.priorSearch = root.query
                  }
-@@ -98,6 +342,7 @@
+@@ -98,6 +339,7 @@
      }
      
      RowLayout {
@@ -493,7 +490,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          Layout.alignment: Qt.AlignTop
          PlasmaComponents3.ToolButton {
              visible: root.runnerWindow.helpEnabled
-@@ -131,14 +376,33 @@
+@@ -131,14 +373,33 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -530,7 +527,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              QQC2.Label {
                  id: fadedTextCompletion
-@@ -157,35 +421,25 @@
+@@ -157,35 +418,25 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -578,7 +575,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              }
  
              function focusCurrentListView() {
-@@ -301,6 +555,7 @@
+@@ -301,6 +552,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -586,7 +583,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -313,12 +568,102 @@
+@@ -313,12 +565,102 @@
          }
      }
  
@@ -692,7 +689,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -327,6 +672,10 @@
+@@ -327,6 +669,10 @@
              queryString: root.query
              queryField: queryField
              singleRunner: root.singleRunner
@@ -703,7 +700,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              Keys.onEscapePressed: {
                  root.runnerWindow.visible = false
-@@ -347,9 +696,18 @@
+@@ -347,9 +693,18 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -723,7 +720,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
          visible: root.query.length === 0 && listView.count > 0
-@@ -358,6 +716,8 @@
+@@ -358,6 +713,8 @@
  
          ListView {
              id: listView // needs this id so the delegate can access it
@@ -795,19 +792,17 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busyfoil.frag b/kru
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busyripple.frag b/krunner/qml/busyripple.frag
 --- a/krunner/qml/busyripple.frag
 +++ b/krunner/qml/busyripple.frag
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,63 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Alex Aralis
 +
 +    SPDX-License-Identifier: GPL-2.0-or-later
 +*/
 +
-+// KRunner's busy feedback (RunCommand.qml): waves run across the glass (their slope and height come from
-+// busywaves.frag, at half resolution). On dark glass the content seen through the glass shifts uphill, as
-+// refraction does; blue a little more than red (dispersion), so a wave fringes what it passes in colour.
-+// It's the model plasma-glass's KWin patch bends what's behind the glass by, at its bevel and under these
-+// same waves: by how far the glass leans (1 at a fresh wave's steepest slope), the shift goes as lean² and
-+// the colours part as lean. On light glass a wave is a flat foil sheen in shards of colour instead.
++// KRunner's busy feedback on Liquid Glass Light (RunCommand.qml): waves run across the glass (their height
++// comes from busywaves.frag, at half resolution), drawn as a flat foil sheen in shards of colour, under the
++// content, which this draws as it is. On dark glass this doesn't run: plasma-glass's KWin patch bends
++// what's behind the glass under the same waves instead.
 +#version 440
 +
 +layout(location = 0) in vec2 qt_TexCoord0;
@@ -817,13 +812,10 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busyripple.frag b/k
 +    float qt_Opacity;
 +    vec2 itemSize;     // logical px
 +    float radius;      // the glass's corner radius
-+    float steep;       // steepest slope of a fresh wave
-+    float refraction;  // px the content shifts where the glass leans fully (0: drawn straight)
-+    float sheen;       // > 0: draw the waves as a flat foil sheen this strong (light glass)
++    float sheen;       // how strong the foil sheen is
 +    float foilTile;    // px: the size of the foil's tile
 +    float foilSat;     // how saturated the shards are (0: white)
 +    float time;        // s, for the shards' slow colour drift
-+    float dispersion;  // px blue shifts further than green there, and red less
 +};
 +layout(binding = 1) uniform sampler2D source; // the content (query, results), over the whole glass
 +layout(binding = 2) uniform sampler2D waves;  // the glass's slope (x, y) and the waves' height
@@ -849,51 +841,37 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busyripple.frag b/k
 +    vec2 p = qt_TexCoord0 * itemSize;
 +    float sdf = boxSdf(p - itemSize * 0.5, itemSize * 0.5, radius);
 +    float cover = clamp(0.5 - sdf / fwidth(sdf), 0.0, 1.0);
-+    float inside = smoothstep(0.0, 2.0, -sdf); // flat at the very rim
-+    vec4 field = texture(waves, qt_TexCoord0);
-+    vec2 slope = field.xy * inside;
-+    float height = field.z * inside;
-+    // how far the glass leans (1 at a fresh wave's steepest slope), and which way is uphill
-+    float lean = min(length(slope) / steep, 1.0);
-+    vec2 uphill = slope / max(length(slope), 1e-6);
++    float height = texture(waves, qt_TexCoord0).z * smoothstep(0.0, 2.0, -sdf); // flat at the very rim
 +
++    // a flat sheen where a wave's crests are, in shards of colour; drawn as a tint (colour col / alpha at
++    // alpha max(col)), so the colours show on bright glass too. The foil only where there's a wave to show it.
 +    vec4 surface = vec4(0.0);
-+    if (sheen > 0.0) {
-+        // a flat sheen where a wave is, in shards of colour; drawn as a tint (colour col / alpha at alpha
-+        // max(col)), so the colours show on bright glass too. The foil only where there's a wave to show it.
-+        if (height > 0.002) {
-+            vec2 shard = texture(foil, p / foilTile).xy; // the tile repeats
-+            vec3 col = min(sheen * min(height, 1.0) * shard.y * mix(vec3(1.0), spectral(fract(shard.x + 0.03 * time)), foilSat),
-+                           vec3(1.0));
-+            surface = vec4(col, max(col.r, max(col.g, col.b))) * cover;
-+        }
++    if (height > 0.002) {
++        vec2 shard = texture(foil, p / foilTile).xy; // the tile repeats
++        vec3 col = min(sheen * min(height, 1.0) * shard.y * mix(vec3(1.0), spectral(fract(shard.x + 0.03 * time)), foilSat),
++                       vec3(1.0));
++        surface = vec4(col, max(col.r, max(col.g, col.b))) * cover;
 +    }
-+    // the content seen through the glass, from further uphill as refraction does; blue light bends more
-+    // than red, so each colour shifts by its own amount. Coverage goes with green: red and blue fringe a
-+    // shape without moving it.
-+    vec2 at = qt_TexCoord0 + refraction * lean * lean * uphill / itemSize;
-+    vec4 content = texture(source, at);
-+    if (dispersion * lean > 0.05) {
-+        vec2 split = dispersion * lean * uphill / itemSize;
-+        content.r = textureLod(source, at - split, 0.0).r;
-+        content.b = textureLod(source, at + split, 0.0).b;
-+    }
++    // the content as it is, over the sheen
++    vec4 content = texture(source, qt_TexCoord0);
 +    fragColor = (content + surface * (1.0 - content.a)) * qt_Opacity;
 +}
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/krunner/qml/busywaves.frag
 --- a/krunner/qml/busywaves.frag
 +++ b/krunner/qml/busywaves.frag
-@@ -0,0 +1,136 @@
+@@ -0,0 +1,160 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Alex Aralis
 +
 +    SPDX-License-Identifier: GPL-2.0-or-later
 +*/
 +
-+// The waves of KRunner's busy feedback (RunCommand.qml, drawn by busyripple.frag): knocks on the glass's rim
-+// each send one wave across it. A knock flexes its side, most at the knock and not at all at the corners,
-+// and the side pushes the wave in; waves fade with time and as they head into a rim. Out: the glass's slope
-+// (x, y) and the waves' height. Rendered at half the window's resolution, since the waves are broad.
++// The waves of KRunner's busy feedback (RunCommand.qml; on light glass busyripple.frag draws them as a foil
++// sheen, on dark glass plasma-glass's KWin patch works them out again, behind the glass): knocks on the
++// glass's rim each send a wave across it, a crest with a ringing train behind (profile()). A knock flexes
++// its side, most at the knock and not at all at the corners, and the side pushes the wave in; waves fade
++// with time and as they head into a rim. Out: the glass's slope (x, y) and the waves' height. Rendered at
++// half the window's resolution, since the waves are broad.
 +#version 440
 +
 +layout(location = 0) in vec2 qt_TexCoord0;
@@ -925,6 +903,29 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/kr
 +    float steep; // steepest slope of a fresh wave
 +};
 +
++// A wave's profile across its front, x half-widths ahead of its crest (behind it, x < 0), as a knock leaves
++// it in a dispersive medium: a smooth rise ahead, the crest, then a ringing train behind, ripples that get
++// shorter and fade (an Airy function's tail, damped): -0.42, +0.18, -0.09, +0.05 of the crest, under 1%
++// from 9 half-widths behind. Out: the height and its slope per half-width, whose steepest is 0.991 (just
++// behind the crest; the front's is 0.858).
++vec2 profile(float x)
++{
++    if (x >= 0.0) {
++        float h = exp(-x * x);
++        return vec2(h, -2.0 * x * h);
++    }
++    const float C = 1.4; // half-widths over which the envelope rounds off at the crest
++    const float D = 1.7; // and then over which it fades by e
++    const float U = 2.6; // half-widths behind the crest to the first trough; the ripples' phase goes as u^1.5
++    float u = -x;
++    float r = sqrt(u * u + C * C);
++    float e = exp(-(r - C) / D);
++    float de = -u / (r * D) * e;
++    float ph = 3.14159265 * pow(u / U, 1.5);
++    float dph = 1.5 * 3.14159265 / U * sqrt(u / U);
++    return vec2(e * cos(ph), -(de * cos(ph) - e * sin(ph) * dph)); // per x: minus the slope per u
++}
++
 +// One knock's wave at p: adds its slope and height. The flex starts on a 1 px stretch at once and slows
 +// down over 30 px to the waves' speed (its time per px rises as a smoothstep), so the wave leaves as a
 +// short, rounded front. `die`: how much of a wave heading for the nearest rim is left at p; `toRim`: the
@@ -951,9 +952,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/kr
 +    float front = k.z;
 +    float wb = k.w;
 +    float a = abs(s - k.y);
-+    // The wave has come between n and the straight line from the knock; 2.5 half-widths off its crest,
-+    // what's left (under 0.2% of its height, 5% of its slope) doesn't show
-+    float behind = front - 2.5 * wb;
++    // The wave has come between n and the straight line from the knock; 2.5 half-widths ahead of its crest
++    // and 9 behind (its ringing), what's left (under 1% of its height) doesn't show
++    float behind = front - 9.0 * wb;
 +    if (front + 2.5 * wb < n || (behind > 0.0 && behind * behind > a * a + n * n))
 +        return;
 +    // The first wave to reach p left the side where the flex's time to get there plus the path on to p is
@@ -987,10 +988,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/kr
 +    // how strongly the side moves there: sin^2 of a warped position that puts its peak at the knock
 +    float flex = sin(3.14159265 * pow(clamp(s / len, 0.0, 1.0), shape.y));
 +    float fade = flex * flex * shape.x * mix(1.0, die, smoothstep(-0.3, 0.3, dot(dir, toRim)));
-+    float x = (from - front) / wb;
-+    float h = exp(-x * x);
-+    slope += steep * fade * (-2.0 * x * h / 0.8578) * dir; // 0.8578: the steepest of 2x e^(-x^2)
-+    height += fade * h;
++    vec2 shape_ = profile((from - front) / wb);
++    slope += steep * fade * (shape_.y / 0.991) * dir; // its steepest is a fresh wave's steepest
++    height += fade * shape_.x;
 +}
 +
 +void main()

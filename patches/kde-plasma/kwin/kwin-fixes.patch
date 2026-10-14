@@ -719,8 +719,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/onscre
 +// where it's polished (bevel.w: how much of what's behind shows as it is, at the very edge). Blue bends
 +// more than red: the colours part along the edge by bevel.z each way. While KRunner's busy ripple runs,
 +// its waves lean the glass too, and bend what's behind it the same way: a fresh wave's steepest slope as
-+// far as the bevel at its edge. A wave clears the glass where it runs, over its crest too, where it doesn't
-+// lean: by its height, where that's more.
++// far as the bevel at its edge. A wave clears the glass where it runs, over its crests and troughs too,
++// where it doesn't lean: by its height (up or down), where that's more.
 +
 +uniform sampler2D texUnit;   // the blurred background at half size (its last upsample step is done here)
 +uniform sampler2D sharpUnit; // the background as it is
@@ -787,7 +787,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/onscre
 +        vec3 wave = texture(wavesUnit, uv).xyz;
 +        vec2 waveLean = -wave.xy * ripple.x; // a wave faces downhill
 +        lean += waveLean;
-+        clear = max(clear, max(length(waveLean), wave.z * ripple.y));
++        clear = max(clear, max(length(waveLean), abs(wave.z) * ripple.y));
 +    }
 +    float tilt = min(length(lean), 1.0);
 +    clear = min(clear, 1.0);
@@ -814,15 +814,15 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/onscre
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple.frag b/src/plugins/blur/shaders/ripple.frag
 --- a/src/plugins/blur/shaders/ripple.frag
 +++ b/src/plugins/blur/shaders/ripple.frag
-@@ -0,0 +1,114 @@
+@@ -0,0 +1,136 @@
 +#version 140
 +
 +// The waves of KRunner's busy ripple (plasma-glass), worked out again here so the glass bends what's
 +// behind it where they run: the same as KRunner's busywaves.frag, from the knocks KRunner tells KWin
-+// about (org.kde.KWin.LiquidGlass.Knock). Knocks on the glass's rim each send one wave across it. A knock
-+// flexes its side, most at the knock and not at all at the corners, and the side pushes the wave in;
-+// waves fade with time and as they head into a rim. Out: the glass's slope (x, y) and the waves' height.
-+// Rendered at half size, since the waves are broad.
++// about (org.kde.KWin.LiquidGlass.Knock). Knocks on the glass's rim each send a wave across it, a crest with
++// a ringing train behind (profile()). A knock flexes its side, most at the knock and not at all at the
++// corners, and the side pushes the wave in; waves fade with time and as they head into a rim. Out: the
++// glass's slope (x, y) and the waves' height. Rendered at half size, since the waves are broad.
 +
 +uniform vec2 size;   // the window, logical px (the waves are worked out in its terms, as in KRunner)
 +uniform vec2 origin; // the background's top left in the window
@@ -837,6 +837,29 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple
 +in vec2 uv;
 +
 +out vec4 fragColor;
++
++// A wave's profile across its front, x half-widths ahead of its crest (behind it, x < 0), as a knock leaves
++// it in a dispersive medium: a smooth rise ahead, the crest, then a ringing train behind, ripples that get
++// shorter and fade (an Airy function's tail, damped): -0.42, +0.18, -0.09, +0.05 of the crest, under 1%
++// from 9 half-widths behind. Out: the height and its slope per half-width, whose steepest is 0.991 (just
++// behind the crest; the front's is 0.858).
++vec2 profile(float x)
++{
++    if (x >= 0.0) {
++        float h = exp(-x * x);
++        return vec2(h, -2.0 * x * h);
++    }
++    const float C = 1.4; // half-widths over which the envelope rounds off at the crest
++    const float D = 1.7; // and then over which it fades by e
++    const float U = 2.6; // half-widths behind the crest to the first trough; the ripples' phase goes as u^1.5
++    float u = -x;
++    float r = sqrt(u * u + C * C);
++    float e = exp(-(r - C) / D);
++    float de = -u / (r * D) * e;
++    float ph = 3.14159265 * pow(u / U, 1.5);
++    float dph = 1.5 * 3.14159265 / U * sqrt(u / U);
++    return vec2(e * cos(ph), -(de * cos(ph) - e * sin(ph) * dph)); // per x: minus the slope per u
++}
 +
 +// One knock's wave at p: adds its slope and height. The flex starts on a 1 px stretch at once and slows
 +// down over 30 px to the waves' speed (its time per px rises as a smoothstep), so the wave leaves as a
@@ -864,9 +887,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple
 +    float front = k.z;
 +    float wb = k.w;
 +    float a = abs(s - k.y);
-+    // The wave has come between n and the straight line from the knock; 2.5 half-widths off its crest,
-+    // what's left (under 0.2% of its height, 5% of its slope) doesn't show
-+    float behind = front - 2.5 * wb;
++    // The wave has come between n and the straight line from the knock; 2.5 half-widths ahead of its crest
++    // and 9 behind (its ringing), what's left (under 1% of its height) doesn't show
++    float behind = front - 9.0 * wb;
 +    if (front + 2.5 * wb < n || (behind > 0.0 && behind * behind > a * a + n * n))
 +        return;
 +    // The first wave to reach p left the side where the flex's time to get there plus the path on to p is
@@ -900,10 +923,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple
 +    // how strongly the side moves there: sin^2 of a warped position that puts its peak at the knock
 +    float flex = sin(3.14159265 * pow(clamp(s / len, 0.0, 1.0), shape.y));
 +    float fade = flex * flex * shape.x * mix(1.0, die, smoothstep(-0.3, 0.3, dot(dir, toRim)));
-+    float x = (from - front) / wb;
-+    float h = exp(-x * x);
-+    slope += steep * fade * (-2.0 * x * h / 0.8578) * dir; // 0.8578: the steepest of 2x e^(-x^2)
-+    height += fade * h;
++    vec2 shape_ = profile((from - front) / wb);
++    slope += steep * fade * (shape_.y / 0.991) * dir; // its steepest is a fresh wave's steepest
++    height += fade * shape_.x;
 +}
 +
 +void main(void)

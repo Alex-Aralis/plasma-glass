@@ -116,9 +116,11 @@ build stops at the patch step until the patch is refreshed.
   - KRunner: wider (40 grid units), 1.6x search text with a larger search icon, borderless search
     field, no pin or clear button, no scrollbars; the results area unfolds smoothly as results arrive
     and folds away when they go (the window follows); while a search takes more than half a second, a
-    knock on the glass beside the search field sends a wave across it every 1.2 s instead of a spinner
-    (with the KWin patch, the waves bend what's behind the glass too; with software rendering, a band of
-    light sweeps across instead; none with animations turned off); a
+    knock on the glass beside the search field sends a wave across it every 1.2 s instead of a spinner, a
+    crest with a ringing train behind, as an impulse makes on water (on dark glass, with the KWin patch,
+    the waves bend what's behind the glass and KRunner draws nothing of them; on Liquid Glass Light they
+    show as a foil sheen; with software rendering, a band of light sweeps across instead; none with
+    animations turned off); a
     thin line under the search field, as in Spotlight; results that don't fit run on to the glass's
     bottom edge; while the semantic search service indexes new or changed files, "Indexing…" and a
     progress bar under the search field (from the service's `local.embedsearch` `/indexer` D-Bus
@@ -145,7 +147,8 @@ build stops at the patch step until the patch is refreshed.
     behind shows through as soft shapes; and within 24 px of the edge a bevel that bends that view (seen
     from up to 9 px further in at the very edge), turns sharp toward the rim and splits it in colour by
     up to 2 px each way. KRunner's busy ripple bends what's behind the glass the same way as its waves
-    run, clear across each wave (KRunner tells KWin about each knock over D-Bus). Only while that style
+    run, ringing behind each crest and clear across each wave (KRunner tells KWin about each knock over
+    D-Bus). Only while that style
     is selected (it follows `plasmarc`, no relogin), on Plasma's own surfaces (KRunner, popups,
     notifications, panels with rounded corners), not on windows with title bars. In KWin's environment,
     `KWIN_LIQUID_GLASS_FROST=strength`, `KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness`

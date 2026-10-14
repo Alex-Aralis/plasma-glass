@@ -175,25 +175,28 @@ docs are in README.md; this file covers how to work on it.
   in a loop (dbus-fast: the `h` argument is the index into `unix_fds`; raw BGRA, format 6).
 - **KRunner's busy feedback is a ripple shader** (`krunner/qml/busyripple.frag`, `busyRipple` in
   RunCommand.qml, built into the QML module by `qt6_add_shaders`). While busy, every 1.2 s, a knock on
-  the left rim beside the query sends one wave across the glass (a second knock near the bottom while
-  results showed was dropped, 2026-10-13: one is enough). A knock flexes its side (most at the knock, none at the corners; a 1 px stretch moves at once,
-  then the flex slows to the waves' speed over 30 px, so the front is rounded, not a cone); waves fade
-  with time and as they head into a rim. Liquid Glass: the content refracts: the ShaderEffect draws it
-  from a ShaderEffectSource of the layout, hidden while the ripple runs (the dividers aren't in it, so
-  they don't bend). It bends by the bevel's model (below): how far the glass leans is its slope over a
-  fresh wave's steepest (0.5), and the content is seen from 2 px x lean² further uphill (`refraction`),
-  blue 1 px x lean further than green and red as much less (`dispersion`, 2026-10-14; at 1.25 px the
-  colours already part into green and magenta copies). Coverage goes with green, so shapes stay put. The
-  extra samples only run where the split is over 0.05 px; in the preview (scale 1.1, KRunner on the UHD
-  770 through Mesa, a 744x702 window) the colour split, with the side lighting's, took KRunner's GPU
-  time from 1.33 to 1.43 ms a frame. No light of its own any more: the side lighting (light that comes in
-  at the rim, generate.py RIM, let out where a wave's slope faces an edge) went on 2026-10-14, once KWin
-  bent what's behind the glass (the user: the waves show by what they bend). KWin bends what's behind the
-  glass under the same waves: each knock goes to it over D-Bus (`View::knock`,
-  org.kde.KWin.LiquidGlass.Knock, with the wave's speed, bump, spread, damping, life and steep), born on
-  the monotonic clock both run the ripple on (`View::monotonicTime()`; the ripple's clock used to sum
-  frame times, capped at 0.1 s, which a stall would have put behind KWin's). Liquid Glass Light: a flat
-  foil sheen of fixed-colour shards, no refraction (colours that moved with the wave's tilt flickered).
+  the left rim beside the query sends a wave across the glass (a second knock near the bottom while
+  results showed was dropped, 2026-10-13: one is enough). A knock flexes its side (most at the knock,
+  none at the corners; a 1 px stretch moves at once, then the flex slows to the waves' speed over 30 px,
+  so the front is rounded, not a cone); waves fade with time and as they head into a rim. Each wave is a
+  crest with a ringing train behind it (`profile()`, the same in busywaves.frag and KWin's ripple.frag):
+  a smooth rise ahead, then ripples that get shorter and fade, -0.42, +0.18, -0.09, +0.05 of the crest,
+  a damped Airy function's tail, as an impulse leaves it in a dispersive medium (2026-10-14: "trailing
+  reverb closer to a real impulse"; before, a single e^-x² bump). Its slope is scaled by its steepest,
+  0.991 just behind the crest (the front's is 0.858), and a knock's wave reaches 9 half-widths behind
+  its crest. On dark glass KRunner draws nothing of it (2026-10-14): first its side lighting went (light
+  that comes in at the rim, generate.py RIM, let out where a wave's slope faces an edge), then the
+  content's refraction and colour split (2 px x lean² uphill, 1 px x lean each way); the user wants the
+  waves to show only by what KWin bends behind the glass, and the text left alone. So busyRipple only
+  shows on Liquid Glass Light, and on dark glass only the knocks run (a FrameAnimation while `rippling`):
+  each goes to KWin over D-Bus (`View::knock`, org.kde.KWin.LiquidGlass.Knock, with the wave's speed,
+  bump, spread, damping, life and steep), born on the monotonic clock both run the ripple on
+  (`View::monotonicTime()`; the ripple's clock used to sum frame times, capped at 0.1 s, which a stall
+  would have put behind KWin's). KRunner's own GPU time while busy went from 0.78 to 0.30 ms a frame
+  (preview, UHD 770 through Mesa, 744x346 at scale 1.1). Liquid Glass Light: a flat
+  foil sheen of fixed-colour shards over the crests, no refraction (colours that moved with the wave's
+  tilt flickered); busyRipple draws the content too, over the sheen, from a ShaderEffectSource of the
+  layout hidden while it runs (the dividers aren't in it).
   `KRUNNER_BUSY_DEMO=1` keeps it running, to look at it (also in `tools/preview/krunner.sh`, and
   `tools/preview/record.sh` records it). dFdx/dFdy are undefined after a per-pixel early exit, so a
   wave's direction is computed, not differentiated (the unit vector from where it left the side). Tried and
@@ -285,15 +288,15 @@ docs are in README.md; this file covers how to work on it.
   (`shaders/ripple.frag`, a copy of busywaves.frag, in window coordinates), and adds their downhill slope
   over the steepest to the bevel's lean, so the bend and the colours' parting follow from one lean per
   pixel; a fresh wave's steepest slope leans as far as the bevel's edge (`KWIN_LIQUID_GLASS_RIPPLE=scale`,
-  0 for none). How clear the glass is follows the bevel's lean, and under a wave its lean or its height,
-  whichever is more: by the lean alone the glass frosted over again at each crest, which is flat (the
-  user didn't like it).
+  0 for none). How clear the glass is follows the bevel's lean, and under a wave its lean or its height
+  (up or down), whichever is more: by the lean alone the glass frosted over again at each crest, which is
+  flat (the user didn't like it).
   KWin keeps repainting while knocks live, whatever KRunner draws. The colours part only in the sharp
   samples: on the frost it doesn't show, and the blur's 8 samples three times over cost twice as much
   once the waves spread the per-pixel path over most of the window. In the preview (UHD 770 through
-  Mesa, KRunner busy at 744x346, scale 1) KWin's GPU time is 1.17 ms a frame with the bevel and frost 2
-  and 1.49-1.52 with the waves (at frost 3, 1.25 and 1.57-1.62; with all 27 samples, 1.40 and
-  2.12-2.15); with the wallpaper scrolling and
+  Mesa, KRunner busy at 744x346, scale 1) KWin's GPU time is 1.18 ms a frame with the bevel and frost 2
+  and 1.58-1.60 with the ringing waves (with single waves 1.49-1.52; at frost 3, 1.25 and 1.57-1.62;
+  with all 27 samples, 1.40 and 2.12-2.15); with the wallpaper scrolling and
   KRunner idle it went from 2.04 (no bevel, strength 15) to 2.25-2.28 (bevel, strength 4). Over a smooth
   wallpaper (Next) it hardly shows: tuned on ColorfulCups and a scrolling image of code.
 - **Without shaders (software rendering) the busy pulse is a gradient, not a mask.** The band of
