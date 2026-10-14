@@ -171,6 +171,316 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/multigpuswapchain.h b/src/m
  
  private:
      std::optional<Ret> copyWithVulkan(GraphicsBuffer *buffer, const Region &damage, FileDescriptor &&sync, OutputFrame *frame,
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src/plugins/blur/blur.cpp
+--- a/src/plugins/blur/blur.cpp
++++ b/src/plugins/blur/blur.cpp
+@@ -40,7 +40,9 @@
+ #include <cstdlib>
+ 
+ #include <KConfigGroup>
++#include <KDirWatch>
+ #include <KSharedConfig>
++#include <QStandardPaths>
+ 
+ #include <KDecoration3/Decoration>
+ 
+@@ -57,6 +59,29 @@
+ 
+ static const QByteArray s_blurAtomName = QByteArrayLiteral("_KDE_NET_WM_BLUR_BEHIND_REGION");
+ 
++// plasma-glass's dark Liquid Glass Plasma style (theme/liquid-glass/generate.py): its glass rounds off at
++// the edge, so the blur seen there is refracted and parts in colour, as through a lens. Its frames have
++// corners of this radius (logical px, generate.py R), which their mask, and so the blur region, leaves out.
++static const QString s_liquidGlassTheme = QStringLiteral("liquid-glass");
++static constexpr qreal s_liquidGlassRadius = 26;
++// the bevel: logical px wide; how far in what's behind is seen at the very edge (refraction), how far red
++// and blue part there each way (dispersion); how much sharper the edge shows it (0..1). The environment
++// can override it, to tune: KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness
++static const QVector4D s_liquidGlassBevel(24, 9, 2, 1);
++
++// The corners of a blur shape that a Liquid Glass frame rounds off (none: it's not one)
++static BorderRadius liquidGlassCorners(const RegionF &shape, const RectF &bounds)
++{
++    const auto cut = [&shape](qreal x, qreal y) {
++        return shape.contains(QPointF(x, y)) ? 0.0 : s_liquidGlassRadius;
++    };
++    const qreal left = bounds.left() + 0.5;
++    const qreal right = bounds.right() - 0.5;
++    const qreal top = bounds.top() + 0.5;
++    const qreal bottom = bounds.bottom() - 0.5;
++    return BorderRadius(cut(left, top), cut(right, top), cut(right, bottom), cut(left, bottom));
++}
++
+ static QMatrix4x4 colorTransformMatrix(qreal saturation, qreal contrast)
+ {
+     QMatrix4x4 saturationMatrix;
+@@ -119,6 +144,29 @@
+         m_roundedOnscreenPass.opacityLocation = m_roundedOnscreenPass.shader->uniformLocation("opacity");
+     }
+ 
++    // without it, Liquid Glass is blurred as any other surface is
++    m_bevelOnscreenPass.shader = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture,
++                                                                                   QStringLiteral(":/effects/blur/shaders/onscreen_rounded.vert"),
++                                                                                   QStringLiteral(":/effects/blur/shaders/onscreen_bevel.frag"));
++    if (!m_bevelOnscreenPass.shader) {
++        qCWarning(KWIN_BLUR) << "Failed to load the Liquid Glass bevel shader";
++    } else {
++        m_bevelOnscreenPass.mvpMatrixLocation = m_bevelOnscreenPass.shader->uniformLocation("modelViewProjectionMatrix");
++        m_bevelOnscreenPass.colorMatrixLocation = m_bevelOnscreenPass.shader->uniformLocation("colorMatrix");
++        m_bevelOnscreenPass.offsetLocation = m_bevelOnscreenPass.shader->uniformLocation("offset");
++        m_bevelOnscreenPass.halfpixelLocation = m_bevelOnscreenPass.shader->uniformLocation("halfpixel");
++        m_bevelOnscreenPass.boxLocation = m_bevelOnscreenPass.shader->uniformLocation("box");
++        m_bevelOnscreenPass.cornerRadiusLocation = m_bevelOnscreenPass.shader->uniformLocation("cornerRadius");
++        m_bevelOnscreenPass.opacityLocation = m_bevelOnscreenPass.shader->uniformLocation("opacity");
++        m_bevelOnscreenPass.sizeLocation = m_bevelOnscreenPass.shader->uniformLocation("size");
++        m_bevelOnscreenPass.bevelLocation = m_bevelOnscreenPass.shader->uniformLocation("bevel");
++        m_bevelOnscreenPass.sharpUnitLocation = m_bevelOnscreenPass.shader->uniformLocation("sharpUnit");
++    }
++    m_bevel = s_liquidGlassBevel;
++    if (const QStringList bevel = qEnvironmentVariable("KWIN_LIQUID_GLASS_BEVEL").split(QLatin1Char(',')); bevel.size() == 4) {
++        m_bevel = QVector4D(bevel[0].toFloat(), bevel[1].toFloat(), bevel[2].toFloat(), bevel[3].toFloat());
++    }
++
+     m_downsamplePass.shader = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture,
+                                                                                 QStringLiteral(":/effects/blur/shaders/vertex.vert"),
+                                                                                 QStringLiteral(":/effects/blur/shaders/downsample.frag"));
+@@ -181,14 +229,42 @@
+         slotWindowAdded(window);
+     }
+ 
++    // Follow the Plasma style: only the dark Liquid Glass has the bevel. Watched as a file, since its
++    // settings page doesn't notify about the change.
++    m_plasmarc = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + QStringLiteral("/plasmarc");
++    KDirWatch::self()->addFile(m_plasmarc);
++    const auto plasmarcChanged = [this](const QString &path) {
++        if (path == m_plasmarc) {
++            updateLiquidGlass();
++        }
++    };
++    connect(KDirWatch::self(), &KDirWatch::dirty, this, plasmarcChanged);
++    connect(KDirWatch::self(), &KDirWatch::created, this, plasmarcChanged);
++    connect(KDirWatch::self(), &KDirWatch::deleted, this, plasmarcChanged);
++    updateLiquidGlass();
++
+     m_valid = true;
+ }
+ 
+ BlurEffect::~BlurEffect()
+ {
++    if (!m_plasmarc.isEmpty()) {
++        KDirWatch::self()->removeFile(m_plasmarc);
++    }
+     waylandServer()->backgroundEffectManager()->removeBlurCapability();
+ }
+ 
++void BlurEffect::updateLiquidGlass()
++{
++    KSharedConfig::Ptr plasmarc = KSharedConfig::openConfig(QStringLiteral("plasmarc"), KConfig::NoGlobals);
++    plasmarc->reparseConfiguration();
++    const bool liquidGlass = plasmarc->group(QStringLiteral("Theme")).readEntry("name", QString()) == s_liquidGlassTheme;
++    if (liquidGlass != m_liquidGlass) {
++        m_liquidGlass = liquidGlass;
++        effects->addRepaintFull();
++    }
++}
++
+ void BlurEffect::initBlurStrengthValues()
+ {
+     // This function creates an array of blur strength values that are evenly distributed
+@@ -571,6 +647,12 @@
+ 
+     blurShape.translate(w->pos());
+ 
++    // a dark Liquid Glass surface (a Plasma frame: no decoration) shows the blur through its bevel
++    BorderRadius bevelCorners;
++    if (m_liquidGlass && m_bevelOnscreenPass.shader && w->window()->borderRadius().isNull()) {
++        bevelCorners = liquidGlassCorners(blurShape, blurShape.boundingRect());
++    }
++
+     const Rect backgroundRect = blurShape.boundingRect().rounded();
+     const Rect scaledBackgroundRect = backgroundRect.scaled(viewport.scale()).rounded();
+     const Rect deviceBackgroundRect = viewport.mapToDeviceCoordinates(backgroundRect).rounded();
+@@ -839,6 +921,50 @@
+         glDisable(GL_BLEND);
+ 
+         ShaderManager::instance()->popShader();
++    } else if (!bevelCorners.isNull()) {
++        ShaderManager::instance()->pushShader(m_bevelOnscreenPass.shader.get());
++
++        QMatrix4x4 projectionMatrix = viewport.projectionMatrix();
++        projectionMatrix.translate(scaledBackgroundRect.x(), scaledBackgroundRect.y());
++
++        GLFramebuffer::popFramebuffer();
++        const auto &read = renderInfo.framebuffers[1];
++
++        const QVector2D halfpixel(0.5 / read->colorAttachment()->width(),
++                                  0.5 / read->colorAttachment()->height());
++        // the glass is the blur region's bounding box, with its rounded corners
++        const QVector2D size(scaledBackgroundRect.width(), scaledBackgroundRect.height());
++        const float scale = viewport.scale();
++
++        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.mvpMatrixLocation, projectionMatrix);
++        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.colorMatrixLocation, m_colorMatrix);
++        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.halfpixelLocation, halfpixel);
++        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.offsetLocation, float(m_offset));
++        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.boxLocation, QVector4D(size.x() / 2, size.y() / 2, size.x() / 2, size.y() / 2));
++        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.cornerRadiusLocation, bevelCorners.scaled(scale).toVector());
++        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.opacityLocation, modulation);
++        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.sizeLocation, size);
++        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.bevelLocation, QVector4D(m_bevel.x() * scale, m_bevel.y() * scale, m_bevel.z() * scale, m_bevel.w()));
++        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.sharpUnitLocation, 1);
++
++        // the background as it is, before the blur
++        glActiveTexture(GL_TEXTURE1);
++        renderInfo.textures[0]->bind();
++        glActiveTexture(GL_TEXTURE0);
++        read->colorAttachment()->bind();
++
++        glEnable(GL_BLEND);
++        glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
++
++        vbo->draw(GL_TRIANGLES, 6, vertexCount);
++
++        glDisable(GL_BLEND);
++
++        glActiveTexture(GL_TEXTURE1);
++        renderInfo.textures[0]->unbind();
++        glActiveTexture(GL_TEXTURE0);
++
++        ShaderManager::instance()->popShader();
+     } else {
+         ShaderManager::instance()->pushShader(m_onscreenPass.shader.get());
+ 
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/plugins/blur/blur.h
+--- a/src/plugins/blur/blur.h
++++ b/src/plugins/blur/blur.h
+@@ -90,6 +90,7 @@
+     void updateBlurRegion(EffectWindow *w);
+     void blur(const RenderTarget &renderTarget, const RenderViewport &viewport, EffectWindow *w, int mask, const Region &deviceRegion, WindowPaintData &data);
+     GLTexture *ensureNoiseTexture();
++    void updateLiquidGlass();
+ 
+ private:
+     struct
+@@ -113,6 +114,25 @@
+         int opacityLocation;
+     } m_roundedOnscreenPass;
+ 
++    // plasma-glass: the blur seen through the bevel of a dark Liquid Glass surface
++    struct
++    {
++        std::unique_ptr<GLShader> shader;
++        int mvpMatrixLocation;
++        int colorMatrixLocation;
++        int offsetLocation;
++        int halfpixelLocation;
++        int boxLocation;
++        int cornerRadiusLocation;
++        int opacityLocation;
++        int sizeLocation;
++        int bevelLocation;
++        int sharpUnitLocation;
++    } m_bevelOnscreenPass;
++    QString m_plasmarc; // the Plasma style is set in there
++    bool m_liquidGlass = false; // it's the dark Liquid Glass
++    QVector4D m_bevel; // logical px: width, refraction, dispersion; sharpness at the edge
++
+     struct
+     {
+         std::unique_ptr<GLShader> shader;
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.qrc b/src/plugins/blur/blur.qrc
+--- a/src/plugins/blur/blur.qrc
++++ b/src/plugins/blur/blur.qrc
+@@ -3,6 +3,7 @@
+   <file>shaders/downsample.frag</file>
+   <file>shaders/noise.frag</file>
+   <file>shaders/onscreen.frag</file>
++  <file>shaders/onscreen_bevel.frag</file>
+   <file>shaders/onscreen_rounded.frag</file>
+   <file>shaders/onscreen_rounded.vert</file>
+   <file>shaders/upsample.frag</file>
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/onscreen_bevel.frag b/src/plugins/blur/shaders/onscreen_bevel.frag
+--- a/src/plugins/blur/shaders/onscreen_bevel.frag
++++ b/src/plugins/blur/shaders/onscreen_bevel.frag
+@@ -0,0 +1,78 @@
++#version 140
++
++#include "sdf.glsl"
++
++// The blur behind a Liquid Glass surface (plasma-glass), seen through the glass's bevel: within bevel.x of
++// the edge the glass rounds off like a quarter circle, so it refracts what's behind it, from further in
++// the steeper it is (bevel.y at the very edge), and less blurred towards the edge (bevel.w), where the
++// glass is clear. Blue bends more than red: the colours part along the edge by bevel.z each way.
++
++uniform sampler2D texUnit;   // the blurred background at half size (its last upsample step is done here)
++uniform sampler2D sharpUnit; // the background as it is
++uniform mat4 colorMatrix;
++uniform float offset;
++uniform vec2 halfpixel;
++uniform vec4 box;          // the glass: centre and half size
++uniform vec4 cornerRadius; // top left, top right, bottom left, bottom right
++uniform float opacity;
++uniform vec2 size;         // the background's size
++uniform vec4 bevel;        // width, refraction, dispersion (device px), sharpness at the edge (0..1)
++
++in vec2 uv;
++in vec2 vertex; // device px from the background's top left
++
++out vec4 fragColor;
++
++vec4 blurred(vec2 at)
++{
++    vec4 sum = texture(texUnit, at + vec2(-halfpixel.x * 2.0, 0.0) * offset);
++    sum += texture(texUnit, at + vec2(-halfpixel.x, halfpixel.y) * offset) * 2.0;
++    sum += texture(texUnit, at + vec2(0.0, halfpixel.y * 2.0) * offset);
++    sum += texture(texUnit, at + vec2(halfpixel.x, halfpixel.y) * offset) * 2.0;
++    sum += texture(texUnit, at + vec2(halfpixel.x * 2.0, 0.0) * offset);
++    sum += texture(texUnit, at + vec2(halfpixel.x, -halfpixel.y) * offset) * 2.0;
++    sum += texture(texUnit, at + vec2(0.0, -halfpixel.y * 2.0) * offset);
++    sum += texture(texUnit, at + vec2(-halfpixel.x, -halfpixel.y) * offset) * 2.0;
++    return sum / 12.0;
++}
++
++// the background at device px p, as the bevel shows it
++vec4 seen(vec2 p, float sharp)
++{
++    vec2 at = vec2(p.x / size.x, 1.0 - p.y / size.y);
++    return mix(blurred(at), texture(sharpUnit, at), sharp);
++}
++
++float outline(vec2 p)
++{
++    return sdfRoundedBox(p, box.xy, box.zw, cornerRadius);
++}
++
++void main(void)
++{
++    float f = outline(vertex);
++    float df = fwidth(f);
++    float d = -f; // px inside the glass
++
++    vec4 color;
++    if (d < bevel.x) {
++        // the way out of the glass here, across the outline
++        vec2 g = vec2(outline(vertex + vec2(0.5, 0.0)) - outline(vertex - vec2(0.5, 0.0)),
++                      outline(vertex + vec2(0.0, 0.5)) - outline(vertex - vec2(0.0, 0.5)));
++        vec2 out_ = g / max(length(g), 1e-4);
++        // a quarter circle's tilt (the sine of its angle): 1 at the edge, 0 where the glass is flat
++        float tilt = 1.0 - max(d, 0.0) / bevel.x;
++        vec2 p = vertex - out_ * bevel.y * tilt * tilt; // refracted: seen from further in, most at the edge
++        // (a smooth start where the glass is flat; keep bevel.y under half bevel.x, or it folds over)
++        vec2 split = out_ * bevel.z * tilt; // red from a little further out, blue from further in
++        float sharp = bevel.w * tilt;
++        color = seen(p, sharp);
++        color.r = seen(p + split, sharp).r;
++        color.b = seen(p - split, sharp).b;
++    } else {
++        color = blurred(uv);
++    }
++
++    fragColor = color * colorMatrix * opacity;
++    fragColor *= 1.0 - clamp(0.5 + f / df, 0.0, 1.0);
++}
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/scripting/scripting.cpp b/src/scripting/scripting.cpp
 --- a/src/scripting/scripting.cpp
 +++ b/src/scripting/scripting.cpp

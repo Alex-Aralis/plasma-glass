@@ -10,7 +10,8 @@ notification cruft trimmed.
 - **Liquid Glass Plasma Style.** Translucent popups over KWin's blur: 18 px corners, a light rim along
   the top, a soft shadow, glassy search fields, list highlights and scrollbars, and quiet header
   bands in applet popups. Everything else
-  falls back to Breeze, and colours follow your colour scheme.
+  falls back to Breeze, and colours follow your colour scheme. With the KWin patch, the dark style's
+  glass rounds off at the edge like a lens: what's behind bends there and parts a little in colour.
 - **Trimmed KRunner and notifications.** KRunner opens with Meta+Space (Alt+F2 still works) and floats where you drag it (by the glass rim, or anywhere
   with Meta held, as with other windows) and remembers the spot. It is wider, and types straight onto the glass in larger text, with no input box, like Spotlight. It uses
   compact section headers and has no help, settings, pin or clear buttons. Notification popups lose
@@ -107,7 +108,7 @@ tools/preview/krunner.sh /tmp/krunner.png "some query"
 ## Patches
 
 The patches were made against Plasma 6.7.5 and Qt 6.11.2. Portage re-applies them whenever
-plasma-workspace, milou, qtbase or qtdeclarative is rebuilt. If a future version changes the patched lines, that
+plasma-workspace, milou, kwin, qtbase or qtdeclarative is rebuilt. If a future version changes the patched lines, that
 build stops at the patch step until the patch is refreshed.
 
 - `plasma-workspace-tweaks.patch`
@@ -135,6 +136,22 @@ build stops at the patch step until the patch is refreshed.
     middle-click or swipe
 - `milou-section-headers.patch`: KRunner result categories become small headers above each group
   instead of a 10-grid-unit column beside every row; result text 1.2x
+- `kwin-fixes.patch` (kde-plasma/kwin; a new KWin runs from the next login)
+  - the dark Liquid Glass style's bevel: within 24 px of the glass's edge, KWin's blur shows what's
+    behind it refracted (seen from up to 9 px further in at the very edge), less frosted, and split in
+    colour by up to 2 px each way, as in [liquidglass](https://github.com/ybouane/liquidglass). Only
+    while that style is selected (it follows `plasmarc`, no relogin), on Plasma's own surfaces
+    (KRunner, popups, notifications, panels with rounded corners), not on windows with title bars.
+    `KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness` in KWin's environment overrides it
+    (24,9,2,1; 0,0,0,0 for none)
+  - frame callbacks go out after each screen's composite, not only when KWin is about to sleep, so a
+    window on one screen doesn't wait for another screen's composite (KRunner's ripple missed frames
+    on the 240 Hz screen while another one animated)
+  - with KWin on one GPU and a screen on another, the rendering GPU copies frames over itself when the
+    screen's GPU can't, instead of the CPU (`KWIN_DRM_NO_RENDER_GPU_COPY=1` turns it off), with the CPU
+    cache flushed first, which otherwise left horizontal strips missing from the cursor
+  - no crash at every logout: scripts are unloaded before the workspace goes away (Remember Window
+    Positions saved its state from a workspace that was already gone)
 - `qtbase-wayland.patch` (dev-qt/qtbase, every Qt app): Qt's Wayland client sends a window's new
   viewport size (`wp_viewporter`, used with fractional scaling) together with the buffer drawn for it.
   It sent it as soon as the window resized, so the compositor showed the previous frame stretched to

@@ -1,7 +1,7 @@
 # plasma-glass: notes for development
 
 Liquid Glass Plasma Styles, semantic KRunner search (EmbeddingGemma 2 on the Intel iGPU via OpenVINO)
-and Portage patches for KRunner, notification popups, milou, KWin (frame pacing, a crash on exit) and Qt (Wayland client, Qt Quick). Gentoo, Plasma
+and Portage patches for KRunner, notification popups, milou, KWin (frame pacing, a crash on exit, the dark style's bevel) and Qt (Wayland client, Qt Quick). Gentoo, Plasma
 6.7.5, Qt 6.11.2, Wayland. User
 docs are in README.md; this file covers how to work on it.
 
@@ -250,6 +250,26 @@ docs are in README.md; this file covers how to work on it.
   fixed, it exits with 15 and the script logs its final save (`debugLogs=true` in its kwinrc group).
   KWin's cores are root-only (kwin_wayland has a file capability), so use a debug build of the dev
   tree (`ninja -C ~/.cache/plasma-glass/dev/kwin/build kwin_wayland`, RelWithDebInfo) for symbols.
+- **The dark Liquid Glass bevel is drawn by KWin's blur** (`kwin-fixes.patch`: the bevel pass in
+  `plugins/blur/blur.cpp`, `shaders/onscreen_bevel.frag`), since only KWin has what's behind the glass;
+  KRunner's shaders only see its own content. The glass is the blur region's bounding box, with a 26 px
+  radius (generate.py R) at each corner the frame's mask leaves out of the region; a shape with no
+  corner left out (a docked panel) gets no bevel, nor does a window with a title bar (it has KWin's own
+  border radius). Within 24 px of the edge the glass rounds off like a quarter circle (tilt 1 at the
+  edge, 0 where it turns flat): what's behind is seen from 9 px x tilt² further in, the background
+  before the blur (the blur's first texture) shows through more towards the edge (x tilt), and red is
+  taken from 2 px x tilt further out, blue as far in. That's the per-colour sampling along the normal
+  that [liquidglass](https://github.com/ybouane/liquidglass) uses, whose bevel is a half circle. On the
+  blur alone the colour split doesn't show; the sharp background makes it visible. A refraction linear
+  in the tilt (16 px over 24) magnified a thin strip 3x evenly and smeared glyphs into colour streaks;
+  with tilt² it starts smoothly, and it folds over if the refraction passes half the width. Only while
+  plasmarc's `[Theme] name` is `liquid-glass` (the light style is meant to look flat), watched with
+  KDirWatch since the style's settings page doesn't notify; tested by rewriting the preview's plasmarc
+  mid-recording. `KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness` (24,9,2,1) in KWin's
+  environment overrides it, to tune without a rebuild. A shader that fails to compile drops only the
+  bevel. In the preview (UHD 770 through Mesa, KRunner at 744x346, scale 1, the wallpaper scrolling)
+  KWin's GPU time went from 2.04 to 2.27 ms a frame; the 27 samples a pixel only run in the bevel.
+  Over a smooth wallpaper (Next) it hardly shows: tuned on ColorfulCups and a scrolling image of code.
 - **Without shaders (software rendering) the busy pulse is a gradient, not a mask.** The band of
   light that stands in for the ripple is the gradient of a rounded Rectangle over the glass (stops
   moved by a 0..1 progress), so it keeps to the corners at every size. A MultiEffect mask (the
