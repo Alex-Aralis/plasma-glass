@@ -73,6 +73,8 @@ QtObject {
     signal showHistoryChanged()
     function startFloatingDrag(x, y) {}
     function endFloatingDrag(x, y) {}
+    function monotonicTime() { return Date.now() / 1000; }
+    function knock(born, side, at, wave) {}
 }
 EOF
 cat > "$STUBS/plasma/applet/org/kde/plasma/notifications/qmldir" <<'EOF'

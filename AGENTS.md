@@ -181,13 +181,18 @@ docs are in README.md; this file covers how to work on it.
   with time and as they head into a rim. Liquid Glass: light comes in at the rim (generate.py RIM) and
   lets out where a slope faces an edge, and the content refracts: the ShaderEffect draws it from a
   ShaderEffectSource of the layout, hidden while the ripple runs (the dividers aren't in it, so they
-  don't bend). With a bit of dispersion (2026-10-14): blue shifts further than green and red less, by
-  2 px per unit of slope (`dispersion`), so a fresh wave's steepest slope (0.5) fringes text by 1 px
-  each way; at 2.5 the colours already part into green and magenta copies. Coverage goes with green, so
-  shapes stay put. The light let out splits the same way, 6 px per unit (`lightDispersion`; it's broad,
-  so less doesn't show). The extra samples only run where the split is over 0.05 px (0.25 for the
-  light, which is faint there); in the preview (scale 1.1, KRunner on the UHD 770 through Mesa, a
-  744x702 window) KRunner's GPU time went from 1.33 to 1.43 ms a frame. Liquid Glass Light: a flat
+  don't bend). It bends by the bevel's model (below): how far the glass leans is its slope over a fresh
+  wave's steepest (0.5), and the content is seen from 2 px x lean² further uphill (`refraction`), blue 1 px
+  x lean further than green and red as much less (`dispersion`, 2026-10-14; at 1.25 px the colours
+  already part into green and magenta copies). Coverage goes with green, so shapes stay put. The light
+  let out splits the same way, 3 px x lean (`lightDispersion`; it's broad, so less doesn't show). The
+  extra samples only run where the split is over 0.05 px (0.25 for the light, which is faint there); in
+  the preview (scale 1.1, KRunner on the UHD 770 through Mesa, a 744x702 window) the colour split took
+  KRunner's GPU time from 1.33 to 1.43 ms a frame. KWin bends what's behind the glass under the same
+  waves: each knock goes to it over D-Bus (`View::knock`, org.kde.KWin.LiquidGlass.Knock, with the wave's
+  speed, bump, spread, damping, life and steep), born on the monotonic clock both run the ripple on
+  (`View::monotonicTime()`; the ripple's clock used to sum frame times, capped at 0.1 s, which a stall
+  would have put behind KWin's). Liquid Glass Light: a flat
   foil sheen of fixed-colour shards, no refraction (colours that moved with the wave's tilt flickered).
   `KRUNNER_BUSY_DEMO=1` keeps it running, to look at it (also in `tools/preview/krunner.sh`, and
   `tools/preview/record.sh` records it). dFdx/dFdy are undefined after a per-pixel early exit, so a
@@ -267,17 +272,25 @@ docs are in README.md; this file covers how to work on it.
   KDirWatch since the style's settings page doesn't notify; tested by rewriting the preview's plasmarc
   mid-recording. `KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness` (24,9,2,1) in KWin's
   environment overrides it, to tune without a rebuild. A shader that fails to compile drops only the
-  bevel. The glass is frosted lightly all over: blur strength 4 of BlurStrength's 1-15 (two halvings,
-  offset 3), never above the user's own; KWin's default is 15, the heaviest. With that in the middle and
-  a clear bevel, the middle didn't match the bevel (the user, 2026-10-14): a clear frame around frosted
-  plastic. liquidglass frosts lightly everywhere too (blurAmount 0.25-0.4 on its demo page) and its bevel
-  bends that same blur, with 15% of the sharp background at the rim. Here the bevel stays sharp at the rim
-  (the look the user approved) and the middle is frosted lightly enough to show shapes, so one fades into
-  the other. `KWIN_LIQUID_GLASS_FROST=strength` overrides it. In the preview (UHD 770 through Mesa,
-  KRunner at 744x346, scale 1, the wallpaper scrolling) KWin's GPU time went from 2.04 ms a frame (no
-  bevel, strength 15) to 2.27 with the bevel at 15 and 2.25-2.28 at 4 (fewer halvings); the 27 samples a
-  pixel only run in the bevel. Over a smooth wallpaper (Next) it hardly shows: tuned on ColorfulCups and
-  a scrolling image of code.
+  bevel. The glass is frosted lightly all over: blur strength 3 of BlurStrength's 1-15 (two halvings,
+  offset 2.5), never above the user's own; KWin's default is 15, the heaviest. With that in the middle
+  and a clear bevel, the middle didn't match the bevel (the user, 2026-10-14): a clear frame around
+  frosted plastic; then 4 was still a bit much. liquidglass frosts lightly everywhere too (blurAmount
+  0.25-0.4 on its demo page) and its bevel bends that same blur, with 15% of the sharp background at the
+  rim. Here the bevel stays sharp at the rim (the look the user approved) and the middle is frosted
+  lightly enough to show shapes, so one fades into the other. `KWIN_LIQUID_GLASS_FROST=strength`
+  overrides it. KRunner's busy ripple leans the glass too: KWin keeps the knocks KRunner sends
+  (`Knock()`, matched to the window by the caller's PID), works the waves out again at half size
+  (`shaders/ripple.frag`, a copy of busywaves.frag, in window coordinates), and adds their downhill slope
+  over the steepest to the bevel's lean, so everything above follows from one lean per pixel; a fresh
+  wave's steepest slope leans as far as the bevel's edge (`KWIN_LIQUID_GLASS_RIPPLE=scale`, 0 for none).
+  KWin keeps repainting while knocks live, whatever KRunner draws. The colours part only in the sharp
+  samples: on the frost it doesn't show, and the blur's 8 samples three times over cost twice as much
+  once the waves spread the per-pixel path over most of the window. In the preview (UHD 770 through
+  Mesa, KRunner busy at 744x346, scale 1) KWin's GPU time is 1.25 ms a frame with the bevel and frost and
+  1.57-1.62 with the waves (1.40 and 2.12-2.15 with all 27 samples); with the wallpaper scrolling and
+  KRunner idle it went from 2.04 (no bevel, strength 15) to 2.25-2.28 (bevel, strength 4). Over a smooth
+  wallpaper (Next) it hardly shows: tuned on ColorfulCups and a scrolling image of code.
 - **Without shaders (software rendering) the busy pulse is a gradient, not a mask.** The band of
   light that stands in for the ripple is the gradient of a rounded Rectangle over the glass (stops
   moved by a 0..1 progress), so it keeps to the corners at every size. A MultiEffect mask (the
