@@ -74,6 +74,7 @@ Kirigami.ApplicationWindow {
             tuner.set(tuner.fallback);
         }
         side.set(0);
+        layer.set(0);
     }
 
     // one setting: a slider, its value, and a button back to its default
@@ -222,6 +223,36 @@ Kirigami.ApplicationWindow {
 
             Kirigami.Separator {
                 Kirigami.FormData.isSection: true
+                Kirigami.FormData.label: "More natural waves"
+            }
+            Hint { text: "0 turns each off; all of them at 0 gives one smooth wave per knock, like clockwork." }
+            Tuner {
+                Kirigami.FormData.label: "Chop:"
+                key: "Ripple/chop"; fallback: 0.3; from: 0; to: 1.5; stepSize: 0.05; decimals: 2
+            }
+            Hint { text: "Small waves running across the whole glass while it ripples, at random angles, longer ones faster, as on water. Kept off the rim." }
+            Tuner {
+                Kirigami.FormData.label: "Chop wavelength:"
+                key: "Ripple/chopScale"; fallback: 40; from: 8; to: 120; stepSize: 1; unit: "px"
+            }
+            Tuner {
+                Kirigami.FormData.label: "Packet:"
+                key: "Ripple/packet"; fallback: 0.7; from: 0; to: 1; stepSize: 0.05; decimals: 2
+            }
+            Hint { text: "Two more waves out of each knock, a shorter one running ahead and a longer one lagging, so each crest splits and changes as it goes." }
+            Tuner {
+                Kirigami.FormData.label: "Front noise:"
+                key: "Ripple/frontNoise"; fallback: 0.5; from: 0; to: 1; stepSize: 0.05; decimals: 2
+            }
+            Hint { text: "Each crest wanders forward and back and gets stronger and weaker along its length, slowly." }
+            Tuner {
+                Kirigami.FormData.label: "Jitter:"
+                key: "Ripple/jitter"; fallback: 0.6; from: 0; to: 1; stepSize: 0.05; decimals: 2
+            }
+            Hint { text: "No two knocks alike: each lands a little up or down the side, comes a little early or late, and is stronger or weaker, wider or narrower." }
+
+            Kirigami.Separator {
+                Kirigami.FormData.isSection: true
                 Kirigami.FormData.label: "Where they start"
             }
             QQC2.ComboBox {
@@ -304,11 +335,19 @@ Kirigami.ApplicationWindow {
                 Kirigami.FormData.label: "Saturation:"
                 key: "Light/saturation"; fallback: 0.8; from: 0; to: 1; stepSize: 0.05; decimals: 2
             }
-            Tuner {
-                Kirigami.FormData.label: "Sheen over the glass:"
-                key: "Light/sheen"; fallback: 0; from: 0; to: 1; stepSize: 0.05; decimals: 2
+            QQC2.ComboBox {
+                id: layer
+                Kirigami.FormData.label: "Diffraction:"
+                readonly property var keys: ["beneath", "top", "both"]
+                model: ["Beneath the frost", "On top of the glass", "Both"]
+                currentIndex: Math.max(0, keys.indexOf(String(store.value("Light/layer", "beneath"))))
+                function set(index: int): void {
+                    currentIndex = index;
+                    window.put("Light/layer", keys[index]);
+                }
+                onActivated: index => set(index)
             }
-            Hint { text: "The foil sheen KRunner drew over the glass before the waves went beneath the frost (it was 0.35)." }
+            Hint { text: "Where the foil lights up: beneath the frost, softened by it; on top of the glass, in crisp shards (as KRunner drew it before the waves went beneath the frost); or both. Its brightness, etch size and saturation go for either." }
             Tuner {
                 Kirigami.FormData.label: "Bevel width:"
                 key: "Light/bevelWidth"; fallback: 24; from: 4; to: 60; stepSize: 1; unit: "px"

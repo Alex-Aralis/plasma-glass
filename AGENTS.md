@@ -213,9 +213,12 @@ docs are in README.md; this file covers how to work on it.
   sheen of fixed-colour shards over the crests, drawn by busyRipple over the glass (no refraction:
   colours that moved with the wave's tilt flickered; it draws the content too, over the sheen, from a
   ShaderEffectSource of the layout hidden while it runs, without the dividers). Since 2026-10-14 the
-  waves go beneath the frost there too ("put the wave beneath the frosting"), drawn by KWin (below), and
-  the sheen over the glass is `[Light] sheen`, 0 by default (it was 0.35); its shards follow `[Light]
-  etch` like KWin's foil, and busyFoil only renders its tile while the sheen is on.
+  waves go beneath the frost there too ("put the wave beneath the frosting"), drawn by KWin (below). The
+  sheen over the glass came back as a place for the foil, `[Light] layer` top or both (the user asked for
+  a setting to put the diffraction back on top), as bright as 0.3 x `[Light] diffraction` (1.2 gives the
+  0.35 it had), with `[Light] etch` and `saturation`, KWin's foil skipped for top; busyFoil only renders
+  its tile while the sheen is on. Its waves (busywaves.frag) follow KWin's ripple.frag, the effects
+  below included, so the shards on top lie over the waves beneath.
   `KRUNNER_BUSY_DEMO=1` keeps it running, to look at it (also in `tools/preview/krunner.sh`, and
   `tools/preview/record.sh` records it). dFdx/dFdy are undefined after a per-pixel early exit, so a
   wave's direction is computed, not differentiated (the unit vector from where it left the side). Tried and
@@ -349,6 +352,20 @@ docs are in README.md; this file covers how to work on it.
   third moved 2.87 against 2.88 from the reference recording). Checked live in the preview, the tuning
   window beside KRunner and its sliders dragged with fakeinput: frost changed at once, speed, split and
   width with the next knock. The preview copies `plasma-glassrc` into its config, like your KDE files.
+- **More natural waves** (2026-10-14, the user: "would look more natural with some noise / more waves
+  summed together", workshopped as four prototypes, then all four kept as settings): chop, seven small
+  plane waves across the glass at angles around the knocks' way, longer ones faster (30 px/s x
+  sqrt(wavelength / `chopScale`)), coming and going with the knocks' waves (their summed strength) and
+  kept off the rim over the bevel's width, where they added to the bevel's lean and sparkled; packet,
+  two more profiles per knock, 0.6x as wide at 1.12x the speed and 1.6x as wide at 0.9x, so crests split
+  and change as they go; front noise, value noise along the side (s) moving each crest by up to half a
+  half-width and its strength by 60%, seeded per knock (KWin packs a seed from the knock's birth into
+  `knocks[i].x` beside the side, KRunner the same); jitter, KRunner's: each knock's place (up to 20% of
+  the side either way at 1), strength (`amp`, which scales its fade), width and time to the next (up to
+  half a period). Defaults are the workshop's mix, chop 0.3, packet 0.7, front noise 0.5, jitter 0.6;
+  all 0 is the old clockwork. The latest knock's chop, packet and front noise go for the whole glass,
+  as with the edge fade. Cost in the preview: KWin 2.85-2.91 ms a frame against 2.78-2.79 with all
+  four off, in the same run (the base drifted between runs that day: 1.97, 2.20, 2.78).
 - **Liquid Glass Light's waves go beneath the frost** (2026-10-14: "the light version with frosted
   glass, the wave beneath the frosting", with a settings panel and the diffraction's etch size as a
   setting). KWin treats `liquid-glass-light` as Liquid Glass too: its own frost (`[Light] frost`, 5; it

@@ -116,11 +116,15 @@ damping, lifetime, the time between knocks, amplitude, colour split, ringing, ed
 from the rim that fade sits; the side the knocks land on, where along it and how much of it each one
 strikes; the dark glass's frost, bevel width, refraction, colour split and sharpness; and the light
 glass's frost, the waves' refraction and diffraction beneath it, the diffraction foil's etch size and
-saturation, the old foil sheen over the glass, and an optional bevel. Changes apply as you drag:
-KRunner takes them with its next knock, KWin at once. While the window is open, KRunner keeps its
-ripple running and stays open when you click elsewhere, so open KRunner (Meta+Space) beside it and
-tune. Each row has a button back to its default, and "Reset All" resets everything. It needs the
-patched KRunner and KWin (`kwin-fixes.patch`, `plasma-workspace-tweaks.patch`).
+saturation, where the foil lights up (beneath the frost, on top of the glass, or both), and an optional
+bevel. A "More natural waves" section adds small waves across the whole glass (chop, and its
+wavelength), two more waves out of each knock (packet), crests that wander and change strength (front
+noise) and knocks that differ in place, strength, width and timing (jitter); setting all four to 0
+gives one smooth wave per knock, like clockwork. Changes apply as you drag: KRunner takes them with its
+next knock, KWin at once. While the window is open, KRunner keeps its ripple running and stays open
+when you click elsewhere, so open KRunner (Meta+Space) beside it and tune. Each row has a button back
+to its default, and "Reset All" resets everything. It needs the patched KRunner and KWin
+(`kwin-fixes.patch`, `plasma-workspace-tweaks.patch`).
 
 The settings live in `~/.config/plasma-glassrc`, which you can also edit by hand (plain `key=value`
 lines; the tuning window rewrites the file as you move its sliders):
@@ -141,6 +145,11 @@ lines; the tuning window rewrites the file as you move its sliders):
 | | `side` | left | `left`, `right`, `top` or `bottom` |
 | | `position` | 0.333 | how far along that side the knocks land once results show |
 | | `strike` | 1 | px of the side each knock strikes at once; wider starts a flatter front |
+| | `chop` | 0.3 | small waves across the whole glass while it ripples (0: none) |
+| | `chopScale` | 40 | px, the chop's wavelength |
+| | `packet` | 0.7 | two more waves out of each knock, a shorter one ahead and a longer one lagging (0-1) |
+| | `frontNoise` | 0.5 | crests wander and change strength along their length (0-1) |
+| | `jitter` | 0.6 | each knock a little different in place, strength, width and timing (0-1) |
 | `[Glass]` | `frost` | 2 | blur strength 1-15, never more than KWin's Blur setting |
 | | `bevelWidth` | 24 | px |
 | | `refraction` | 9 | px |
@@ -151,7 +160,7 @@ lines; the tuning window rewrites the file as you move its sliders):
 | | `diffraction` | 1.2 | how bright the foil's colours are where the waves crest |
 | | `etch` | 32 | px, the size of the foil's shards of colour |
 | | `saturation` | 0.8 | 0-1 |
-| | `sheen` | 0 | the foil sheen over the glass, as KRunner drew it before (0.35) |
+| | `layer` | beneath | where the foil lights up: `beneath` the frost, on `top` of the glass (crisp, drawn by KRunner), or `both` |
 | | `bevelWidth`, `bevelRefraction`, `bevelDispersion`, `bevelSharpness` | 24, 0, 0, 0 | a bevel as the dark glass's (off: flat) |
 
 KWin's environment still overrides the glass for experiments (`KWIN_LIQUID_GLASS_*`, below).
