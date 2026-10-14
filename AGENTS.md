@@ -200,7 +200,16 @@ docs are in README.md; this file covers how to work on it.
   dma-bufs as "external only" (sampling, no framebuffer), but its Vulkan imports a linear buffer the
   iGPU allocated and writes into it: a test program on KWin's exact path (an NVIDIA-tiled source,
   KWin's barriers and blit, the render's sync fd imported as a semaphore) got 60 of 60 copies right,
-  3.7 ms of GPU time per 2560x1440 frame. Measured 2026-10-13 with DP-1 animating: KRunner 236.5 fps
+  3.7 ms of GPU time per 2560x1440 frame. The card doesn't snoop the CPU cache, though: the kernel
+  zeroes a new buffer's pages through it, the card's writes went around those lines, and once those
+  were written back (at the latest when i915 flushes the buffer to show it) the zeros covered the copy.
+  The cursor on DP-1 then showed with horizontal strips missing, all of it with the machine idle (the
+  cache kept the lines), and right again after a shape change (a copy into an older buffer). So new
+  copy targets are clflushed through their dma-buf before the card writes (`flushCpuCache` in
+  vulkan_swapchain.cpp); i915's set-domain and set-caching ioctls don't flush them on this LLC
+  platform. Off screen: allocate the iGPU buffer after creating the NVIDIA Vulkan device and read it
+  back through a write-combined mapping, and nearly every row is lost; allocated before (the device
+  setup evicts the lines), or flushed, none. Measured 2026-10-13 with DP-1 animating: KRunner 236.5 fps
   with 1.0% late (228 and 10% before), 0.8% missed, a new DP-4 frame at every refresh; with DP-1 and
   HDMI-A-1 both animating, DP-4 went from 1.4-8.7% of refreshes without a frame to 0.0-0.1%. To
   measure: `KWIN_LOG_PERFORMANCE_DATA=1` on KWin's unit makes it write `~/kwin perf statistics

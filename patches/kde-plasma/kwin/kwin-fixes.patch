@@ -133,32 +133,41 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/multigpuswapchain.cpp b/src
  static const auto s_forceLinear = environmentVariableBoolValue("KWIN_VULKAN_FORCE_LINEAR_DST");
  
 -std::unique_ptr<MultiGpuSwapchain> MultiGpuSwapchain::create(RenderDevice *copyDevice, DrmDevice *targetDevice, uint32_t format, uint64_t modifier, const QSize &size, const FormatModifierMap &importFormats)
-+std::unique_ptr<MultiGpuSwapchain> MultiGpuSwapchain::create(RenderDevice *copyDevice, DrmDevice *targetDevice, uint32_t format, uint64_t modifier, const QSize &size, const FormatModifierMap &importFormats, bool vulkanOnly)
++std::unique_ptr<MultiGpuSwapchain> MultiGpuSwapchain::create(RenderDevice *copyDevice, DrmDevice *targetDevice, uint32_t format, uint64_t modifier, const QSize &size, const FormatModifierMap &importFormats, bool foreignCopyDevice)
  {
      if (copyDevice->isInReset()) {
          // avoid creating a suboptimal swapchain while in a reset
-@@ -86,7 +86,7 @@
+@@ -80,13 +80,13 @@
+             if (s_forceLinear.value_or(targetDevice->isAmdgpu()) && fmt->modifiers.contains(DRM_FORMAT_MOD_LINEAR)) {
+                 fmt->modifiers = {DRM_FORMAT_MOD_LINEAR};
+             }
+-            auto swapchain = VulkanSwapchain::create(copyDevice->vulkanDevice(), targetDevice->allocator(), size, fmt->format, fmt->modifiers);
++            auto swapchain = VulkanSwapchain::create(copyDevice->vulkanDevice(), targetDevice->allocator(), size, fmt->format, fmt->modifiers, foreignCopyDevice);
+             if (swapchain) {
+                 return std::make_unique<MultiGpuSwapchain>(copyDevice, targetDevice, std::move(swapchain));
              }
          }
      }
 -    if (copyDevice->eglDisplay() && copyDevice->eglDisplay()->nonExternalOnlySupportedDrmFormats().containsFormat(format, modifier)) {
-+    if (!vulkanOnly && copyDevice->eglDisplay() && copyDevice->eglDisplay()->nonExternalOnlySupportedDrmFormats().containsFormat(format, modifier)) {
++    if (!foreignCopyDevice && copyDevice->eglDisplay() && copyDevice->eglDisplay()->nonExternalOnlySupportedDrmFormats().containsFormat(format, modifier)) {
          // creating the copy context will make it current
          const auto restoreContext = qScopeGuard([ctx = EglContext::currentContext()]() {
              if (ctx) {
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/multigpuswapchain.h b/src/multigpuswapchain.h
 --- a/src/multigpuswapchain.h
 +++ b/src/multigpuswapchain.h
-@@ -60,8 +60,11 @@
+@@ -60,8 +60,13 @@
       * If for example a buffer on a dedicated GPU is imported to an integrated GPU, it will be moved
       * to system memory, and rendering performance on the dedicated GPU will suffer.
       * Scanning out buffers from one GPU while it's on another GPU is also usually impossible.
 +     *
-+     * With @p vulkanOnly, only a Vulkan copy is tried. The EGL copy renders into buffers from the copy
-+     * device's own allocator, which is only right when the copy device is the target device's GPU.
++     * @p foreignCopyDevice: the copy device isn't the target device's GPU (the render GPU copies into the
++     * display GPU's buffers). Only a Vulkan copy is tried then (the EGL copy renders into buffers from the
++     * copy device's own allocator), and new target buffers are flushed from the CPU cache before the copy
++     * device writes into them, as it may not snoop it.
       */
 -    static std::unique_ptr<MultiGpuSwapchain> create(RenderDevice *copyDevice, DrmDevice *targetDevice, uint32_t format, uint64_t modifier, const QSize &size, const FormatModifierMap &importFormats);
-+    static std::unique_ptr<MultiGpuSwapchain> create(RenderDevice *copyDevice, DrmDevice *targetDevice, uint32_t format, uint64_t modifier, const QSize &size, const FormatModifierMap &importFormats, bool vulkanOnly = false);
++    static std::unique_ptr<MultiGpuSwapchain> create(RenderDevice *copyDevice, DrmDevice *targetDevice, uint32_t format, uint64_t modifier, const QSize &size, const FormatModifierMap &importFormats, bool foreignCopyDevice = false);
  
  private:
      std::optional<Ret> copyWithVulkan(GraphicsBuffer *buffer, const Region &damage, FileDescriptor &&sync, OutputFrame *frame,
@@ -196,6 +205,144 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/scripting/scripting.h b/src
  
      /**
       * @brief Invokes all registered callbacks to add actions to the UserActionsMenu.
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/vulkan/vulkan_swapchain.cpp b/src/vulkan/vulkan_swapchain.cpp
+--- a/src/vulkan/vulkan_swapchain.cpp
++++ b/src/vulkan/vulkan_swapchain.cpp
+@@ -14,6 +14,15 @@
+ #include "vulkan_logging.h"
+ #include "vulkan_texture.h"
+ 
++#include <cerrno>
++#include <cstring>
++#include <linux/dma-buf.h>
++#include <sys/ioctl.h>
++#include <sys/mman.h>
++#if defined(__x86_64__)
++#include <immintrin.h>
++#endif
++
+ namespace KWin
+ {
+ 
+@@ -62,12 +71,46 @@
+     return m_releasePoint;
+ }
+ 
+-VulkanSwapchain::VulkanSwapchain(VulkanDevice *device, GraphicsBufferAllocator *allocator, const QSize &size, uint32_t format, uint64_t modifier, std::shared_ptr<VulkanSwapchainSlot> &&initialSlot)
++// The kernel zeroes a new buffer's pages through the CPU cache, and a device that doesn't snoop it (an
++// NVidia card writing into a buffer of an Intel iGPU) writes around those lines. When they're written
++// back, at the latest when the display driver flushes the buffer to show it, the zeros land on the
++// copy: the cursor on a screen of the iGPU showed with rows missing, and when the machine was idle (so
++// the cache kept them) not at all. Write them back before the device writes.
++static void flushCpuCache(GraphicsBuffer *buffer)
++{
++#if defined(__x86_64__)
++    const DmaBufAttributes *attributes = buffer->dmabufAttributes();
++    if (!attributes || attributes->planeCount != 1) {
++        return;
++    }
++    const int fd = attributes->fd[0].get();
++    const size_t size = attributes->offset[0] + size_t(attributes->pitch[0]) * attributes->height;
++    void *map = mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0);
++    if (map == MAP_FAILED) {
++        qCWarning(KWIN_VULKAN) << "Could not map a new buffer to flush it from the CPU cache:" << strerror(errno);
++        return;
++    }
++    dma_buf_sync sync{.flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ};
++    ioctl(fd, DMA_BUF_IOCTL_SYNC, &sync);
++    for (size_t offset = 0; offset < size; offset += 64) {
++        _mm_clflush(static_cast<const char *>(map) + offset);
++    }
++    _mm_mfence();
++    sync.flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ;
++    ioctl(fd, DMA_BUF_IOCTL_SYNC, &sync);
++    munmap(map, size);
++#else
++    Q_UNUSED(buffer)
++#endif
++}
++
++VulkanSwapchain::VulkanSwapchain(VulkanDevice *device, GraphicsBufferAllocator *allocator, const QSize &size, uint32_t format, uint64_t modifier, std::shared_ptr<VulkanSwapchainSlot> &&initialSlot, bool flushNewBuffers)
+     : m_device(device)
+     , m_allocator(allocator)
+     , m_size(size)
+     , m_format(format)
+     , m_modifier(modifier)
++    , m_flushNewBuffers(flushNewBuffers)
+     , m_slots({std::move(initialSlot)})
+ {
+ }
+@@ -108,6 +151,9 @@
+         qCWarning(KWIN_VULKAN) << "Failed to allocate a vulkan swapchain buffer";
+         return nullptr;
+     }
++    if (m_flushNewBuffers) {
++        flushCpuCache(buffer);
++    }
+ 
+     auto texture = m_device->importBuffer(buffer, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+     if (!texture) {
+@@ -138,7 +184,7 @@
+     }
+ }
+ 
+-std::unique_ptr<VulkanSwapchain> VulkanSwapchain::create(VulkanDevice *device, GraphicsBufferAllocator *allocator, const QSize &size, uint32_t format, const ModifierList &modifiers)
++std::unique_ptr<VulkanSwapchain> VulkanSwapchain::create(VulkanDevice *device, GraphicsBufferAllocator *allocator, const QSize &size, uint32_t format, const ModifierList &modifiers, bool flushNewBuffers)
+ {
+     GraphicsBuffer *buffer = allocator->allocate(GraphicsBufferOptions{
+         .size = size,
+@@ -149,13 +195,16 @@
+         qCWarning(KWIN_VULKAN) << "Failed to allocate a graphics buffer for a Vulkan swapchain";
+         return nullptr;
+     }
++    if (flushNewBuffers) {
++        flushCpuCache(buffer);
++    }
+     auto texture = device->importBuffer(buffer, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+     if (!texture) {
+         buffer->drop();
+         return nullptr;
+     }
+     auto slot = std::make_shared<VulkanSwapchainSlot>(buffer, std::move(texture));
+-    return std::make_unique<VulkanSwapchain>(device, allocator, size, format, buffer->dmabufAttributes()->modifier, std::move(slot));
++    return std::make_unique<VulkanSwapchain>(device, allocator, size, format, buffer->dmabufAttributes()->modifier, std::move(slot), flushNewBuffers);
+ }
+ 
+ }
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/vulkan/vulkan_swapchain.h b/src/vulkan/vulkan_swapchain.h
+--- a/src/vulkan/vulkan_swapchain.h
++++ b/src/vulkan/vulkan_swapchain.h
+@@ -51,7 +51,7 @@
+ class KWIN_EXPORT VulkanSwapchain
+ {
+ public:
+-    explicit VulkanSwapchain(VulkanDevice *device, GraphicsBufferAllocator *allocator, const QSize &size, uint32_t format, uint64_t modifier, std::shared_ptr<VulkanSwapchainSlot> &&initialSlot);
++    explicit VulkanSwapchain(VulkanDevice *device, GraphicsBufferAllocator *allocator, const QSize &size, uint32_t format, uint64_t modifier, std::shared_ptr<VulkanSwapchainSlot> &&initialSlot, bool flushNewBuffers = false);
+     ~VulkanSwapchain();
+ 
+     QSize size() const;
+@@ -63,7 +63,12 @@
+ 
+     void resetBufferAge();
+ 
+-    static std::unique_ptr<VulkanSwapchain> create(VulkanDevice *device, GraphicsBufferAllocator *allocator, const QSize &size, uint32_t format, const ModifierList &modifiers);
++    /**
++     * With @p flushNewBuffers, each buffer the allocator makes is flushed from the CPU cache before the
++     * device writes into it, for a device that doesn't snoop the CPU cache writing into another device's
++     * buffers (see flushCpuCache in vulkan_swapchain.cpp).
++     */
++    static std::unique_ptr<VulkanSwapchain> create(VulkanDevice *device, GraphicsBufferAllocator *allocator, const QSize &size, uint32_t format, const ModifierList &modifiers, bool flushNewBuffers = false);
+ 
+ private:
+     VulkanDevice *const m_device;
+@@ -71,6 +76,7 @@
+     const QSize m_size;
+     const uint32_t m_format;
+     const uint64_t m_modifier;
++    const bool m_flushNewBuffers;
+     std::vector<std::shared_ptr<VulkanSwapchainSlot>> m_slots;
+ };
+ 
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/workspace.cpp b/src/workspace.cpp
 --- a/src/workspace.cpp
 +++ b/src/workspace.cpp
