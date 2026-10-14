@@ -327,7 +327,11 @@ docs are in README.md; this file covers how to work on it.
   (`dispersion`), ringing (`ring`) with the profile's steepest slope for it (`norm`, worked out in
   `steepest()`: 0.991 at the default 1.7) and edge fade (`edge`) included. So waves under way keep
   theirs when a setting changes, here and in KWin, which takes the latest knock's amplitude, split and
-  edge fade for the whole glass and each knock's ringing (`shapes[i].zw`). `[Glass]` is KWin's (frost,
+  edge fade for the whole glass and each knock's ringing (`shapes[i].zw`). Two more came the same day:
+  how far in from the rim the edge fade sits (`standoff`, 0; global like the edge fade) and how much of
+  the side a knock strikes at once (`strike`, 1 px; per knock in `shapes[i].y`, half of it: the stretch
+  that moves at once, so the wave leaves flat across it). The flex's exponent used to go in that slot;
+  the shaders work it out from the knock's place on its side now. `[Glass]` is KWin's (frost,
   bevel), read again on every change too; `KWIN_LIQUID_GLASS_*` still win over the file, so the
   preview's before/after recordings work as before. The ringing culls at 1.4 + 4.6 x its fade
   half-widths behind the crest (9 at the default), where what's left is under 1%. The tuning window

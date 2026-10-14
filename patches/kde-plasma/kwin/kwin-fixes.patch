@@ -252,7 +252,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  static QMatrix4x4 colorTransformMatrix(qreal saturation, qreal contrast)
  {
      QMatrix4x4 saturationMatrix;
-@@ -119,6 +172,51 @@
+@@ -119,6 +172,52 @@
          m_roundedOnscreenPass.opacityLocation = m_roundedOnscreenPass.shader->uniformLocation("opacity");
      }
  
@@ -290,6 +290,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        m_ripplePass.shapesLocation = m_ripplePass.shader->uniformLocation("shapes");
 +        m_ripplePass.steepLocation = m_ripplePass.shader->uniformLocation("steep");
 +        m_ripplePass.edgeLocation = m_ripplePass.shader->uniformLocation("edge");
++        m_ripplePass.standoffLocation = m_ripplePass.shader->uniformLocation("standoff");
 +    }
 +    m_bevel = s_liquidGlassBevel;
 +    m_frost = s_liquidGlassFrost;
@@ -304,7 +305,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      m_downsamplePass.shader = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture,
                                                                                  QStringLiteral(":/effects/blur/shaders/vertex.vert"),
                                                                                  QStringLiteral(":/effects/blur/shaders/downsample.frag"));
-@@ -181,14 +279,112 @@
+@@ -181,14 +280,114 @@
          slotWindowAdded(window);
      }
  
@@ -402,6 +403,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        .ring = std::max(wave.value(QStringLiteral("ring"), 1.7).toDouble(), 0.1),
 +        .norm = std::max(wave.value(QStringLiteral("norm"), 0.991).toDouble(), 0.01),
 +        .edge = std::max(wave.value(QStringLiteral("edge"), 3.0).toDouble(), 0.5),
++        .standoff = std::max(wave.value(QStringLiteral("standoff"), 0.0).toDouble(), 0.0),
++        .strike = std::max(wave.value(QStringLiteral("strike"), 1.0).toDouble(), 1.0),
 +    };
 +    for (auto &[window, data] : m_windows) {
 +        if (window->pid() == pid_t(pid.value())) {
@@ -417,7 +420,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  void BlurEffect::initBlurStrengthValues()
  {
      // This function creates an array of blur strength values that are evenly distributed
-@@ -571,6 +767,20 @@
+@@ -571,6 +770,20 @@
  
      blurShape.translate(w->pos());
  
@@ -438,7 +441,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      const Rect backgroundRect = blurShape.boundingRect().rounded();
      const Rect scaledBackgroundRect = backgroundRect.scaled(viewport.scale()).rounded();
      const Rect deviceBackgroundRect = viewport.mapToDeviceCoordinates(backgroundRect).rounded();
-@@ -605,12 +815,12 @@
+@@ -605,12 +818,12 @@
          textureFormat = renderTarget.texture()->internalFormat();
      }
  
@@ -453,7 +456,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
              auto texture = GLTexture::allocate(textureFormat, backgroundRect.size() / (1 << i));
              if (!texture) {
                  qCWarning(KWIN_BLUR) << "Failed to allocate an offscreen texture";
-@@ -742,6 +952,77 @@
+@@ -742,6 +955,77 @@
  
      vbo->bindArrays();
  
@@ -482,21 +485,20 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +            }
 +            if (blurInfo.wavesFramebuffer && blurInfo.wavesFramebuffer->valid()) {
 +                // as RunCommand.qml works them out each frame: how far each wave has come and its
-+                // half-width; how much of it is left with age, and the exponent that puts the side's flex
-+                // peak at the knock
++                // half-width; how much of it is left with age, half the stretch it strikes, its ringing
++                // and its profile's steepest slope
 +                const RectF window = w->frameGeometry();
 +                GLfloat knocks[8][4] = {};
 +                GLfloat shapes[8][4] = {};
 +                for (size_t i = 0; i < blurInfo.knocks.size(); ++i) {
 +                    const LiquidGlassKnock &knock = blurInfo.knocks[i];
 +                    const double age = now - knock.born;
-+                    const double along = std::clamp(knock.at / (knock.side < 2 ? window.height() : window.width()), 0.02, 0.98);
 +                    knocks[i][0] = knock.side;
 +                    knocks[i][1] = knock.at;
 +                    knocks[i][2] = knock.speed * age;
 +                    knocks[i][3] = knock.bump + knock.spread * age;
 +                    shapes[i][0] = std::exp(-age / knock.damping) * smoothStep(0, 0.05, age) * (1 - smoothStep(0.8 * knock.life, knock.life, age));
-+                    shapes[i][1] = std::log(0.5) / std::log(along);
++                    shapes[i][1] = knock.strike / 2;
 +                    shapes[i][2] = knock.ring;
 +                    shapes[i][3] = knock.norm;
 +                }
@@ -515,6 +517,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +                m_ripplePass.shader->setUniform(m_ripplePass.areaLocation, QVector2D(backgroundRect.width(), backgroundRect.height()));
 +                m_ripplePass.shader->setUniform(m_ripplePass.steepLocation, float(latest.steep));
 +                m_ripplePass.shader->setUniform(m_ripplePass.edgeLocation, float(latest.edge));
++                m_ripplePass.shader->setUniform(m_ripplePass.standoffLocation, float(latest.standoff));
 +                glUniform4fv(m_ripplePass.knocksLocation, 8, &knocks[0][0]);
 +                glUniform4fv(m_ripplePass.shapesLocation, 8, &shapes[0][0]);
 +
@@ -531,7 +534,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      // The downsample pass of the dual Kawase algorithm: the background will be scaled down 50% every iteration.
      {
          ShaderManager::instance()->pushShader(m_downsamplePass.shader.get());
-@@ -750,7 +1031,7 @@
+@@ -750,7 +1034,7 @@
          projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
  
          m_downsamplePass.shader->setUniform(m_downsamplePass.mvpMatrixLocation, projectionMatrix);
@@ -540,7 +543,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
          for (size_t i = 1; i < renderInfo.framebuffers.size(); ++i) {
              const auto &read = renderInfo.framebuffers[i - 1];
-@@ -777,7 +1058,7 @@
+@@ -777,7 +1061,7 @@
          projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
  
          m_upsamplePass.shader->setUniform(m_upsamplePass.mvpMatrixLocation, projectionMatrix);
@@ -549,7 +552,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
          for (size_t i = renderInfo.framebuffers.size() - 1; i > 1; --i) {
              GLFramebuffer::popFramebuffer();
-@@ -824,7 +1105,7 @@
+@@ -824,7 +1108,7 @@
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.mvpMatrixLocation, projectionMatrix);
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.colorMatrixLocation, m_colorMatrix);
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.halfpixelLocation, halfpixel);
@@ -558,7 +561,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.boxLocation, QVector4D(nativeBox.horizontalCenter(), nativeBox.verticalCenter(), nativeBox.width() * 0.5, nativeBox.height() * 0.5));
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.cornerRadiusLocation, nativeCornerRadius.toVector());
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.opacityLocation, modulation);
-@@ -839,6 +1120,60 @@
+@@ -839,6 +1123,60 @@
          glDisable(GL_BLEND);
  
          ShaderManager::instance()->popShader();
@@ -619,7 +622,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      } else {
          ShaderManager::instance()->pushShader(m_onscreenPass.shader.get());
  
-@@ -854,7 +1189,7 @@
+@@ -854,7 +1192,7 @@
          m_onscreenPass.shader->setUniform(m_onscreenPass.mvpMatrixLocation, projectionMatrix);
          m_onscreenPass.shader->setUniform(m_onscreenPass.colorMatrixLocation, m_colorMatrix);
          m_onscreenPass.shader->setUniform(m_onscreenPass.halfpixelLocation, halfpixel);
@@ -643,7 +646,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  #include <unordered_map>
  
  namespace KWin
-@@ -28,6 +31,25 @@
+@@ -28,6 +31,27 @@
      std::vector<std::unique_ptr<GLFramebuffer>> framebuffers;
  };
  
@@ -664,12 +667,14 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
 +    double ring; // half-widths over which the ringing behind its crest fades by e
 +    double norm; // the steepest slope of its profile (with that ringing), which steep stands for
 +    double edge; // px: heading into the rim, it fades over about twice this
++    double standoff; // px in from the rim where that fade is
++    double strike; // px: the stretch of the side it strikes at once
 +};
 +
  struct BlurEffectData
  {
      /// The region that should be blurred behind the window
-@@ -43,9 +65,14 @@
+@@ -43,9 +67,14 @@
      std::unordered_map<RenderView *, BlurRenderData> render;
  
      std::unique_ptr<BackgroundEffectItem> blurItem;
@@ -685,7 +690,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  {
      Q_OBJECT
  
-@@ -81,6 +108,11 @@
+@@ -81,6 +110,11 @@
  #endif
      void setupDecorationConnections(EffectWindow *w);
  
@@ -697,7 +702,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  private:
      void initBlurStrengthValues();
      RegionF blurRegion(EffectWindow *w) const;
-@@ -90,6 +122,7 @@
+@@ -90,6 +124,7 @@
      void updateBlurRegion(EffectWindow *w);
      void blur(const RenderTarget &renderTarget, const RenderViewport &viewport, EffectWindow *w, int mask, const Region &deviceRegion, WindowPaintData &data);
      GLTexture *ensureNoiseTexture();
@@ -705,7 +710,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  
  private:
      struct
-@@ -113,6 +146,48 @@
+@@ -113,6 +148,49 @@
          int opacityLocation;
      } m_roundedOnscreenPass;
  
@@ -738,6 +743,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
 +        int shapesLocation;
 +        int steepLocation;
 +        int edgeLocation;
++        int standoffLocation;
 +    } m_ripplePass;
 +    void loadLiquidGlassSettings();
 +    QString m_plasmarc; // the Plasma style is set in there
@@ -882,7 +888,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/onscre
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple.frag b/src/plugins/blur/shaders/ripple.frag
 --- a/src/plugins/blur/shaders/ripple.frag
 +++ b/src/plugins/blur/shaders/ripple.frag
-@@ -0,0 +1,139 @@
+@@ -0,0 +1,142 @@
 +#version 140
 +
 +// The waves of KRunner's busy ripple (plasma-glass), worked out again here so the glass bends what's
@@ -896,13 +902,14 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple
 +uniform vec2 origin; // the background's top left in the window
 +uniform vec2 area;   // the background's size
 +// per knock: side (0 left, 1 right, 2 top, 3 bottom), px along it, how far its wave has come (px), the
-+// wave's half-width (px); and how much of the wave is left with age (0: none), the exponent that puts the
-+// side's flex peak at the knock, the half-widths over which its ringing fades by e, and its profile's
-+// steepest slope with that ringing
++// wave's half-width (px); and how much of the wave is left with age (0: none), half the stretch of the
++// side it strikes (px), the half-widths over which its ringing fades by e, and its profile's steepest
++// slope with that ringing
 +uniform vec4 knocks[8];
 +uniform vec4 shapes[8];
-+uniform float steep; // steepest slope of a fresh wave
-+uniform float edge;  // px: a wave heading into the rim fades over about twice this
++uniform float steep;    // steepest slope of a fresh wave
++uniform float edge;     // px: a wave heading into the rim fades over about twice this
++uniform float standoff; // px in from the rim where that fade is
 +
 +in vec2 uv;
 +
@@ -930,10 +937,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple
 +    return vec2(e * cos(ph), -(de * cos(ph) - e * sin(ph) * dph)); // per x: minus the slope per u
 +}
 +
-+// One knock's wave at p: adds its slope and height. The flex starts on a 1 px stretch at once and slows
-+// down over 30 px to the waves' speed (its time per px rises as a smoothstep), so the wave leaves as a
-+// short, rounded front. `die`: how much of a wave heading for the nearest rim is left at p; `toRim`: the
-+// way to that rim.
++// One knock's wave at p: adds its slope and height. The flex starts at once on the stretch the knock
++// strikes (shape.y px either side of it; 0.5 strikes 1 px) and slows down beyond it over 30 px to the
++// waves' speed (its time per px rises as a smoothstep), so the wave leaves as a short, rounded front, flat
++// across the stretch struck. `die`: how much of a wave heading for the nearest rim is left at p; `toRim`:
++// the way to that rim.
 +void knock(vec2 p, vec4 k, vec4 shape, float die, vec2 toRim, inout vec2 slope, inout float height)
 +{
 +    if (shape.x <= 0.0)
@@ -967,8 +975,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple
 +    // Past the 30 px where the flex slows down it moves as fast as the waves, so no later start is shorter:
 +    // the search only spans those 30 px, and 4 halvings do (an error there changes `from` only to second
 +    // order).
-+    const float w = 0.5;  // half the stretch that moves at once (px)
-+    const float L = 30.0; // px over which the flex slows down to the waves' speed
++    float w = max(shape.y, 0.5); // half the stretch that moves at once (px)
++    const float L = 30.0;        // px over which the flex slows down to the waves' speed
 +    float from = n;       // how far the wave has come
 +    vec2 dir = inward;    // and its direction at p
 +    if (a > w) {
@@ -991,7 +999,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple
 +        dir = (n * inward + sign(s - k.y) * dd * along) / max(r, 1e-3);
 +    }
 +    // how strongly the side moves there: sin^2 of a warped position that puts its peak at the knock
-+    float flex = sin(3.14159265 * pow(clamp(s / len, 0.0, 1.0), shape.y));
++    float flex = sin(3.14159265 * pow(clamp(s / len, 0.0, 1.0), log(0.5) / log(clamp(k.y / len, 0.02, 0.98))));
 +    float fade = flex * flex * shape.x * mix(1.0, die, smoothstep(-0.3, 0.3, dot(dir, toRim)));
 +    vec2 shape_ = profile((from - front) / wb, shape.z);
 +    slope += steep * fade * (shape_.y / shape.w) * dir; // its steepest is a fresh wave's steepest
@@ -1003,12 +1011,13 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple
 +    // the background is drawn with v from 1 at its top, as the blur's passes are
 +    vec2 p = origin + vec2(uv.x, 1.0 - uv.y) * area;
 +    vec4 dist = vec4(p.x, size.x - p.x, p.y, size.y - p.y); // to the left, right, top, bottom edge
-+    // a wave heading into the rim runs on across the bevel and fades out only at the very edge: at an edge
-+    // of 3, half of it is left 3 px from the rim, 90% 6 px in (from 15 px in, all of it)
++    // a wave heading into the rim fades out over about twice edge px, standoff px in from it: at the
++    // defaults (3, 0) it runs on across the bevel and fades only at the very edge, half of it left 3 px
++    // from the rim, 90% 6 px in, all of it from 15 px in
 +    float die = 1.0;
 +    vec2 toRim = vec2(0.0);
-+    if (min(min(dist.x, dist.y), min(dist.z, dist.w)) < 5.0 * edge) {
-+        vec4 ed = exp(-dist / edge);
++    if (min(min(dist.x, dist.y), min(dist.z, dist.w)) < standoff + 5.0 * edge) {
++        vec4 ed = exp(-max(dist - standoff, 0.0) / edge);
 +        float near = ed.x + ed.y + ed.z + ed.w;
 +        die = exp(-(near * near) / (0.45 * 0.45));
 +        vec4 e = exp(-dist / 20.0);

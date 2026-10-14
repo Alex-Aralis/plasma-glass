@@ -111,8 +111,9 @@ tools/preview/krunner.sh /tmp/krunner.png "some query"
 
 "Liquid Glass Tuning" (`plasma-glass-tune`, in the start menu or KRunner) has a slider for each of
 the busy ripple's settings and the dark glass's: wave speed, width, widening, damping, lifetime,
-the time between knocks, amplitude, colour split, ringing and edge fade; the side the knocks land
-on and where along it; and the glass's frost, bevel width, refraction, colour split and sharpness.
+the time between knocks, amplitude, colour split, ringing, edge fade and how far in from the rim that
+fade sits; the side the knocks land on, where along it and how much of it each one strikes; and the
+glass's frost, bevel width, refraction, colour split and sharpness.
 Changes apply as you drag: KRunner takes them with its next knock, KWin at once. While the window
 is open, KRunner keeps its ripple running and stays open when you click elsewhere, so open KRunner
 (Meta+Space) beside it and tune. Each row has a button back to its default, and "Reset All" resets
@@ -133,8 +134,10 @@ lines; the tuning window rewrites the file as you move its sliders):
 | | `aberration` | 3 | px the colours part each way where a wave leans fully |
 | | `ringing` | 1.7 | half-widths over which the ripples behind a crest fade by e |
 | | `edgeFade` | 3 | px; heading into the rim, a wave fades over about twice this |
+| | `standoff` | 0 | px in from the rim where that fade sits (the bevel's width: where it starts) |
 | | `side` | left | `left`, `right`, `top` or `bottom` |
 | | `position` | 0.333 | how far along that side the knocks land once results show |
+| | `strike` | 1 | px of the side each knock strikes at once; wider starts a flatter front |
 | `[Glass]` | `frost` | 2 | blur strength 1-15, never more than KWin's Blur setting |
 | | `bevelWidth` | 24 | px |
 | | `refraction` | 9 | px |

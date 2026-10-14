@@ -215,7 +215,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunne
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -16,11 +16,294 @@
+@@ -16,11 +16,297 @@
  import org.kde.milou as Milou
  import org.kde.krunner.private.view
  import org.kde.kirigami as Kirigami
@@ -364,8 +364,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        // that ringing, which a fresh wave's steepest stands for
 +        readonly property real ringing: Math.min(Math.max(0.3, tunedNumber("ringing", 1.7)), 6)
 +        readonly property real slopeNorm: steepest(ringing)
-+        // px: heading into the rim, a wave fades over about twice this
++        // px: heading into the rim, a wave fades over about twice this, this far in from it
 +        readonly property real edgeFade: Math.max(0.5, tunedNumber("edgeFade", 3))
++        readonly property real edgeStandoff: Math.max(0, tunedNumber("standoff", 0))
++        // px: the stretch of the side a knock strikes at once (wider, and the wave starts flatter)
++        readonly property real strike: Math.max(1, tunedNumber("strike", 1))
 +        // where the knocks land: on the left side (or right, top, bottom), beside the query while the window
 +        // shows only that and, once results show, this far down the glass (never above the query); along the
 +        // top or bottom, this far across
@@ -410,7 +413,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +                // each knock keeps the settings it landed with, here and in KWin, so changing them doesn't jolt
 +                // the waves under way
 +                const wave = {speed, bump, spread, damping, life, steep, lean: amplitude, dispersion: aberration,
-+                              ring: ringing, norm: slopeNorm, edge: edgeFade};
++                              ring: ringing, norm: slopeNorm, edge: edgeFade, standoff: edgeStandoff, strike};
 +                list.push(Object.assign({side: knockSide, at, born: clock}, wave));
 +                // the same wave bends what's behind the glass, which only KWin has (plasma-glass's KWin patch)
 +                root.runnerWindow.knock(clock, knockSide, at, wave);
@@ -418,8 +421,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +            }
 +            knocks = list;
 +            // what's the same for every pixel, worked out here once a frame: how far each wave has come and
-+            // its half-width; how much of it is left with age, the exponent that puts the side's flex peak at
-+            // the knock, its ringing and its profile's steepest slope
++            // its half-width; how much of it is left with age, half the stretch it strikes, its ringing and
++            // its profile's steepest slope
 +            const smooth = (a, b, x) => {
 +                const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
 +                return t * t * (3 - 2 * t);
@@ -427,9 +430,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +            const kv = list.slice(-8).map(k => Qt.vector4d(k.side, k.at, k.speed * (clock - k.born), k.bump + k.spread * (clock - k.born)));
 +            const sh = list.slice(-8).map(k => {
 +                const age = clock - k.born;
-+                const along = Math.min(0.98, Math.max(0.02, k.at / (k.side < 2 ? height : width)));
 +                return Qt.vector4d(Math.exp(-age / k.damping) * smooth(0, 0.05, age) * (1 - smooth(0.8 * k.life, k.life, age)),
-+                                   Math.log(0.5) / Math.log(along), k.ring, k.norm);
++                                   k.strike / 2, k.ring, k.norm);
 +            });
 +            const none = Qt.vector4d(0, 0, 0, 0);
 +            busyWaves.knock0 = kv[0] ?? none; busyWaves.shape0 = sh[0] ?? none;
@@ -466,6 +468,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        property size itemSize: Qt.size(width, height)
 +        property real steep: busyRipple.steep
 +        property real edge: busyRipple.edgeFade
++        property real standoff: busyRipple.edgeStandoff
 +        property vector4d knock0 // set by busyRipple.advance()
 +        property vector4d knock1
 +        property vector4d knock2
@@ -510,7 +513,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
      property string query
      property string singleRunner
      property bool showHistory: false
-@@ -62,6 +345,13 @@
+@@ -62,6 +348,13 @@
      Connections {
          target: root.runnerWindow
          function onVisibleChanged() {
@@ -524,7 +527,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              if (root.runnerWindow.visible) {
                  queryField.forceActiveFocus();
                  listView.currentIndex = -1
-@@ -74,6 +364,8 @@
+@@ -74,6 +367,8 @@
                      }
                  }
              } else {
@@ -533,7 +536,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
                  if (root.runnerWindow.retainPriorSearch) {
                      root.priorSearch = root.query
                  }
-@@ -98,6 +390,7 @@
+@@ -98,6 +393,7 @@
      }
      
      RowLayout {
@@ -541,7 +544,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          Layout.alignment: Qt.AlignTop
          PlasmaComponents3.ToolButton {
              visible: root.runnerWindow.helpEnabled
-@@ -131,14 +424,33 @@
+@@ -131,14 +427,33 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -578,7 +581,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              QQC2.Label {
                  id: fadedTextCompletion
-@@ -157,35 +469,25 @@
+@@ -157,35 +472,25 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -626,7 +629,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              }
  
              function focusCurrentListView() {
-@@ -301,6 +603,7 @@
+@@ -301,6 +606,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -634,7 +637,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -313,12 +616,102 @@
+@@ -313,12 +619,102 @@
          }
      }
  
@@ -740,7 +743,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -327,6 +720,10 @@
+@@ -327,6 +723,10 @@
              queryString: root.query
              queryField: queryField
              singleRunner: root.singleRunner
@@ -751,7 +754,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              Keys.onEscapePressed: {
                  root.runnerWindow.visible = false
-@@ -347,9 +744,18 @@
+@@ -347,9 +747,18 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -771,7 +774,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
          visible: root.query.length === 0 && listView.count > 0
-@@ -358,6 +764,8 @@
+@@ -358,6 +767,8 @@
  
          ListView {
              id: listView // needs this id so the delegate can access it
@@ -910,7 +913,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busyripple.frag b/k
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/krunner/qml/busywaves.frag
 --- a/krunner/qml/busywaves.frag
 +++ b/krunner/qml/busywaves.frag
-@@ -0,0 +1,163 @@
+@@ -0,0 +1,166 @@
 +/*
 +    SPDX-FileCopyrightText: 2026 Alex Aralis
 +
@@ -941,9 +944,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/kr
 +    vec4 knock5;
 +    vec4 knock6;
 +    vec4 knock7;
-+    // and: how much of the wave is left with age (0: none, nothing to add), the exponent that puts the
-+    // side's flex peak at the knock, the half-widths over which its ringing fades by e, and its profile's
-+    // steepest slope with that ringing
++    // and: how much of the wave is left with age (0: none, nothing to add), half the stretch of the side it
++    // strikes (px), the half-widths over which its ringing fades by e, and its profile's steepest slope
++    // with that ringing
 +    vec4 shape0;
 +    vec4 shape1;
 +    vec4 shape2;
@@ -953,7 +956,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/kr
 +    vec4 shape6;
 +    vec4 shape7;
 +    float steep; // steepest slope of a fresh wave
-+    float edge;  // px: a wave heading into the rim fades over about twice this
++    float edge;     // px: a wave heading into the rim fades over about twice this
++    float standoff; // px in from the rim where that fade is
 +};
 +
 +// A wave's profile across its front, x half-widths ahead of its crest (behind it, x < 0), as a knock leaves
@@ -978,10 +982,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/kr
 +    return vec2(e * cos(ph), -(de * cos(ph) - e * sin(ph) * dph)); // per x: minus the slope per u
 +}
 +
-+// One knock's wave at p: adds its slope and height. The flex starts on a 1 px stretch at once and slows
-+// down over 30 px to the waves' speed (its time per px rises as a smoothstep), so the wave leaves as a
-+// short, rounded front. `die`: how much of a wave heading for the nearest rim is left at p; `toRim`: the
-+// way to that rim.
++// One knock's wave at p: adds its slope and height. The flex starts at once on the stretch the knock
++// strikes (shape.y px either side of it; 0.5 strikes 1 px) and slows down beyond it over 30 px to the
++// waves' speed (its time per px rises as a smoothstep), so the wave leaves as a short, rounded front, flat
++// across the stretch struck. `die`: how much of a wave heading for the nearest rim is left at p; `toRim`:
++// the way to that rim.
 +void knock(vec2 p, vec4 k, vec4 shape, float die, vec2 toRim, inout vec2 slope, inout float height)
 +{
 +    if (shape.x <= 0.0)
@@ -1015,8 +1020,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/kr
 +    // Past the 30 px where the flex slows down it moves as fast as the waves, so no later start is shorter:
 +    // the search only spans those 30 px, and 4 halvings do (an error there changes `from` only to second
 +    // order).
-+    const float w = 0.5;  // half the stretch that moves at once (px)
-+    const float L = 30.0; // px over which the flex slows down to the waves' speed
++    float w = max(shape.y, 0.5); // half the stretch that moves at once (px)
++    const float L = 30.0;        // px over which the flex slows down to the waves' speed
 +    float from = n;       // how far the wave has come
 +    vec2 dir = inward;    // and its direction at p
 +    if (a > w) {
@@ -1039,7 +1044,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/kr
 +        dir = (n * inward + sign(s - k.y) * dd * along) / max(r, 1e-3);
 +    }
 +    // how strongly the side moves there: sin^2 of a warped position that puts its peak at the knock
-+    float flex = sin(3.14159265 * pow(clamp(s / len, 0.0, 1.0), shape.y));
++    float flex = sin(3.14159265 * pow(clamp(s / len, 0.0, 1.0), log(0.5) / log(clamp(k.y / len, 0.02, 0.98))));
 +    float fade = flex * flex * shape.x * mix(1.0, die, smoothstep(-0.3, 0.3, dot(dir, toRim)));
 +    vec2 shape_ = profile((from - front) / wb, shape.z);
 +    slope += steep * fade * (shape_.y / shape.w) * dir; // its steepest is a fresh wave's steepest
@@ -1050,12 +1055,13 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/kr
 +{
 +    vec2 p = qt_TexCoord0 * itemSize;
 +    vec4 dist = vec4(p.x, itemSize.x - p.x, p.y, itemSize.y - p.y); // to the left, right, top, bottom edge
-+    // a wave heading into the rim runs on across the bevel and fades out only at the very edge: at an edge
-+    // of 3, half of it is left 3 px from the rim, 90% 6 px in (from 15 px in, all of it)
++    // a wave heading into the rim fades out over about twice edge px, standoff px in from it: at the
++    // defaults (3, 0) it runs on across the bevel and fades only at the very edge, half of it left 3 px
++    // from the rim, 90% 6 px in, all of it from 15 px in
 +    float die = 1.0;
 +    vec2 toRim = vec2(0.0);
-+    if (min(min(dist.x, dist.y), min(dist.z, dist.w)) < 5.0 * edge) {
-+        vec4 ed = exp(-dist / edge);
++    if (min(min(dist.x, dist.y), min(dist.z, dist.w)) < standoff + 5.0 * edge) {
++        vec4 ed = exp(-max(dist - standoff, 0.0) / edge);
 +        float near = ed.x + ed.y + ed.z + ed.w;
 +        die = exp(-(near * near) / (0.45 * 0.45));
 +        vec4 e = exp(-dist / 20.0);

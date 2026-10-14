@@ -214,6 +214,11 @@ Kirigami.ApplicationWindow {
                 key: "Ripple/edgeFade"; fallback: 3; from: 0.5; to: 20; stepSize: 0.5; decimals: 1; unit: "px"
             }
             Hint { text: "Heading into the rim, a wave fades out over about twice this." }
+            Tuner {
+                Kirigami.FormData.label: "Edge standoff:"
+                key: "Ripple/standoff"; fallback: 0; from: 0; to: 60; stepSize: 1; unit: "px"
+            }
+            Hint { text: "How far in from the rim that fade sits: 0 at the rim itself, the bevel's width to fade where the bevel starts." }
 
             Kirigami.Separator {
                 Kirigami.FormData.isSection: true
@@ -236,6 +241,11 @@ Kirigami.ApplicationWindow {
                 key: "Ripple/position"; fallback: 1 / 3; from: 0; to: 1; stepSize: 0.01; percent: true
             }
             Hint { text: "Left or right: beside the search field while the dropdown is collapsed, and this far down once results show (never above the search field). Top or bottom: this far across." }
+            Tuner {
+                Kirigami.FormData.label: "Strike width:"
+                key: "Ripple/strike"; fallback: 1; from: 1; to: 300; stepSize: 1; unit: "px"
+            }
+            Hint { text: "How much of the side each knock hits at once; wider, and the wave starts as a flatter front." }
 
             Kirigami.Separator {
                 Kirigami.FormData.isSection: true
