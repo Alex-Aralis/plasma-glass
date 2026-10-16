@@ -598,11 +598,13 @@ docs are in README.md; this file covers how to work on it.
   height 356 times in 2.5 min, folding shut and unfolding every 0.2-0.5 s. The window followed only
   changes of the content's implicitHeight, so after it was hidden mid-fold (clicked away) it reopened at
   the height it had; `View::fitContent()` now also runs as it shows (and calls `update()`: a layer-shell
-  size only applies with a commit). The dropdown unfolds at once but folds only after its results have
-  stayed fewer for 200 ms (`foldLater`, compared against `targetHeight`, as shownHeight reads as its
-  Behavior animates); type-and-delete in the preview then folded once, where it had folded, reopened and
-  folded. `foldLater` is outside the ScrollView: inside it, a QQC2 ScrollView takes it for content and the
-  list stopped being its scrolling area (an empty window as tall as the screen allowed).
+  size only applies with a commit). Tried and taken out the same day: unfolding at once but folding only
+  after the results had stayed fewer for 200 ms (`foldLater`). The rows go the moment the query empties,
+  so the empty glass then waited before folding ("the entire list is disappearing the moment the dropdown
+  starts closing"), and the list's height estimate overshoots while its rows are made, which then stayed
+  ("it increases in size beyond the size of the list"). The flicker from typing and deleting fast is the
+  dropdown following its results, as it always has. (A Timer inside the QQC2 ScrollView broke it: it takes
+  its children for content, and the list stopped being its scrolling area; keep such things outside.)
   `tools/preview/krunner.sh` takes `HOLD` (s before HOVER_INPUT and the screenshot, default 8), used to
   script open/close cycles over the preview's bus as a `KRUNNER` wrapper.
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and

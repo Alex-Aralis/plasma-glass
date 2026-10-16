@@ -850,7 +850,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -313,12 +832,122 @@
+@@ -313,12 +832,102 @@
          }
      }
  
@@ -914,14 +914,6 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        }
 +    }
 +
-+    // resultsScrollView's fold, a moment after its results got fewer (outside it: a ScrollView takes its
-+    // children for content, and a second one stopped the list from being its scrolling area)
-+    Timer {
-+        id: foldLater
-+        interval: 200
-+        onTriggered: resultsScrollView.shownHeight = resultsScrollView.targetHeight = resultsScrollView.fullHeight
-+    }
-+
      PlasmaComponents3.ScrollView {
 -        visible: results.count > 0
 -        enabled: visible
@@ -939,22 +931,10 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        // from nothing as results arrive, eases as their number changes and folds away when they go.
 +        readonly property real fullHeight: results.count > 0 ? Math.max(listView.contentHeight, results.contentHeight) : 0
 +        property real shownHeight: 0
-+        property real targetHeight: 0 // where shownHeight is heading (it reads as the animation goes)
-+        // It unfolds at once and folds only once the results have stayed fewer for a moment: typing fast and
-+        // deleting, the query emptied and filled again every few tenths of a second, and the dropdown folded
-+        // shut and unfolded again each time (the user: "flickering between open and closed")
-+        onFullHeightChanged: {
-+            if (fullHeight >= targetHeight) {
-+                foldLater.stop();
-+                shownHeight = targetHeight = fullHeight;
-+            } else {
-+                foldLater.restart();
-+            }
-+        }
++        onFullHeightChanged: shownHeight = fullHeight
 +        function foldShut() {
-+            foldLater.stop();
 +            unfold.enabled = false;
-+            shownHeight = targetHeight = 0;
++            shownHeight = 0;
 +            unfold.enabled = true;
 +        }
 +        Behavior on shownHeight {
@@ -976,7 +956,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -327,6 +956,10 @@
+@@ -327,6 +936,10 @@
              queryString: root.query
              queryField: queryField
              singleRunner: root.singleRunner
@@ -987,7 +967,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              Keys.onEscapePressed: {
                  root.runnerWindow.visible = false
-@@ -347,9 +980,18 @@
+@@ -347,9 +960,18 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -1007,7 +987,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
          visible: root.query.length === 0 && listView.count > 0
-@@ -358,6 +1000,8 @@
+@@ -358,6 +980,8 @@
  
          ListView {
              id: listView // needs this id so the delegate can access it
