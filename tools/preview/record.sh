@@ -15,16 +15,20 @@ OUT=$(realpath -m "${1:?usage: record.sh OUT.mp4 [query]}"); QUERY="${2-system s
 mkdir -p "$WORK"; TOOL_PYTHON=$(pil_python); export TOOL_PYTHON
 prepare
 # HOVER="X Y, X Y, ...": the pointer rests at each spot (screen pixels) for HOVER_HOLD s (default 3)
-# while recording, from the start, to record hover effects
-if [ -n "${HOVER:-}" ]; then
+# while recording, from the start, to record hover effects. INPUT=file: fakeinput commands (fakeinput.c)
+# sent as the recording starts instead, e.g. a Meta+drag of the window (PAD wide enough to keep it in view)
+if [ -n "${INPUT:-}" ]; then
+    FAKEINPUT=$(fakeinput); HOVER_INPUT=$(realpath "$INPUT"); export FAKEINPUT HOVER_INPUT
+elif [ -n "${HOVER:-}" ]; then
     FAKEINPUT=$(fakeinput); HOVER_INPUT="$WORK/hover.in"; export FAKEINPUT HOVER_INPUT
     echo "$HOVER" | tr ',' '\n' | while read -r x y; do
         printf 'move %s %s\nwait 50\nby 1 0\nwait %s\n' "$x" "$y" "$(awk "BEGIN{print ${HOVER_HOLD:-3}*1000-50}")"
     done >"$HOVER_INPUT"
 fi
-# KRunner centred at a fixed spot, whatever your own krunnerrc says
+# KRunner centred at a fixed spot, whatever your own krunnerrc says (TOP: its top edge, a share of the
+# screen's height)
 kwriteconfig6 --file "$WORK/cfg/krunnerrc" --group General --key FloatingCenterX 0.5
-kwriteconfig6 --file "$WORK/cfg/krunnerrc" --group General --key FloatingTop 0.2
+kwriteconfig6 --file "$WORK/cfg/krunnerrc" --group General --key FloatingTop "${TOP:-0.2}"
 export KRUNNER_ENV="KRUNNER_BUSY_DEMO=${BUSY:-1} ${KRUNNER_ENV:-}" KWIN_ENV="${KWIN_ENV:-}" \
     REFRESH="${REFRESH:-120000}" SECONDS_CAPTURED="${SECONDS_CAPTURED:-6}"
 rm -f "$WORK/record.mkv"

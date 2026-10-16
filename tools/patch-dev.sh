@@ -249,8 +249,9 @@ build_kwin() {
         echo "$ver" > "$k/version"
     fi
     edited=$(cd "$DEV/b/kwin" && find . -type f | while read -r f; do cmp -s "$f" "$DEV/a/kwin/$f" || echo "${f#./}"; done)
-    for f in $(cat "$k/edited" 2>/dev/null); do
-        echo "$edited" | grep -qx "$f" || cp "$k/base/$f" "$src/$f"
+    for f in $(cat "$k/edited" 2>/dev/null); do  # no longer edited: back as released (or gone, if the patch added it)
+        echo "$edited" | grep -qx "$f" && continue
+        if [ -e "$k/base/$f" ]; then cp "$k/base/$f" "$src/$f"; else rm -f "$src/$f"; fi
     done
     for f in $edited; do cmp -s "$DEV/b/kwin/$f" "$src/$f" || cp "$DEV/b/kwin/$f" "$src/$f"; done
     echo "$edited" > "$k/edited"
