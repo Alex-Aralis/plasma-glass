@@ -529,6 +529,20 @@ docs are in README.md; this file covers how to work on it.
   out: `GPU_QUEUE_THROTTLE` LOW (55 to 39 ms CPU, but 55 to 76 ms wall). KRunner itself was not it:
   in the preview its CPU over a query and unfold read 870-890 ms with milou from before and after that
   day's changes (a wrapper sampling /proc/PID/stat as `KRUNNER`).
+- **On dark glass KRunner no longer renders while waves live** (2026-10-16, the user: still "lagging a
+  bit" on the laptop on battery, power-saver, CPUs near 1 GHz). The busy ripple's `FrameAnimation`
+  only times the knocks there (KWin draws the waves; busyRipple is hidden), but a running frame
+  animation keeps Qt's render loop going, so KRunner rendered the same frame at the screen's rate and KWin
+  blurred each one anew, for as long as waves lived (13.5 s with the laptop's `[Ripple] lifetime`). Now a
+  `Timer` (`knockTimer`) wakes for the next knock or the oldest wave's end on dark glass, and the frame
+  animation only runs where busyRipple draws (Light with its sheen). Typing "kernel config laptop" in
+  the preview: KRunner rendered 207 frames instead of 755 and used 830 ms of CPU instead of 1,020 (main
+  box); KWin's frames were the same. Measured with `QSG_RENDER_TIMING=1` (render-loop lines in
+  app.log), KWin's `KWIN_LOG_PERFORMANCE_DATA=1` (written to KWin's working directory), and keys typed
+  by fakeinput as `HOVER_INPUT` after `krunner.sh OUT " "` (an empty query means the default one).
+  The laptop's own `plasma-glassrc` is heavy: `[Glass] frost=15`, `bevelWidth=60`, `[Ripple]
+  lifetime=13.5`. The preview runs there too (configs copied as on the main box; no EGL override, it has
+  only the Intel GPU, and its render node is open to claude).
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and
   transformers 5.19 or later. Installing `sentence-transformers[image,audio]` downgraded
   transformers once.

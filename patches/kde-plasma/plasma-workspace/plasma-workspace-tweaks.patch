@@ -215,7 +215,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunne
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -16,11 +16,459 @@
+@@ -16,11 +16,482 @@
  import org.kde.milou as Milou
  import org.kde.krunner.private.view
  import org.kde.kirigami as Kirigami
@@ -538,12 +538,35 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        property real clock: root.runnerWindow.monotonicTime()
 +        property real nextKnock: 0
 +        property var knocks: [] // {side, at, born} and the wave's settings: side 0 is the left one, at px along it
-+        onActiveChanged: if (active && knocks.length === 0) {
-+            nextKnock = root.runnerWindow.monotonicTime(); // knock at once
++        onActiveChanged: if (active) {
++            if (knocks.length === 0) {
++                nextKnock = root.runnerWindow.monotonicTime(); // knock at once
++            }
++            knockTimer.interval = 16; // and don't wait out a long sleep (below)
 +        }
++        // On Liquid Glass Light KRunner draws the waves, so they advance every frame. On dark glass KWin draws
++        // them and KRunner only times the knocks: a frame animation there kept Qt rendering the same frame at
++        // the screen's rate (and KWin blurring each one anew) for as long as waves lived, 5 s of CPU in 25 on
++        // the laptop on battery. A timer wakes it for the next knock, or when the oldest wave has died out.
 +        FrameAnimation {
-+            running: busyRipple.rippling
++            running: busyRipple.rippling && busyRipple.visible
 +            onTriggered: busyRipple.advance()
++        }
++        Timer {
++            id: knockTimer
++            running: busyRipple.rippling && !busyRipple.visible
++            repeat: true
++            interval: 16
++            onRunningChanged: if (running) interval = 16
++            onTriggered: {
++                busyRipple.advance();
++                const now = root.runnerWindow.monotonicTime();
++                let next = busyRipple.active ? busyRipple.nextKnock : Infinity;
++                for (const k of busyRipple.knocks) {
++                    next = Math.min(next, k.born + k.life);
++                }
++                interval = Number.isFinite(next) ? Math.max(16, Math.ceil((next - now) * 1000)) : 16;
++            }
 +        }
 +        function advance(): void {
 +            clock = root.runnerWindow.monotonicTime();
@@ -675,7 +698,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
      property string query
      property string singleRunner
      property bool showHistory: false
-@@ -62,6 +510,13 @@
+@@ -62,6 +533,13 @@
      Connections {
          target: root.runnerWindow
          function onVisibleChanged() {
@@ -689,7 +712,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              if (root.runnerWindow.visible) {
                  queryField.forceActiveFocus();
                  listView.currentIndex = -1
-@@ -74,6 +529,8 @@
+@@ -74,6 +552,8 @@
                      }
                  }
              } else {
@@ -698,7 +721,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
                  if (root.runnerWindow.retainPriorSearch) {
                      root.priorSearch = root.query
                  }
-@@ -98,6 +555,7 @@
+@@ -98,6 +578,7 @@
      }
      
      RowLayout {
@@ -706,7 +729,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          Layout.alignment: Qt.AlignTop
          PlasmaComponents3.ToolButton {
              visible: root.runnerWindow.helpEnabled
-@@ -131,14 +589,33 @@
+@@ -131,14 +612,33 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -743,7 +766,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              QQC2.Label {
                  id: fadedTextCompletion
-@@ -157,35 +634,25 @@
+@@ -157,35 +657,25 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -791,7 +814,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              }
  
              function focusCurrentListView() {
-@@ -301,6 +768,7 @@
+@@ -301,6 +791,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -799,7 +822,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -313,12 +781,102 @@
+@@ -313,12 +804,102 @@
          }
      }
  
@@ -905,7 +928,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -327,6 +885,10 @@
+@@ -327,6 +908,10 @@
              queryString: root.query
              queryField: queryField
              singleRunner: root.singleRunner
@@ -916,7 +939,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              Keys.onEscapePressed: {
                  root.runnerWindow.visible = false
-@@ -347,9 +909,18 @@
+@@ -347,9 +932,18 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -936,7 +959,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
          visible: root.query.length === 0 && listView.count > 0
-@@ -358,6 +929,8 @@
+@@ -358,6 +952,8 @@
  
          ListView {
              id: listView // needs this id so the delegate can access it
