@@ -18,9 +18,17 @@ else
     rm -rf "$DATA/embedsearch" "$CONF/embedsearch"
 fi
 
+# back to Breeze's global themes (the Liquid Glass ones are KDE's default dark and light ones)
+case "$(kreadconfig6 --file kdeglobals --group KDE --key LookAndFeelPackage)" in
+    plasma-glass.liquid-glass-light) plasma-apply-lookandfeel --apply org.kde.breeze.desktop >/dev/null 2>&1 || true ;;
+    plasma-glass.*) plasma-apply-lookandfeel --apply org.kde.breezedark.desktop >/dev/null 2>&1 || true ;;
+esac
+kwriteconfig6 --file kdeglobals --group KDE --key DefaultDarkLookAndFeel --delete
+kwriteconfig6 --file kdeglobals --group KDE --key DefaultLightLookAndFeel --delete
 case "$(kreadconfig6 --file plasmarc --group Theme --key name)" in
     liquid-glass*) plasma-apply-desktoptheme default ;;
 esac
+rm -rf "$DATA/plasma/look-and-feel/plasma-glass.liquid-glass" "$DATA/plasma/look-and-feel/plasma-glass.liquid-glass-light"
 rm -f "$HOME/.local/bin/plasma-glass-test-notifications" "$DATA/applications/plasma-glass-test-notifications.desktop"
 rm -f "$HOME/.local/bin/plasma-glass-tune" "$DATA/applications/plasma-glass-tune.desktop"
 rm -f "$HOME/.local/bin/plasma-glass-mode" "$DATA/applications/plasma-glass-mode.desktop"

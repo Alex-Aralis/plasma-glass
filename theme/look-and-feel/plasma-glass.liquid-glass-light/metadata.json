@@ -1,0 +1,16 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "plasma-glass"
+            }
+        ],
+        "Category": "",
+        "Description": "Frosted light glass: the Liquid Glass Light Plasma Style over Breeze Light",
+        "Id": "plasma-glass.liquid-glass-light",
+        "License": "GPLv2+",
+        "Name": "Liquid Glass Light",
+        "Website": "https://github.com/Alex-Aralis/plasma-glass"
+    }
+}

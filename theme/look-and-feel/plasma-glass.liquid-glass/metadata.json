@@ -1,0 +1,16 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "plasma-glass"
+            }
+        ],
+        "Category": "",
+        "Description": "Dark glass: the Liquid Glass Plasma Style over Breeze Dark (KWin bends what's behind it, with the plasma-glass patch)",
+        "Id": "plasma-glass.liquid-glass",
+        "License": "GPLv2+",
+        "Name": "Liquid Glass",
+        "Website": "https://github.com/Alex-Aralis/plasma-glass"
+    }
+}

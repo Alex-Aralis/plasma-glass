@@ -125,6 +125,16 @@ if [ "$DO_STYLE" = 1 ]; then
     esac
     rm -f "${XDG_CACHE_HOME:-$HOME/.cache}"/plasma_theme_liquid-glass*.kcache
     plasma-apply-desktoptheme "$STYLE"
+    # Liquid Glass and Liquid Glass Light as global themes, and KDE's default dark and light ones: its Dark
+    # Mode switch (the tray's Brightness and Color, Quick Settings) applies those, and with Breeze's it put
+    # the Plasma Style back to Breeze. Only the style is applied here, so your colours stay as they are.
+    for package in "$REPO"/theme/look-and-feel/*/; do
+        dest="$DATA/plasma/look-and-feel/$(basename "$package")"
+        rm -rf "${dest:?}" && mkdir -p "$DATA/plasma/look-and-feel" && cp -r "$package" "$dest"
+    done
+    kwriteconfig6 --file kdeglobals --group KDE --key DefaultDarkLookAndFeel plasma-glass.liquid-glass
+    kwriteconfig6 --file kdeglobals --group KDE --key DefaultLightLookAndFeel plasma-glass.liquid-glass-light
+    kwriteconfig6 --file kdeglobals --group KDE --key LookAndFeelPackage "plasma-glass.$STYLE"
     # "Test Notifications" launcher (KRunner / start menu; right-click for single kinds) to check popups
     install -D -m 755 "$REPO/desktop/test-notifications.sh" "$HOME/.local/bin/plasma-glass-test-notifications"
     mkdir -p "$DATA/applications"
@@ -137,7 +147,7 @@ if [ "$DO_STYLE" = 1 ]; then
     chmod +x "$HOME/.local/bin/plasma-glass-tune"
     sed "s|@BIN@|$HOME/.local/bin/plasma-glass-tune|g" "$REPO/desktop/plasma-glass-tune.desktop.in" \
         > "$DATA/applications/plasma-glass-tune.desktop"
-    # "Toggle Dark/Light Mode": Liquid Glass or Liquid Glass Light, with matching colours and icons
+    # "Toggle Dark/Light Mode": the Liquid Glass or Liquid Glass Light global theme
     install -D -m 755 "$REPO/desktop/plasma-glass-mode.sh" "$HOME/.local/bin/plasma-glass-mode"
     sed "s|@BIN@|$HOME/.local/bin/plasma-glass-mode|g" "$REPO/desktop/plasma-glass-mode.desktop.in" \
         > "$DATA/applications/plasma-glass-mode.desktop"

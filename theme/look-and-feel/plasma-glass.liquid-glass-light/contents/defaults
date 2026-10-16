@@ -1,0 +1,24 @@
+# Breeze's defaults with the Liquid Glass Plasma Style, so that switching between dark and light
+# (the tray's Dark Mode switch, Quick Settings, plasma-glass-mode) keeps the glass. No [Wallpaper]: switching
+# leaves the wallpaper alone. No layouts: it never touches panels or widgets.
+[kdeglobals][KDE]
+widgetStyle=Breeze
+
+[kdeglobals][General]
+ColorScheme=BreezeLight
+
+[kdeglobals][Icons]
+Theme=breeze
+
+[plasmarc][Theme]
+name=liquid-glass-light
+
+[kcminputrc][Mouse]
+cursorTheme=breeze_cursors
+
+[kwinrc][org.kde.kdecoration2]
+library=org.kde.breeze
+theme=Breeze
+
+[ksplashrc][KSplash]
+Theme=org.kde.breeze.desktop

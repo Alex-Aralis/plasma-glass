@@ -543,6 +543,23 @@ docs are in README.md; this file covers how to work on it.
   The laptop's own `plasma-glassrc` is heavy: `[Glass] frost=15`, `bevelWidth=60`, `[Ripple]
   lifetime=13.5`. The preview runs there too (configs copied as on the main box; no EGL override, it has
   only the Intel GPU, and its render node is open to claude).
+- **KDE's Dark Mode switch put the Plasma Style back to Breeze** (2026-10-16, the user: "i used the light
+  mode switch on the UI and it somehow messed up my theme on the desktop"). The tray's Brightness and
+  Color applet has a Dark Mode switch (`DarkModeControl` in libbrightnesscontrolplugin; Quick Settings and
+  the lookandfeel kded read the same keys) that applies the global theme named by `kdeglobals [KDE]
+  DefaultDarkLookAndFeel` / `DefaultLightLookAndFeel`, Breeze Dark and Breeze by default, whose
+  `[plasmarc][Theme] name=default`. Applying one writes its defaults to `~/.config/kdedefaults/` (in
+  every Plasma process's `XDG_CONFIG_DIRS`) and removes the user's own entries, so `plasmarc` went empty and
+  the style fell to Breeze. It happened 10-15 06:42-06:43 (two xsettingsd reloads, `kdedefaults/package`
+  and `kdeglobals` written) and only showed at the next login, 10-16 14:03: the running plasmashell kept
+  its style. Now `theme/look-and-feel/` has two global themes, `plasma-glass.liquid-glass{,-light}`
+  (Breeze's defaults with our style, no wallpaper or layout), install.sh installs them and makes them the
+  default dark and light ones, and plasma-glass-mode applies them (`plasma-apply-lookandfeel`) instead of
+  setting style, colours and icons one by one. Applying rewrites `~/.config/plasmarc` too, so KWin's
+  KDirWatch on it still fires, and it reads the inherited value through KConfig. Tested in a sandbox
+  (`env -i` with scratch `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CONFIG_DIRS=<scratch>/kdedefaults`,
+  `QT_QPA_PLATFORM=offscreen`, `dbus-run-session`): both listed, each applies style, colours, icons and
+  package, and an explicit `plasmarc` entry gives way.
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and
   transformers 5.19 or later. Installing `sentence-transformers[image,audio]` downgraded
   transformers once.
