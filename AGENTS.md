@@ -502,6 +502,14 @@ docs are in README.md; this file covers how to work on it.
   /home/aaralis/... rather than ~/... . To get real results in the preview as claude, register a D-Bus
   service for `local.embedsearch` in ~claude/.local/share/dbus-1/services running a copy of the service
   with `HOME=/home/aaralis`, and copy `embedsearch.desktop` to ~claude/.local/share/krunner/dbusplugins.
+- **/etc is indexed** (2026-10-16, the user wanted system files; of /etc, ~/.config, /usr/src and /usr
+  they picked /etc). `text_folders` (default `["/etc"]`) indexes every text file's text there whatever
+  its extension. `extract_text` returns nothing for a file with a NUL in its first 8 KB, and in a text
+  folder `looks_like_data()` drops text that's mostly runs over 40 characters (`/etc/ssh/moduli`, 674 kB
+  of hex; the ~300 certificates). Files only root can read (32 on the main box) are logged as skipped
+  once and found by name. On the main box /etc added 763 text files, 1.6 MB of text, 1,977 chunks, about
+  4 minutes on the CPU. A user's existing config.toml lists its folders, so adding /etc to the defaults
+  doesn't reach it: add `"/etc"` to `folders` there.
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and
   transformers 5.19 or later. Installing `sentence-transformers[image,audio]` downgraded
   transformers once.
