@@ -560,6 +560,21 @@ docs are in README.md; this file covers how to work on it.
   (`env -i` with scratch `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CONFIG_DIRS=<scratch>/kdedefaults`,
   `QT_QPA_PLATFORM=offscreen`, `dbus-run-session`): both listed, each applies style, colours, icons and
   package, and an explicit `plasmarc` entry gives way.
+- **KRunner ran in background.slice** (2026-10-16, the user: the dropdown "at about 20fps" on the laptop,
+  worse in power-saver, with "a 300ms lag after first key press"). Plasma's `plasma-krunner.service` has
+  `Slice=background.slice`, CPU weight 30 against app.slice's 100, and Claude Desktop ran at nice -8 beside
+  Firefox playing media; in power-saver (CPUs near 1 GHz) KRunner lost the CPU exactly while drawing. The
+  preview never showed it (no load there): KRunner's frames were even there in power-saver, and its rows
+  cost the same with the morning's milou, the day's, and `reuseItems` (150 ms of polish over a typed
+  query), so the timer change and the row changes weren't it. Measured in the real session with a
+  temporary drop-in (`Environment=QSG_RENDER_TIMING=1 "QT_MESSAGE_PATTERN=%{time boot} %{message}"`,
+  the user typing three queries): before, 34 fps, 40 gaps over 50 ms, polish up to 112 ms, swaps up to
+  44 ms; with install.sh's `plasma-glass-priority.conf` drop-in (`Slice=session.slice`, and `Nice=-5`
+  where `ulimit -e` allows it, or Nice= fails the service), 50 fps, 9 gaps, polish up to 50 ms, no swap
+  over 20 ms. `perf` is on the laptop now (`dev-util/perf -gtk` in package.use); a system-wide record
+  (`perf record -a -F 199`) is what showed KRunner at 0.8% of the CPU beside the apps. Profiling the
+  preview at 150 fps capture (unfold.sh) misleads here: the capture itself is the biggest load, and its
+  stalls were its own.
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and
   transformers 5.19 or later. Installing `sentence-transformers[image,audio]` downgraded
   transformers once.

@@ -178,6 +178,14 @@ if [ "$DO_SETTINGS" = 1 ]; then
     else
         rm -f "$dropin"
     fi
+    # KRunner is interactive, but Plasma runs it in background.slice (CPU weight 30 against apps' 100):
+    # when apps were busy, in power-saver especially, it got a third of their share and its dropdown fell
+    # to ~20 fps. It runs with the session's own services instead, and a little ahead of apps where the
+    # session may raise priorities (Nice= fails the service where RLIMIT_NICE doesn't allow it).
+    dropin="$CONF/systemd/user/plasma-krunner.service.d/plasma-glass-priority.conf"
+    mkdir -p "$(dirname "$dropin")"
+    printf '# Installed by plasma-glass (install.sh)\n[Service]\nSlice=session.slice\n' > "$dropin"
+    [ "$(ulimit -e 2>/dev/null || echo 0)" -ge 25 ] && printf 'Nice=-5\n' >> "$dropin"
     systemctl --user daemon-reload
 fi
 
