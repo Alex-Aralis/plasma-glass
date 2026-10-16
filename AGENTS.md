@@ -455,6 +455,18 @@ docs are in README.md; this file covers how to work on it.
   animated.
 - **Similarity scores are compressed** (junk about 0.65, real matches about 0.7), so there's no
   junk threshold. Show the top N.
+- **Files are found by name too** (2026-10-16, the user: it "doesn't seem to search/index file paths
+  which makes it difficult to fuzzy search for files"). Two ways: every file in the folders (any type
+  with `all_file_names`, the default) gets a vector of its name and path in the `names` table
+  (`name_prompt()`, "title: NAME | text: Projects/…/NAME"; 626 files in 7 s on the CPU), searched beside
+  the chunks, each file at its best; and `Index.match_names` matches the query's words against the
+  path (relative to home) like fzf: a substring, or the letters in order from a word's start with 3 in
+  4 starting a word or following the one before; every word must match and one of them in the name.
+  Up to 3 of those go first (KRunner relevance 0.9-1). Without the word-start rule "lore" matched
+  `vae·lor-e·state`. Checked on the main box's index: "pragconv", "fso armour", "t14 readme",
+  "embedsearch py", "borrowed shift" put the file first, where meaning alone missed or ranked it
+  lower; queries in words got the same or better (the `.config` files for "kernel config for the
+  laptop"). Match ids are the paths now (no chunk ids).
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and
   transformers 5.19 or later. Installing `sentence-transformers[image,audio]` downgraded
   transformers once.

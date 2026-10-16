@@ -6,7 +6,8 @@ notification cruft trimmed.
 - **Semantic search in KRunner.** [EmbeddingGemma 2](https://huggingface.co/google/embeddinggemma-2)
   (text encoder, 270M) runs on the Intel iGPU through OpenVINO in float16. Your documents are indexed
   in the background, and results appear in KRunner (Meta+Space), about 0.2 s per query. Searching
-  finds files by meaning, not just by name.
+  finds files by meaning, and every file by its name and folders, fuzzily ("pragconv" finds
+  `pragmatic-convalescence.md`, "t14 readme" `hosts/t14/README.md`).
 - **Liquid Glass Plasma Style.** Translucent popups over KWin's blur: 18 px corners, a light rim along
   the top, a soft shadow, glassy search fields, list highlights and scrollbars, and quiet header
   bands in applet popups. Everything else
@@ -55,7 +56,8 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 
 - **Settings:** `~/.config/embedsearch/config.toml` controls the folders, file types, number of
   results and reindex interval. The defaults are `~/Projects`, `~/Documents`, `~/Downloads` and
-  `~/Desktop`, with md, txt, org, rst, tex, pdf, docx, odt and html files. Restart with
+  `~/Desktop`, with md, txt, org, rst, tex, pdf, docx, odt and html files indexed by their text and
+  all other files by name (`all_file_names = false` for only those). Restart with
   `systemctl --user restart embedsearch` after editing.
 - **Terminal:** `embedsearch search "query"` searches from the command line, `embedsearch status`
   shows what's indexed, and `journalctl --user -fu embedsearch` shows indexing progress.
@@ -63,8 +65,10 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
   launcher (KRunner or the app menu), which ends with a notification saying what it indexed. While
   it indexes, KRunner shows a progress bar. Identical text is only embedded once, and renamed copies
   show once in results.
-- **Results:** KRunner always shows the top five. Similarity scores can't reliably separate nonsense
-  from real queries, so there's no cutoff.
+- **Results:** KRunner always shows the top five. Up to three files whose name and path hold every
+  word of the query come first (at least one word in the name; a word can be a substring, or its
+  letters in order from a word's start, as in fzf), then the closest by meaning. Similarity scores
+  can't reliably separate nonsense from real queries, so there's no cutoff.
 
 ## What gets changed
 

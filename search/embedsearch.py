@@ -12,6 +12,7 @@ Settings live in ~/.config/embedsearch/config.toml (created with defaults on fir
 import asyncio
 import hashlib
 import html
+import mimetypes
 import os
 import re
 import signal
@@ -69,8 +70,12 @@ DEFAULT_CONFIG = """\
 # Folders to index (searched recursively; hidden folders are always skipped).
 folders = ["~/Projects", "~/Documents", "~/Downloads", "~/Desktop"]
 
-# File types to index.
+# File types whose text is indexed.
 extensions = ["md", "txt", "org", "rst", "tex", "pdf", "docx", "odt", "html", "htm"]
+
+# Find every file in the folders by its name and path, not just the types above: "glass agents"
+# finds plasma-glass/AGENTS.md, "pragconv" pragmatic-convalescence.md. false: only those types.
+all_file_names = true
 
 # Folder names to skip anywhere in the tree.
 exclude_dirs = ["node_modules", "venv", "__pycache__", "target", "build", "dist", "site-packages"]
@@ -243,6 +248,7 @@ def chunk_text(tok, text, size, overlap):
 
 
 def iter_files(cfg):
+    """(path, whether its text is indexed) for each file that can be found, by its text or its name."""
     for root in cfg["folders"]:
         if not root.is_dir():
             continue
@@ -250,8 +256,14 @@ def iter_files(cfg):
             dirnames[:] = [d for d in dirnames if not d.startswith(".") and d not in cfg["exclude_dirs"]]
             for name in filenames:
                 p = Path(dirpath, name)
-                if p.suffix.lower() in cfg["extensions"] and not name.startswith("."):
-                    yield p
+                text = p.suffix.lower() in cfg["extensions"]
+                if (text or cfg["all_file_names"]) and not name.startswith("."):
+                    yield p, text
+
+
+def name_prompt(path):
+    """What a file's name and path are embedded as, so a query can find it by meaning too."""
+    return f"title: {Path(path).name} | text: {pretty(path).removeprefix('~/')}"
 
 
 # ---------------------------------------------------------------------------- index storage
@@ -273,6 +285,7 @@ def connect():
                                           text TEXT, hash TEXT, vec BLOB);
         CREATE INDEX IF NOT EXISTS chunks_path ON chunks(path);
         CREATE INDEX IF NOT EXISTS chunks_hash ON chunks(hash);
+        CREATE TABLE IF NOT EXISTS names(path TEXT PRIMARY KEY, vec BLOB);
         CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
     """)
     return db
@@ -292,7 +305,7 @@ def update_index(emb, cfg, flush_chunks=64, progress=None):
     """Embed new/changed files, drop deleted ones. Safe to interrupt: progress is committed per batch.
 
     progress, if given, is called with the share of the files done (0-1) while there are any to index,
-    then with None. Returns the numbers of files indexed and removed.
+    then with None. Returns the numbers of files indexed (by text or name) and removed.
     """
     try:
         return _update_index(emb, cfg, flush_chunks, progress or (lambda share: None))
@@ -304,8 +317,12 @@ def update_index(emb, cfg, flush_chunks=64, progress=None):
 def _update_index(emb, cfg, flush_chunks, progress):
     db = connect()
     known = {p: (m, s) for p, m, s in db.execute("SELECT path, mtime, size FROM files")}
-    todo, seen = [], set()
-    for p in iter_files(cfg):
+    known_names = {p for p, in db.execute("SELECT path FROM names")}
+    todo, seen, names = [], set(), set()
+    for p, text in iter_files(cfg):
+        names.add(str(p))
+        if not text:
+            continue
         try:
             st = p.stat()
         except OSError:
@@ -313,16 +330,31 @@ def _update_index(emb, cfg, flush_chunks, progress):
         seen.add(str(p))
         if known.get(str(p)) != (st.st_mtime, st.st_size):
             todo.append((p, st))
-    removed = set(known) - seen
-    if removed:
+    removed, new_names, gone_names = set(known) - seen, sorted(names - known_names), known_names - names
+    if removed or gone_names:
         db.executemany("DELETE FROM chunks WHERE path=?", [(p,) for p in removed])
         db.executemany("DELETE FROM files WHERE path=?", [(p,) for p in removed])
+        db.executemany("DELETE FROM names WHERE path=?", [(p,) for p in gone_names])
         bump_version(db)
         db.commit()
+    indexed, removed_count = len({str(p) for p, _ in todo} | set(new_names)), len(removed | gone_names)
+    if new_names:  # a short prompt each, so even the first run's thousands take seconds
+        log(f"indexing the names of {len(new_names)} new files")
+        if not todo:
+            progress(0.0)
+        for b in range(0, len(new_names), 256):
+            batch = new_names[b : b + 256]
+            vecs = emb.embed([name_prompt(n) for n in batch], batch_size=16, max_tokens=128, pause=wait_while_searching)
+            db.executemany("INSERT OR REPLACE INTO names VALUES(?,?)",
+                           [(n, v.astype(np.float16).tobytes()) for n, v in zip(batch, vecs)])
+            bump_version(db)
+            db.commit()
+            if not todo:
+                progress((b + len(batch)) / len(new_names))
     if not todo:
-        if removed:
-            log(f"removed {len(removed)} deleted files")
-        return 0, len(removed)
+        if new_names or removed_count:
+            log(f"index up to date: {len(new_names)} names indexed, {removed_count} deleted files removed")
+        return indexed, removed_count
     total_chars = 0
     log(f"indexing {len(todo)} new/changed files ({len(removed)} removed) on {emb.device}")
     progress(0.0)
@@ -379,11 +411,68 @@ def _update_index(emb, cfg, flush_chunks, progress):
     flush()
     log(f"index up to date: {len(todo)} files, {total_chars / 1e6:.1f} MB text, "
         f"{n_embedded} chunks embedded in {time.perf_counter() - t0:.0f} s")
-    return len(todo), len(removed)
+    return indexed, removed_count
+
+
+SEPARATORS = set("/-_. ")
+
+
+def word_start(s, i):
+    """Whether a word starts at s[i]: after a separator, or where lower case turns upper or letters digits."""
+    if i == 0:
+        return True
+    a, b = s[i - 1], s[i]
+    return a in SEPARATORS or (a.islower() and b.isupper()) or (a.isalnum() and b.isalnum() and a.isalpha() != b.isalpha())
+
+
+def match_word(word, s, low, name_start):
+    """How well word (lower case) shows in s (low is s lowered), 0-1, and whether that's in the file's name:
+    whole at a word's start 1, inside a word 0.8, or its letters in order from a word's start, fzf-like (0.7
+    when each starts a word or follows the one before, and none if under 3 in 4 do; "lore" isn't in
+    "vaelor-estate"). In the folders it counts 0.85 of that."""
+    best, in_name, i = 0.0, False, low.find(word)
+    while i >= 0:
+        q = (1.0 if word_start(s, i) else 0.8) * (1.0 if i >= name_start else 0.85)
+        if q > best:
+            best, in_name = q, i >= name_start
+        i = low.find(word, i + 1)
+    if best or len(word) < 3:
+        return best, in_name
+    k = -1  # the earliest place the letters end in order, then the latest they start before it (fzf's v1)
+    for c in word:
+        k = low.find(c, k + 1)
+        if k < 0:
+            return 0.0, False
+    pos = []
+    for c in reversed(word):
+        k = low.rfind(c, 0, k + 1)
+        pos.append(k)
+        k -= 1
+    pos.reverse()
+    if not word_start(s, pos[0]):
+        return 0.0, False
+    good = sum(i == 0 or pos[i] == pos[i - 1] + 1 or word_start(s, pos[i]) for i in range(len(pos))) / len(pos)
+    if good < 0.75:
+        return 0.0, False
+    return 0.7 * good * (1.0 if pos[0] >= name_start else 0.85), pos[0] >= name_start
+
+
+def match_name(words, entry):
+    """Score (0-1) of a file whose name or path holds every word, at least one in the name; else 0."""
+    s, low, name_start = entry
+    total, any_in_name = 0.0, False
+    for w in words:
+        q, in_name = match_word(w, s, low, name_start)
+        if not q:
+            return 0.0
+        total += q
+        any_in_name |= in_name
+    return total / len(words) if any_in_name else 0.0
 
 
 class Index:
-    """All chunk vectors in memory for brute-force cosine search; reloads when the DB changes."""
+    """All chunk and name vectors in memory for brute-force cosine search, and every file's path for
+    matching names; reloads when the DB changes."""
 
     def __init__(self):
         self.version = -1
@@ -401,6 +490,7 @@ class Index:
             if v == self.version:
                 return
             rows = db.execute("SELECT id, path, text, hash, vec FROM chunks ORDER BY id").fetchall()
+            names = db.execute("SELECT path, vec FROM names ORDER BY path").fetchall()
             db.close()
             # Fingerprint each file by all of its chunk texts, so renamed copies ("x(1).docx") show once.
             digests = {}
@@ -411,27 +501,60 @@ class Index:
                     if rows else np.zeros((0, DIM), np.float32))
             self.data = ([r[0] for r in rows], [r[1] for r in rows], [r[2] for r in rows], [r[3] for r in rows], vecs,
                          fingerprints)
+            first_chunk = {}
+            for r in rows:
+                first_chunk.setdefault(r[1], r[2])
+            rels = [pretty(n[0]).removeprefix("~/") for n in names]
+            self.names = ([n[0] for n in names], [(r, r.lower(), r.rfind("/") + 1) for r in rels],
+                          np.frombuffer(b"".join(n[1] for n in names), dtype=np.float16).reshape(-1, DIM).astype(np.float32)
+                          if names else np.zeros((0, DIM), np.float32), first_chunk)
             self.version = v
 
     def search(self, qvec, max_results=5, min_score=0.0):
-        """Best chunk per file, files ranked by that chunk's similarity. Copies of the same text show once."""
+        """Best chunk or name per file, files ranked by its similarity. Copies of the same text show once."""
         ids, paths, texts, hashes, vecs, fingerprints = self.data
-        if not ids:
-            return []
-        scores = vecs @ qvec
-        top = np.argsort(-scores)[: max(50, max_results * 20)]
+        name_paths, _, name_vecs, first_chunk = self.names
+        n = max(50, max_results * 20)
+        scores, name_scores = vecs @ qvec, name_vecs @ qvec
+        top = sorted([(float(scores[i]), i, False) for i in np.argsort(-scores)[:n]] +
+                     [(float(name_scores[i]), i, True) for i in np.argsort(-name_scores)[:n]], reverse=True)
         results, seen = [], set()
-        for i in top:
-            if scores[i] < min_score:
+        for score, i, by_name in top:
+            if score < min_score:
                 break
-            fp = fingerprints[paths[i]]
-            if fp in seen or hashes[i] in seen:
+            if by_name:
+                path = name_paths[i]
+                fp, h, text = fingerprints.get(path, path), path, first_chunk.get(path, "")
+            else:
+                path, fp, h, text = paths[i], fingerprints[paths[i]], hashes[i], texts[i]
+            if fp in seen or h in seen or path in seen:
                 continue
-            seen.update((fp, hashes[i]))
-            results.append({"id": ids[i], "path": paths[i], "text": texts[i], "score": float(scores[i])})
+            seen.update((fp, h, path))
+            results.append({"path": path, "text": text, "score": score})
             if len(results) == max_results:
                 break
         return results
+
+    def match_names(self, query, max_results=3):
+        """Files whose name and path hold every word of the query, fuzzily, at least one in the name; best
+        (score 0-1) first, then shorter paths."""
+        words = query.lower().split()
+        if not words:
+            return []
+        name_paths, entries, _, first_chunk = self.names
+        hits = sorted(((q, len(e[0]), i) for i, e in enumerate(entries) if (q := match_name(words, e))),
+                      key=lambda h: (-h[0], h[1]))
+        return [{"path": name_paths[i], "text": first_chunk.get(name_paths[i], ""), "score": q}
+                for q, _, i in hits[:max_results]]
+
+    def find(self, query, qvec, max_results=5, min_score=0.0, max_names=3):
+        """Up to max_names files matched by name first ("by_name"), then the closest by meaning."""
+        names = self.match_names(query, max_names)
+        for r in names:
+            r["by_name"] = True
+        shown = {r["path"] for r in names}
+        return names + [r for r in self.search(qvec, max_results + len(names), min_score)
+                        if r["path"] not in shown][: max(0, max_results - len(names))]
 
 
 def snippet(text, n=140):
@@ -450,6 +573,13 @@ ICONS = {".pdf": "application-pdf", ".md": "text-markdown", ".docx": "x-office-d
          ".odt": "x-office-document", ".html": "text-html", ".htm": "text-html", ".tex": "text-x-tex"}
 
 
+def icon(path):
+    if path.suffix.lower() in ICONS:
+        return ICONS[path.suffix.lower()]
+    mime = mimetypes.guess_type(path.name)[0]
+    return mime.replace("/", "-") if mime else "text-plain"
+
+
 def serve():
     from dbus_fast import Message, Variant
     from dbus_fast.aio import MessageBus
@@ -460,7 +590,7 @@ def serve():
     emb = Embedder(cfg)
     index = Index()
     index.refresh(force=True)
-    log(f"loaded {len(index.data[0])} chunks")
+    log(f"loaded {len(index.data[0])} chunks, {len(index.names[0])} names")
     query_pool = ThreadPoolExecutor(max_workers=1)
 
     class Runner(ServiceInterface):
@@ -505,7 +635,7 @@ def serve():
 
             def work():
                 index.refresh()
-                return index.search(emb.embed_query(query), cfg["max_results"], cfg["min_score"])
+                return index.find(query, emb.embed_query(query), cfg["max_results"], cfg["min_score"])
 
             results = await loop.run_in_executor(query_pool, work)
             LAST_QUERY[0] = time.monotonic()
@@ -513,13 +643,15 @@ def serve():
                 return []
             out = []
             for r in results:
-                mid = str(r["id"])
+                mid = r["path"]
                 self.matches[mid] = r["path"]
                 p = Path(r["path"])
+                folder = pretty(str(p.parent))
                 # 70 = KRunner "High" category relevance, the same as browser history; within a tie,
                 # KRunner orders by the relevance value, where our similarity (~0.6-0.8) usually wins.
-                out.append([mid, p.name, ICONS.get(p.suffix.lower(), "text-plain"), 70, r["score"], {
-                    "subtext": Variant("s", f"{snippet(r['text'])}  —  {pretty(str(p.parent))}"),
+                # Matches by name (0.9-1) go above those by meaning.
+                out.append([mid, p.name, icon(p), 70, 0.9 + 0.1 * r["score"] if r.get("by_name") else r["score"], {
+                    "subtext": Variant("s", f"{snippet(r['text'])}  —  {folder}" if r["text"] else folder),
                     "urls": Variant("as", [p.as_uri()]),
                     "category": Variant("s", "Semantic Search"),
                 }])
@@ -634,15 +766,18 @@ def main():
         index.refresh(force=True)
         q = " ".join(sys.argv[2:])
         t = time.perf_counter()
-        results = index.search(emb.embed_query(q), max_results=10)
-        log(f"{len(index.data[0])} chunks searched in {(time.perf_counter() - t) * 1000:.0f} ms")
+        results = index.find(q, emb.embed_query(q), max_results=10)
+        log(f"{len(index.data[0])} chunks and {len(index.names[0])} names searched"
+            f" in {(time.perf_counter() - t) * 1000:.0f} ms")
         for r in results:
-            print(f"{r['score']:.3f}  {pretty(r['path'])}\n       {snippet(r['text'], 160)}")
+            print(f"{r['score']:.3f}{' name' if r.get('by_name') else '     '}  {pretty(r['path'])}\n"
+                  f"             {snippet(r['text'], 160)}")
     elif cmd == "status":
         db = connect()
         files, chunks = db.execute("SELECT COUNT(*), COALESCE(SUM(chunks), 0) FROM files").fetchone()
         empty = db.execute("SELECT COUNT(*) FROM files WHERE chunks=0").fetchone()[0]
-        print(f"{files} files indexed ({empty} with no extractable text), {chunks} chunks")
+        names = db.execute("SELECT COUNT(*) FROM names").fetchone()[0]
+        print(f"{files} files indexed ({empty} with no extractable text), {chunks} chunks; {names} files by name")
         print(f"index: {DB_PATH} ({DB_PATH.stat().st_size / 1e6:.0f} MB)" if DB_PATH.exists() else "no index yet")
         print(f"config: {CONFIG_PATH}")
     else:
