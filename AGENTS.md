@@ -605,6 +605,13 @@ docs are in README.md; this file covers how to work on it.
   ("it increases in size beyond the size of the list"). The flicker from typing and deleting fast is the
   dropdown following its results, as it always has. (A Timer inside the QQC2 ScrollView broke it: it takes
   its children for content, and the list stopped being its scrolling area; keep such things outside.)
+- **The dropdown unfolds in 350 ms** (2026-10-16, the user: "the fast animation + 60hz is making it feel
+  more choppy than it needs to be"; it looked smoother on the laptop's denser screen). It took Plasma's
+  long duration, 200 ms by default (AnimationDurationFactor unset on both machines): with OutCubic, 12 steps
+  at 60 Hz and the first a quarter of the way. Now `Kirigami.Units.longDuration * 1.75`, still scaled by
+  that factor and off with reduced motion: 21 steps, the first a seventh. Recorded side by side at
+  `REFRESH=60000` with record.sh (`QUERY2` must be non-empty: an empty one counts as none, so a fold can't
+  be recorded that way).
   `tools/preview/krunner.sh` takes `HOLD` (s before HOVER_INPUT and the screenshot, default 8), used to
   script open/close cycles over the preview's bus as a `KRUNNER` wrapper.
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and

@@ -850,7 +850,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -313,12 +832,102 @@
+@@ -313,12 +832,105 @@
          }
      }
  
@@ -937,9 +937,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +            shownHeight = 0;
 +            unfold.enabled = true;
 +        }
++        // 1.75 times Plasma's long duration (350 ms by default): at 200 ms a 60 Hz screen showed it in 12
++        // steps, the first a quarter of the way (the user: "the fast animation + 60hz is making it feel more
++        // choppy than it needs to be"); now 21, the first a seventh
 +        Behavior on shownHeight {
 +            id: unfold
-+            NumberAnimation { duration: Kirigami.Units.longDuration; easing.type: Easing.OutCubic }
++            NumberAnimation { duration: Kirigami.Units.longDuration * 1.75; easing.type: Easing.OutCubic }
 +        }
 +        // the height it's shown at, whichever way it goes (a maximum alone let it snap when the
 +        // results shrank: the list's own height dropped at once)
@@ -956,7 +959,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -327,6 +936,10 @@
+@@ -327,6 +939,10 @@
              queryString: root.query
              queryField: queryField
              singleRunner: root.singleRunner
@@ -967,7 +970,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              Keys.onEscapePressed: {
                  root.runnerWindow.visible = false
-@@ -347,9 +960,18 @@
+@@ -347,9 +963,18 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -987,7 +990,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
          visible: root.query.length === 0 && listView.count > 0
-@@ -358,6 +980,8 @@
+@@ -358,6 +983,8 @@
  
          ListView {
              id: listView // needs this id so the delegate can access it
