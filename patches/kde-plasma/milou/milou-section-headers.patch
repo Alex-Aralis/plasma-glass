@@ -9,8 +9,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
  import QtQuick
  import QtQuick.Layouts
  
-@@ -32,7 +33,8 @@
+@@ -30,9 +31,11 @@
+                                            || (!reversed && ListView.section != ListView.previousSection)
+ 
      property int activeAction: -1
++    readonly property bool showActions: isCurrent && actionsRepeater.count > 0
  
      property string typeText: sectionHasChanged ? ListView.section : ""
 -    property int categoryWidth: Kirigami.Units.gridUnit * 10
@@ -19,12 +22,14 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
  
      required property int index
      required property var model
-@@ -42,6 +44,19 @@
+@@ -42,6 +45,21 @@
  
      displayText: model.display
  
 +    // A file's subtext (where it is) shows on every row, not just the current one, so files can be told
-+    // apart at a glance; hovering the row shows its full path there instead, scrolling if it doesn't fit.
++    // apart at a glance; hovering the row widens it into the file's full folder (filePath without the
++    // name, which the row shows already), panning through what doesn't fit.
++    readonly property string folderPath: filePath.lastIndexOf("/") > 0 ? filePath.slice(0, filePath.lastIndexOf("/")) : "/"
 +    readonly property string filePath: {
 +        const urls = model.urls || [];
 +        const url = urls.length > 0 ? String(urls[0]) : "";
@@ -39,7 +44,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
      Accessible.role: Accessible.ListItem
      Accessible.name: displayLabel.text
      Accessible.description: {
-@@ -131,7 +146,7 @@
+@@ -131,7 +149,7 @@
              anchors.bottomMargin: Kirigami.Units.smallSpacing
              imagePath: "widgets/line"
              elementId: "horizontal-line"
@@ -48,7 +53,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
                       && !resultDelegate.isCurrent
                       && resultDelegate.index !== 0
                       && resultDelegate.ListView.view.currentIndex !== (resultDelegate.index - indexModifier)
-@@ -145,6 +160,7 @@
+@@ -145,6 +163,7 @@
                  verticalCenter: labelWrapper.verticalCenter
              }
              width: resultDelegate.categoryWidth - Kirigami.Units.largeSpacing
@@ -56,7 +61,27 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
              opacity: 0.75
              color: resultDelegate.down ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
              elide: Text.ElideRight
-@@ -177,6 +193,7 @@
+@@ -156,13 +175,17 @@
+ 
+         RowLayout {
+             id: labelLayout
++            // room for the actions slides open as they fade in, so right-aligned text glides aside
+             anchors {
+                 left: parent.left
+                 leftMargin: resultDelegate.categoryWidth
+-                right: actionsRow.visible ? actionsRow.left : parent.right
+-                rightMargin: actionsRow.visible ? Kirigami.Units.smallSpacing : 0
++                right: parent.right
++                rightMargin: resultDelegate.showActions ? actionsRow.width + Kirigami.Units.smallSpacing : 0
+                 verticalCenter: parent.verticalCenter
+             }
++            Behavior on anchors.rightMargin {
++                NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
++            }
+ 
+             Kirigami.Icon {
+                 id: typePixmap
+@@ -177,6 +200,7 @@
  
              PlasmaComponents3.Label {
                  id: displayLabel
@@ -64,7 +89,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
  
                  elide: Text.ElideMiddle
                  wrapMode: model.multiLine ? Text.WordWrap : Text.NoWrap
-@@ -191,7 +208,7 @@
+@@ -191,7 +215,7 @@
  
                  PlasmaComponents3.ToolTip {
                      text: displayLabel.text
@@ -73,7 +98,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
                      timeout: -1
                  }
  
-@@ -200,31 +217,57 @@
+@@ -200,31 +224,93 @@
                  }
              }
  
@@ -83,7 +108,6 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
 +                id: subtextClip
                  Layout.fillWidth: true
 +                implicitHeight: subtextLabel.implicitHeight
-+                clip: true
                  // HACK If displayLabel is too long it will shift this label outside boundaries
                  // but still render the text leading to it overlapping the action buttons looking horrible
                  opacity: width > 0 ? 0.75 : 0
@@ -106,51 +130,101 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
 -
 -                HoverHandler {
 -                    id: subtextLabelHoverHandler
-+                readonly property bool fullPath: resultDelegate.hovered && resultDelegate.filePath !== ""
-+                // how far the full path runs past the row, scrolled through while it's hovered
-+                readonly property real overflow: fullPath ? Math.max(0, Math.ceil(subtextLabel.implicitWidth - width)) : 0
++                readonly property bool isFile: resultDelegate.filePath !== ""
++                readonly property bool expanded: isFile && resultDelegate.hovered
++                // how far the full folder runs past the row, panned through while it's hovered
++                readonly property real overflow: expanded ? Math.max(0, Math.ceil(folderLabel.implicitWidth - width)) : 0
 +
-+                PlasmaComponents3.Label {
-+                    id: subtextLabel
-+                    anchors.verticalCenter: parent.verticalCenter
-+                    width: subtextClip.overflow > 0 ? implicitWidth : subtextClip.width
-+                    font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.2
-+                    color: resultDelegate.down ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
-+                    // SourcesModel returns number of duplicates in this property
-+                    // ResultsModel just has it as a boolean as you would expect from the name of the property
-+                    text: subtextClip.fullPath ? resultDelegate.filePath
-+                        : resultDelegate.filePath !== "" || model.isDuplicate === true || model.isDuplicate > 1 || resultDelegate.isCurrent
-+                        ? String(model.subtext || "").split("\n")[0] : ""
-+
-+                    elide: subtextClip.overflow > 0 ? Text.ElideNone : Text.ElideMiddle
-+                    wrapMode: Text.NoWrap
-+                    maximumLineCount: 1
-+                    verticalAlignment: Text.AlignVCenter
-+                    textFormat: Text.PlainText
-+
-+                    // a pause at each end, and 80 px/s between them
-+                    SequentialAnimation on x {
-+                        running: subtextClip.overflow > 0
-+                        loops: Animation.Infinite
-+                        onRunningChanged: if (!running) subtextLabel.x = 0
-+                        PauseAnimation { duration: 700 }
-+                        NumberAnimation { to: -subtextClip.overflow; duration: subtextClip.overflow * 1000 / 80; easing.type: Easing.InOutSine }
-+                        PauseAnimation { duration: 1200 }
-+                        NumberAnimation { to: 0; duration: subtextClip.overflow * 1000 / 160; easing.type: Easing.InOutSine }
++                // A file's location sits at the right; hovered, it widens to the left into the full
++                // folder, the short label fading into it (both end in the file's own folder, which
++                // stays put), and back again
++                Item {
++                    id: reveal
++                    anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
++                    clip: true
++                    width: !subtextClip.isFile ? subtextClip.width
++                        : Math.min(subtextClip.width, Math.ceil(subtextClip.expanded ? folderLabel.implicitWidth : subtextLabel.implicitWidth))
++                    Behavior on width {
++                        enabled: subtextClip.isFile
++                        NumberAnimation { duration: 320; easing.type: Easing.OutCubic }
 +                    }
 +
-+                    PlasmaComponents3.ToolTip {
-+                        text: subtextLabel.text
-+                        visible: subtextLabelHoverHandler.hovered && subtextLabel.truncated && resultDelegate.filePath === ""
-+                        timeout: -1
++                    PlasmaComponents3.Label {
++                        id: subtextLabel
++                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
++                        width: subtextClip.isFile ? Math.min(implicitWidth, subtextClip.width) : reveal.width
++                        horizontalAlignment: subtextClip.isFile ? Text.AlignRight : Text.AlignLeft
++                        opacity: subtextClip.expanded ? 0 : 1
++                        // leaves faster than the folder arrives, so their differing starts barely overlap
++                        Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutQuad } }
++                        font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.2
++                        color: resultDelegate.down ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
++                        // SourcesModel returns number of duplicates in this property
++                        // ResultsModel just has it as a boolean as you would expect from the name of the property
++                        text: subtextClip.isFile || model.isDuplicate === true || model.isDuplicate > 1 || resultDelegate.isCurrent
++                            ? String(model.subtext || "").split("\n")[0] : ""
++
++                        elide: Text.ElideMiddle
++                        wrapMode: Text.NoWrap
++                        maximumLineCount: 1
++                        verticalAlignment: Text.AlignVCenter
++                        textFormat: Text.PlainText
++
++                        PlasmaComponents3.ToolTip {
++                            text: subtextLabel.text
++                            visible: subtextLabelHoverHandler.hovered && subtextLabel.truncated && !subtextClip.isFile
++                            timeout: -1
++                        }
++
++                        HoverHandler {
++                            id: subtextLabelHoverHandler
++                        }
 +                    }
 +
-+                    HoverHandler {
-+                        id: subtextLabelHoverHandler
++                    PlasmaComponents3.Label {
++                        id: folderLabel
++                        visible: subtextClip.isFile
++                        anchors.verticalCenter: parent.verticalCenter
++                        // right-aligned in the reveal, shifted right by pan to show its start
++                        property real pan: 0
++                        x: reveal.width - implicitWidth + pan
++                        opacity: subtextClip.expanded ? 1 : 0
++                        Behavior on opacity { NumberAnimation { duration: 280; easing.type: Easing.InQuad } }
++                        font: subtextLabel.font
++                        color: subtextLabel.color
++                        text: resultDelegate.folderPath
++                        wrapMode: Text.NoWrap
++                        maximumLineCount: 1
++                        verticalAlignment: Text.AlignVCenter
++                        textFormat: Text.PlainText
++
++                        // once it has widened, a pause on the end, 80 px/s to the start, a longer pause, back
++                        SequentialAnimation on pan {
++                            running: subtextClip.overflow > 0
++                            loops: Animation.Infinite
++                            onRunningChanged: if (!running) folderLabel.pan = 0
++                            PauseAnimation { duration: 900 }
++                            NumberAnimation { to: subtextClip.overflow; duration: subtextClip.overflow * 1000 / 80; easing.type: Easing.InOutSine }
++                            PauseAnimation { duration: 1200 }
++                            NumberAnimation { to: 0; duration: subtextClip.overflow * 1000 / 160; easing.type: Easing.InOutSine }
++                        }
 +                    }
                  }
              }
          }
+@@ -233,7 +319,11 @@
+             id: actionsRow
+             anchors.right: parent.right
+             anchors.verticalCenter: labelWrapper.verticalCenter
+-            visible: resultDelegate.isCurrent && actionsRepeater.count > 0
++            opacity: resultDelegate.showActions ? 1 : 0
++            visible: opacity > 0
++            Behavior on opacity {
++                NumberAnimation { duration: 220; easing.type: Easing.InOutQuad }
++            }
+ 
+             Repeater {
+                 id: actionsRepeater
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultsView.qml b/lib/ResultsView.qml
 --- a/lib/ResultsView.qml
 +++ b/lib/ResultsView.qml

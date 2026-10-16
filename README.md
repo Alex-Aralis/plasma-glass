@@ -18,8 +18,8 @@ notification cruft trimmed.
 - **Trimmed KRunner and notifications.** KRunner opens with Meta+Space (Alt+F2 still works) and floats where you drag it (by the glass rim, or anywhere
   with Meta held, as with other windows) and remembers the spot. It is wider, and types straight onto the glass in larger text, with no input box, like Spotlight. It uses
   compact section headers and has no help, settings, pin or clear buttons. Files show where they are on
-  every row, not just the selected one, and their full path in its place when you hover them (scrolling
-  when it's too long). Notification popups lose
+  every row, right-aligned, not just on the selected one; hovering one unrolls that into its full folder
+  (panning along when it's too long). Notification popups lose
   their settings and close buttons and the countdown bar, and show a pointer when clicking them
   opens something.
 

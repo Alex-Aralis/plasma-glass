@@ -482,11 +482,16 @@ docs are in README.md; this file covers how to work on it.
   at the same depth, with shared runs of 4+ letters as "…"; the indexed folder ("~/Projects") only when
   the results span several (home and / count as roots, so ~/src and /src differ). No passage any more.
   `milou-section-headers.patch` shows a file result's subtext (any runner's, when its first url is
-  file://) on every row, first line only, and while the row is hovered its full path in the same place
-  (home as ~), scrolling through what doesn't fit (a pause, 80 px/s, a longer pause, back at twice the
-  speed). A tooltip with the path came first, the same day: it covered the rows above ("remove that
-  title it's blocking my view of other items. expand and scroll the text if too long on hover"), so file
-  rows have no tooltips at all now. Preview: `HOVER="X Y" tools/preview/krunner.sh` rests the pointer
+  file://) on every row, first line only, right-aligned (the user, "maybe right justify and give a nice
+  expand animation"), and while the row is hovered its full folder (home as ~; the row already shows the
+  name) unrolls to the left from under it: a clip anchored right widens from the short label's width to
+  the folder's over 320 ms (OutCubic) while the short label fades out in 120 ms and the folder in over
+  280, and both end in the file's own folder, which stays put. A folder that doesn't fit pans to its
+  start once it has widened (a pause, 80 px/s, a longer pause, back at twice the speed). The actions on
+  the current row fade in and the label layout's right margin slides open for them (220 ms) instead of
+  re-anchoring, or the right-aligned text jumped left by their width on hover. A tooltip with the path
+  came first, the same day: it covered the rows above ("remove that title it's blocking my view of other
+  items. expand and scroll the text if too long on hover"), so file rows have no tooltips at all now. Preview: `HOVER="X Y" tools/preview/krunner.sh` rests the pointer
   there before the screenshot, and `HOVER="X Y, X Y" HOVER_HOLD=4 tools/preview/record.sh` moves it
   between rows while recording (screen pixels: at the recording's scale 1 and fixed place, rows of
   "02/020/030" sat at y 387 + 34 n, x 714). The preview's KRunner runs as claude, so it shows
