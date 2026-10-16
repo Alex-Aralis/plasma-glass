@@ -487,7 +487,11 @@ docs are in README.md; this file covers how to work on it.
   name) unrolls to the left from under it: a clip anchored right widens from the short label's width to
   the folder's over 320 ms (OutCubic) while the short label fades out in 120 ms and the folder in over
   280, and both end in the file's own folder, which stays put. A folder that doesn't fit pans to its
-  start once it has widened (a pause, 80 px/s, a longer pause, back at twice the speed). The actions on
+  start once it has widened (a pause, 80 px/s, a longer pause, back at twice the speed). The pan animates
+  0 to 1 and scales the overflow as it is at each frame: with the overflow itself as the animation's
+  `to`, fixed when it started, it stopped short by the actions' width whenever the hovered row wasn't
+  current yet ("not scrolling all the way"; reproduce with "cafeteria interrogation", hovering the
+  second row and then the first). The actions on
   the current row fade in and the label layout's right margin slides open for them (220 ms) instead of
   re-anchoring, or the right-aligned text jumped left by their width on hover. A tooltip with the path
   came first, the same day: it covered the rows above ("remove that title it's blocking my view of other

@@ -98,7 +98,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
                      timeout: -1
                  }
  
-@@ -200,31 +224,93 @@
+@@ -200,31 +224,95 @@
                  }
              }
  
@@ -185,9 +185,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
 +                        id: folderLabel
 +                        visible: subtextClip.isFile
 +                        anchors.verticalCenter: parent.verticalCenter
-+                        // right-aligned in the reveal, shifted right by pan to show its start
++                        // right-aligned in the reveal, shifted right to show its start: pan goes 0 to 1 and
++                        // scales the overflow as it is now (an animation's own "to" is fixed when it starts,
++                        // and the row narrows after that, as the actions fade in, so it stopped short)
 +                        property real pan: 0
-+                        x: reveal.width - implicitWidth + pan
++                        x: reveal.width - implicitWidth + pan * subtextClip.overflow
 +                        opacity: subtextClip.expanded ? 1 : 0
 +                        Behavior on opacity { NumberAnimation { duration: 280; easing.type: Easing.InQuad } }
 +                        font: subtextLabel.font
@@ -204,7 +206,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
 +                            loops: Animation.Infinite
 +                            onRunningChanged: if (!running) folderLabel.pan = 0
 +                            PauseAnimation { duration: 900 }
-+                            NumberAnimation { to: subtextClip.overflow; duration: subtextClip.overflow * 1000 / 80; easing.type: Easing.InOutSine }
++                            NumberAnimation { to: 1; duration: subtextClip.overflow * 1000 / 80; easing.type: Easing.InOutSine }
 +                            PauseAnimation { duration: 1200 }
 +                            NumberAnimation { to: 0; duration: subtextClip.overflow * 1000 / 160; easing.type: Easing.InOutSine }
 +                        }
@@ -212,7 +214,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
                  }
              }
          }
-@@ -233,7 +319,11 @@
+@@ -233,7 +321,11 @@
              id: actionsRow
              anchors.right: parent.right
              anchors.verticalCenter: labelWrapper.verticalCenter
