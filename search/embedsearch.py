@@ -68,10 +68,15 @@ def wait_while_searching(quiet_seconds=2.0):
 
 DEFAULT_CONFIG = """\
 # Folders to index (searched recursively; hidden folders are always skipped).
-folders = ["~/Projects", "~/Documents", "~/Downloads", "~/Desktop"]
+folders = ["~/Projects", "~/Documents", "~/Downloads", "~/Desktop", "/etc"]
 
 # File types whose text is indexed.
 extensions = ["md", "txt", "org", "rst", "tex", "pdf", "docx", "odt", "html", "htm"]
+
+# Folders where every text file's text is indexed, whatever its name (config files often have no
+# extension). Binary files, data (certificates, keys: mostly long unbroken runs) and files you can't
+# read are found by name only.
+text_folders = ["/etc"]
 
 # Find every file in the folders by its name and path, not just the types above: "glass agents"
 # finds plasma-glass/AGENTS.md, "pragconv" pragmatic-convalescence.md. false: only those types.
@@ -109,6 +114,7 @@ def load_config():
     cfg.update(tomllib.loads(CONFIG_PATH.read_text()))
     cfg["folders"] = [Path(f).expanduser() for f in cfg["folders"]]
     cfg["extensions"] = {"." + e.lower().lstrip(".") for e in cfg["extensions"]}
+    cfg["text_folders"] = [str(Path(f).expanduser()).rstrip("/") for f in cfg["text_folders"]]
     cfg["exclude_dirs"] = set(cfg["exclude_dirs"])
     return cfg
 
@@ -225,11 +231,22 @@ def extract_text(path):
     if ext == ".odt":
         with zipfile.ZipFile(path) as z:
             return _xml_text(z.read("content.xml").decode("utf-8", errors="replace"), ["text:p", "text:h"])
-    text = path.read_text(encoding="utf-8", errors="replace")
+    with open(path, "rb") as f:
+        head = f.read(8192)
+        if b"\0" in head:  # binary
+            return ""
+        text = (head + f.read()).decode("utf-8", errors="replace")
     if ext in (".html", ".htm"):
         text = re.sub(r"(?is)<(script|style)\b.*?</\1>", " ", text)
         text = _xml_text(text, ["p", "div", "li", "h1", "h2", "h3", "h4", "tr"])
     return text
+
+
+def looks_like_data(text):
+    """Whether text is mostly long unbroken runs (certificates, keys, hex or base64) rather than words."""
+    words = text.split()
+    total = sum(map(len, words))
+    return total > 0 and sum(len(w) for w in words if len(w) > 40) > total / 2
 
 
 def chunk_text(tok, text, size, overlap):
@@ -254,9 +271,10 @@ def iter_files(cfg):
             continue
         for dirpath, dirnames, filenames in os.walk(root):
             dirnames[:] = [d for d in dirnames if not d.startswith(".") and d not in cfg["exclude_dirs"]]
+            any_text = any(dirpath == t or dirpath.startswith(t + "/") for t in cfg["text_folders"])
             for name in filenames:
                 p = Path(dirpath, name)
-                text = p.suffix.lower() in cfg["extensions"]
+                text = any_text or p.suffix.lower() in cfg["extensions"]
                 if (text or cfg["all_file_names"]) and not name.startswith("."):
                     yield p, text
 
@@ -392,6 +410,8 @@ def _update_index(emb, cfg, flush_chunks, progress):
     for p, st in todo:
         try:
             text = extract_text(p)[: cfg["max_chars_per_file"]]
+            if p.suffix.lower() not in cfg["extensions"] and looks_like_data(text):  # a text folder's
+                text = ""
         except Exception as e:  # unreadable/corrupt file: record it so it isn't retried every run
             log(f"  skip {p}: {e}")
             text = ""

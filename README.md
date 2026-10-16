@@ -57,9 +57,11 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 ## Using and tuning the search
 
 - **Settings:** `~/.config/embedsearch/config.toml` controls the folders, file types, number of
-  results and reindex interval. The defaults are `~/Projects`, `~/Documents`, `~/Downloads` and
-  `~/Desktop`, with md, txt, org, rst, tex, pdf, docx, odt and html files indexed by their text and
-  all other files by name (`all_file_names = false` for only those). Restart with
+  results and reindex interval. The defaults are `~/Projects`, `~/Documents`, `~/Downloads`,
+  `~/Desktop` and `/etc`, with md, txt, org, rst, tex, pdf, docx, odt and html files indexed by their
+  text and all other files by name (`all_file_names = false` for only those). In `text_folders`
+  (`/etc`) every text file's text is indexed, whatever its name; binary files, certificates and keys,
+  and files only root can read are found by name. Restart with
   `systemctl --user restart embedsearch` after editing.
 - **Terminal:** `embedsearch search "query"` searches from the command line, `embedsearch status`
   shows what's indexed, and `journalctl --user -fu embedsearch` shows indexing progress.
