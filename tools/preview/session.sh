@@ -1,7 +1,7 @@
 #!/bin/sh
 # Runs inside dbus-run-session (see common.sh): virtual KWin, wallpaper, then the app under test.
 # Leaves shots/bg.png (before the app shows) and shots/app.png (with it) in $WORK.
-#   session.sh krunner QUERY
+#   session.sh krunner QUERY   (HOVER_INPUT: fakeinput commands sent once the results are in)
 #   session.sh dialog
 #   session.sh popup ACTION    plasmashell with popup.sh's config, then a plasmashell shortcut action
 #   session.sh unfold QUERY    KRunner; capture frames while results for QUERY unfold, then fold
@@ -56,6 +56,9 @@ case "$MODE" in
         sleep 2
         qdbus6 org.kde.krunner /App org.kde.krunner.App.query "$1"
         sleep 8  # let results arrive (the semantic search service can be slow while the CPU is busy)
+        if [ -n "${HOVER_INPUT:-}" ]; then  # then the pointer over a row, long enough for its tooltip
+            "$FAKEINPUT" <"$HOVER_INPUT"; sleep 2
+        fi
         ;;
     dialog)
         qml6 "${DIALOG_QML:-$HERE/qml/dialog.qml}" >"$WORK/app.log" 2>&1 &  # DIALOG_QML: another dialog to show

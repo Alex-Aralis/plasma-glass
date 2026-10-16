@@ -17,7 +17,8 @@ notification cruft trimmed.
   frost, lit in shards of colour as off an etched diffraction foil.
 - **Trimmed KRunner and notifications.** KRunner opens with Meta+Space (Alt+F2 still works) and floats where you drag it (by the glass rim, or anywhere
   with Meta held, as with other windows) and remembers the spot. It is wider, and types straight onto the glass in larger text, with no input box, like Spotlight. It uses
-  compact section headers and has no help, settings, pin or clear buttons. Notification popups lose
+  compact section headers and has no help, settings, pin or clear buttons. Files show where they are on
+  every row, not just the selected one, and their full path when you hover them. Notification popups lose
   their settings and close buttons and the countdown bar, and show a pointer when clicking them
   opens something.
 
@@ -68,7 +69,10 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 - **Results:** KRunner always shows the top five. Up to three files whose name and path hold every
   word of the query come first (at least one word in the name; a word can be a substring, or its
   letters in order from a word's start, as in fzf), then the closest by meaning. A word with slashes
-  goes folder by folder: `02/020/030` puts files under `02/020-…/` first even when there's no `030`. Similarity scores
+  goes folder by folder: `02/020/030` puts files under `02/020-…/` first even when there's no `030`.
+  Each result says where it is in short, keeping the folders that tell the results apart
+  (`fso/…/drafts/02/020-morning-praxis` beside `fso/…/outlines/02`); hovering one shows its full path,
+  and for a match by meaning the passage that matched. Similarity scores
   can't reliably separate nonsense from real queries, so there's no cutoff.
 
 ## What gets changed

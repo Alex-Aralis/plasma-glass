@@ -610,6 +610,41 @@ def pretty(path):
     return "~" + path[len(home):] if path.startswith(home) else path
 
 
+def locations(paths, folders):
+    """Short labels for where each file sits that tell the results apart: its project (the first folder
+    under the indexed folder it's in), its own folder, and the folders between that differ from another
+    result's in the same project at the same depth; runs of shared ones of 4 letters or more become "…"
+    ("fso/…/drafts/02/020-morning-praxis" beside "fso/…/outlines/02"). The indexed folder ("~/Projects")
+    shows only when the results come from more than one, or the file sits right in it. Files outside
+    them count from home ("~") or "/", so ~/src and /src stay apart."""
+    home = str(Path.home())
+    roots = sorted({str(f).rstrip("/") for f in folders} | {home}, key=len, reverse=True)
+    split = []
+    for p in paths:
+        parent = str(Path(p).parent)
+        root = next((r for r in roots if parent == r or parent.startswith(r + "/")), "")
+        rel = parent[len(root):].strip("/")
+        split.append((root, rel.split("/") if rel else []))
+    many_roots = len({r for r, _ in split}) > 1
+    labels = []
+    for root, parts in split:
+        same = [q for r, q in split if r == root and q[:1] == parts[:1]]
+        out, run = [], []
+        for i, seg in enumerate(parts):
+            if 0 < i < len(parts) - 1 and all(len(q) > i and q[i] == seg for q in same):
+                run.append(seg)
+                continue
+            if run:
+                out += ["…"] if len("/".join(run)) >= 4 else run
+                run = []
+            out.append(seg)
+        label = "/".join(out)
+        if many_roots or not parts:
+            label = (pretty(root) or "") + "/" + label if label else pretty(root) or "/"
+        labels.append(label)
+    return labels
+
+
 # ---------------------------------------------------------------------------- KRunner D-Bus runner
 
 ICONS = {".pdf": "application-pdf", ".md": "text-markdown", ".docx": "x-office-document",
@@ -685,16 +720,18 @@ def serve():
             if mine != self.seq:
                 return []
             out = []
-            for r in results:
+            where = locations([r["path"] for r in results], cfg["folders"])
+            for r, folder in zip(results, where):
                 mid = r["path"]
                 self.matches[mid] = r["path"]
                 p = Path(r["path"])
-                folder = pretty(str(p.parent))
                 # 70 = KRunner "High" category relevance, the same as browser history; within a tie,
                 # KRunner orders by the relevance value, where our similarity (~0.6-0.8) usually wins.
                 # Matches by name (0.9-1) go above those by meaning.
                 out.append([mid, p.name, icon(p), 70, 0.9 + 0.1 * r["score"] if r.get("by_name") else r["score"], {
-                    "subtext": Variant("s", f"{snippet(r['text'])}  —  {folder}" if r["text"] else folder),
+                    # where it is, and for a match by meaning the passage that matched: milou shows the first
+                    # line in the row and the rest in the row's tooltip, under the full path
+                    "subtext": Variant("s", folder if r.get("by_name") or not r["text"] else f"{folder}\n{snippet(r['text'], 200)}"),
                     "urls": Variant("as", [p.as_uri()]),
                     "category": Variant("s", "Semantic Search"),
                 }])

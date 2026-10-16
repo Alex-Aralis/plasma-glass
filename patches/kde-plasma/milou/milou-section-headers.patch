@@ -11,7 +11,23 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
  
      required property int index
      required property var model
-@@ -131,7 +132,7 @@
+@@ -42,6 +43,15 @@
+ 
+     displayText: model.display
+ 
++    // A file's full path, for the row's tooltip. A file's subtext (where it is) shows on every row, not
++    // just the current one, so files can be told apart at a glance; lines after its first go in the tooltip.
++    readonly property string filePath: {
++        const urls = model.urls || [];
++        const url = urls.length > 0 ? String(urls[0]) : "";
++        return url.startsWith("file://") ? decodeURIComponent(url.slice(7)) : "";
++    }
++    readonly property var subtextLines: String(model.subtext || "").split("\n")
++
+     Accessible.role: Accessible.ListItem
+     Accessible.name: displayLabel.text
+     Accessible.description: {
+@@ -131,7 +141,7 @@
              anchors.bottomMargin: Kirigami.Units.smallSpacing
              imagePath: "widgets/line"
              elementId: "horizontal-line"
@@ -20,7 +36,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
                       && !resultDelegate.isCurrent
                       && resultDelegate.index !== 0
                       && resultDelegate.ListView.view.currentIndex !== (resultDelegate.index - indexModifier)
-@@ -145,6 +146,7 @@
+@@ -145,6 +155,7 @@
                  verticalCenter: labelWrapper.verticalCenter
              }
              width: resultDelegate.categoryWidth - Kirigami.Units.largeSpacing
@@ -28,7 +44,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
              opacity: 0.75
              color: resultDelegate.down ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
              elide: Text.ElideRight
-@@ -177,6 +179,7 @@
+@@ -177,6 +188,7 @@
  
              PlasmaComponents3.Label {
                  id: displayLabel
@@ -36,7 +52,16 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
  
                  elide: Text.ElideMiddle
                  wrapMode: model.multiLine ? Text.WordWrap : Text.NoWrap
-@@ -202,6 +205,7 @@
+@@ -191,7 +203,7 @@
+ 
+                 PlasmaComponents3.ToolTip {
+                     text: displayLabel.text
+-                    visible: displayLabelHoverHandler.hovered && displayLabel.truncated
++                    visible: displayLabelHoverHandler.hovered && displayLabel.truncated && resultDelegate.filePath === ""
+                     timeout: -1
+                 }
+ 
+@@ -202,6 +214,7 @@
  
              PlasmaComponents3.Label {
                  id: subtextLabel
@@ -44,6 +69,48 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
                  Layout.fillWidth: true
                  // HACK If displayLabel is too long it will shift this label outside boundaries
                  // but still render the text leading to it overlapping the action buttons looking horrible
+@@ -209,7 +222,8 @@
+                 color: resultDelegate.down ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
+                 // SourcesModel returns number of duplicates in this property
+                 // ResultsModel just has it as a boolean as you would expect from the name of the property
+-                text: model.isDuplicate === true || model.isDuplicate > 1 || resultDelegate.isCurrent ? String(model.subtext || "") : ""
++                text: resultDelegate.filePath !== "" || model.isDuplicate === true || model.isDuplicate > 1 || resultDelegate.isCurrent
++                    ? resultDelegate.subtextLines[0] : ""
+ 
+                 elide: Text.ElideMiddle
+                 wrapMode: Text.NoWrap
+@@ -219,7 +233,7 @@
+ 
+                 PlasmaComponents3.ToolTip {
+                     text: subtextLabel.text
+-                    visible: subtextLabelHoverHandler.hovered && subtextLabel.truncated
++                    visible: subtextLabelHoverHandler.hovered && subtextLabel.truncated && resultDelegate.filePath === ""
+                     timeout: -1
+                 }
+ 
+@@ -229,12 +243,22 @@
+             }
+         }
+ 
++        PlasmaComponents3.ToolTip {
++            // the full path, breakable after each slash, then the rest of the subtext
++            text: [resultDelegate.filePath.replace(/\//g, "/\u200b")].concat(resultDelegate.subtextLines.slice(1)).join("\n\n")
++            visible: resultDelegate.hovered && resultDelegate.filePath !== "" && !actionsHover.hovered
++        }
++
+         Row {
+             id: actionsRow
+             anchors.right: parent.right
+             anchors.verticalCenter: labelWrapper.verticalCenter
+             visible: resultDelegate.isCurrent && actionsRepeater.count > 0
+ 
++            HoverHandler {
++                id: actionsHover
++            }
++
+             Repeater {
+                 id: actionsRepeater
+                 model: resultDelegate.actions
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultsView.qml b/lib/ResultsView.qml
 --- a/lib/ResultsView.qml
 +++ b/lib/ResultsView.qml

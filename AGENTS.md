@@ -472,6 +472,24 @@ docs are in README.md; this file covers how to work on it.
   a number only as a whole number ("02" isn't in "020-x"); parts in consecutive folders count 1.5x, the
   last one in the file's name a quarter more, earlier parts weigh more (1.5 down to 1: 02/020/010 beats
   01/020/030), and half the parts may go unmatched.
+- **Where a result is** (2026-10-16, the user: the subtext was "vomiting the first line out of those
+  files not giving me a file path"; wanted the path on hover at least, and ideally where each file sits
+  at a glance, with the distinctions called out, like `fso/.../drafts/.../02/030` or ~/src vs /src).
+  milou showed a match's subtext only on the current row (and duplicates), so other rows had no
+  location at all, and ours put a passage first and the folder last, which ElideMiddle cut. Now
+  `locations()` labels each result in the search service: its project (first folder under the indexed
+  folder), its own folder, and the folders between that differ from another result's in the same project
+  at the same depth, with shared runs of 4+ letters as "…"; the indexed folder ("~/Projects") only when
+  the results span several (home and / count as roots, so ~/src and /src differ). A match by meaning
+  adds its passage as a second line. `milou-section-headers.patch` shows a file result's subtext (any
+  runner's, when its first url is file://) on every row, first line only, and the row's tooltip gives
+  the full path (a zero-width space after each slash, so Plasma's 14-grid-unit tooltip wraps there) and
+  the subtext's further lines; the labels' own truncation tooltips stay off for those rows, and the
+  tooltip hides over the action buttons. Preview: `HOVER="X Y" tools/preview/krunner.sh` rests the
+  pointer there (screen pixels, not logical, at the preview's scale 1.1) before the screenshot. To get
+  real results in the preview as claude, register a D-Bus service for `local.embedsearch` in
+  ~claude/.local/share/dbus-1/services running a copy of the service with `HOME=/home/aaralis`, and
+  copy `embedsearch.desktop` to ~claude/.local/share/krunner/dbusplugins.
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and
   transformers 5.19 or later. Installing `sentence-transformers[image,audio]` downgraded
   transformers once.
