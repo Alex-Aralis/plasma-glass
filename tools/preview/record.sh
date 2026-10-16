@@ -14,6 +14,14 @@ export WIDTH="${WIDTH:-1920}" HEIGHT="${HEIGHT:-1200}" SCALE="${SCALE:-1}"
 OUT=$(realpath -m "${1:?usage: record.sh OUT.mp4 [query]}"); QUERY="${2-system settings}"
 mkdir -p "$WORK"; TOOL_PYTHON=$(pil_python); export TOOL_PYTHON
 prepare
+# HOVER="X Y, X Y, ...": the pointer rests at each spot (screen pixels) for HOVER_HOLD s (default 3)
+# while recording, from the start, to record hover effects
+if [ -n "${HOVER:-}" ]; then
+    FAKEINPUT=$(fakeinput); HOVER_INPUT="$WORK/hover.in"; export FAKEINPUT HOVER_INPUT
+    echo "$HOVER" | tr ',' '\n' | while read -r x y; do
+        printf 'move %s %s\nwait 50\nby 1 0\nwait %s\n' "$x" "$y" "$(awk "BEGIN{print ${HOVER_HOLD:-3}*1000-50}")"
+    done >"$HOVER_INPUT"
+fi
 # KRunner centred at a fixed spot, whatever your own krunnerrc says
 kwriteconfig6 --file "$WORK/cfg/krunnerrc" --group General --key FloatingCenterX 0.5
 kwriteconfig6 --file "$WORK/cfg/krunnerrc" --group General --key FloatingTop 0.2

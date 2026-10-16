@@ -480,16 +480,19 @@ docs are in README.md; this file covers how to work on it.
   `locations()` labels each result in the search service: its project (first folder under the indexed
   folder), its own folder, and the folders between that differ from another result's in the same project
   at the same depth, with shared runs of 4+ letters as "…"; the indexed folder ("~/Projects") only when
-  the results span several (home and / count as roots, so ~/src and /src differ). A match by meaning
-  adds its passage as a second line. `milou-section-headers.patch` shows a file result's subtext (any
-  runner's, when its first url is file://) on every row, first line only, and the row's tooltip gives
-  the full path (a zero-width space after each slash, so Plasma's 14-grid-unit tooltip wraps there) and
-  the subtext's further lines; the labels' own truncation tooltips stay off for those rows, and the
-  tooltip hides over the action buttons. Preview: `HOVER="X Y" tools/preview/krunner.sh` rests the
-  pointer there (screen pixels, not logical, at the preview's scale 1.1) before the screenshot. To get
-  real results in the preview as claude, register a D-Bus service for `local.embedsearch` in
-  ~claude/.local/share/dbus-1/services running a copy of the service with `HOME=/home/aaralis`, and
-  copy `embedsearch.desktop` to ~claude/.local/share/krunner/dbusplugins.
+  the results span several (home and / count as roots, so ~/src and /src differ). No passage any more.
+  `milou-section-headers.patch` shows a file result's subtext (any runner's, when its first url is
+  file://) on every row, first line only, and while the row is hovered its full path in the same place
+  (home as ~), scrolling through what doesn't fit (a pause, 80 px/s, a longer pause, back at twice the
+  speed). A tooltip with the path came first, the same day: it covered the rows above ("remove that
+  title it's blocking my view of other items. expand and scroll the text if too long on hover"), so file
+  rows have no tooltips at all now. Preview: `HOVER="X Y" tools/preview/krunner.sh` rests the pointer
+  there before the screenshot, and `HOVER="X Y, X Y" HOVER_HOLD=4 tools/preview/record.sh` moves it
+  between rows while recording (screen pixels: at the recording's scale 1 and fixed place, rows of
+  "02/020/030" sat at y 387 + 34 n, x 714). The preview's KRunner runs as claude, so it shows
+  /home/aaralis/... rather than ~/... . To get real results in the preview as claude, register a D-Bus
+  service for `local.embedsearch` in ~claude/.local/share/dbus-1/services running a copy of the service
+  with `HOME=/home/aaralis`, and copy `embedsearch.desktop` to ~claude/.local/share/krunner/dbusplugins.
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and
   transformers 5.19 or later. Installing `sentence-transformers[image,audio]` downgraded
   transformers once.

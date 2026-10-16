@@ -8,7 +8,7 @@
 #   session.sh drag QUERY      KRunner with results for QUERY, then FAKEINPUT < DRAG_INPUT, while a KWin
 #                              script logs KRunner's frame geometry and output (kwin.log, "KRUNNER" lines)
 #   session.sh record QUERY    KRunner with results for QUERY, then its window recorded for
-#                              SECONDS_CAPTURED into record.mkv (frames.py record)
+#                              SECONDS_CAPTURED into record.mkv (frames.py record), HOVER_INPUT sent as it starts
 # Any mode: INDEXING="DELAY DURATION" starts a stand-in search service (fake-indexer.py) that reports
 # indexing progress for DURATION seconds after DELAY.
 MODE="$1"; shift
@@ -147,6 +147,7 @@ JS
         if [ -n "${QUERY2:-}" ]; then
             sleep "${QUERY2_AT:-2}"; qdbus6 org.kde.krunner /App org.kde.krunner.App.query "$QUERY2"
         fi
+        if [ -n "${HOVER_INPUT:-}" ]; then "$FAKEINPUT" <"$HOVER_INPUT" & fi  # pointer moves while recording
         wait $REC
         ;;
     popup)

@@ -729,9 +729,8 @@ def serve():
                 # KRunner orders by the relevance value, where our similarity (~0.6-0.8) usually wins.
                 # Matches by name (0.9-1) go above those by meaning.
                 out.append([mid, p.name, icon(p), 70, 0.9 + 0.1 * r["score"] if r.get("by_name") else r["score"], {
-                    # where it is, and for a match by meaning the passage that matched: milou shows the first
-                    # line in the row and the rest in the row's tooltip, under the full path
-                    "subtext": Variant("s", folder if r.get("by_name") or not r["text"] else f"{folder}\n{snippet(r['text'], 200)}"),
+                    # where it is, in short; milou shows the full path in its place on hover
+                    "subtext": Variant("s", folder),
                     "urls": Variant("as", [p.as_uri()]),
                     "category": Variant("s", "Semantic Search"),
                 }])

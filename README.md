@@ -18,7 +18,8 @@ notification cruft trimmed.
 - **Trimmed KRunner and notifications.** KRunner opens with Meta+Space (Alt+F2 still works) and floats where you drag it (by the glass rim, or anywhere
   with Meta held, as with other windows) and remembers the spot. It is wider, and types straight onto the glass in larger text, with no input box, like Spotlight. It uses
   compact section headers and has no help, settings, pin or clear buttons. Files show where they are on
-  every row, not just the selected one, and their full path when you hover them. Notification popups lose
+  every row, not just the selected one, and their full path in its place when you hover them (scrolling
+  when it's too long). Notification popups lose
   their settings and close buttons and the countdown bar, and show a pointer when clicking them
   opens something.
 
@@ -71,8 +72,7 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
   letters in order from a word's start, as in fzf), then the closest by meaning. A word with slashes
   goes folder by folder: `02/020/030` puts files under `02/020-…/` first even when there's no `030`.
   Each result says where it is in short, keeping the folders that tell the results apart
-  (`fso/…/drafts/02/020-morning-praxis` beside `fso/…/outlines/02`); hovering one shows its full path,
-  and for a match by meaning the passage that matched. Similarity scores
+  (`fso/…/drafts/02/020-morning-praxis` beside `fso/…/outlines/02`); hovering one shows its full path. Similarity scores
   can't reliably separate nonsense from real queries, so there's no cutoff.
 
 ## What gets changed

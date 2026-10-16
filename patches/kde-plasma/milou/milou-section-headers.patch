@@ -1,7 +1,15 @@
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/ResultDelegate.qml
 --- a/lib/ResultDelegate.qml
 +++ b/lib/ResultDelegate.qml
-@@ -32,7 +32,8 @@
+@@ -7,6 +7,7 @@
+  *
+  */
+ 
++import QtCore
+ import QtQuick
+ import QtQuick.Layouts
+ 
+@@ -32,7 +33,8 @@
      property int activeAction: -1
  
      property string typeText: sectionHasChanged ? ListView.section : ""
@@ -11,23 +19,27 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
  
      required property int index
      required property var model
-@@ -42,6 +43,15 @@
+@@ -42,6 +44,19 @@
  
      displayText: model.display
  
-+    // A file's full path, for the row's tooltip. A file's subtext (where it is) shows on every row, not
-+    // just the current one, so files can be told apart at a glance; lines after its first go in the tooltip.
++    // A file's subtext (where it is) shows on every row, not just the current one, so files can be told
++    // apart at a glance; hovering the row shows its full path there instead, scrolling if it doesn't fit.
 +    readonly property string filePath: {
 +        const urls = model.urls || [];
 +        const url = urls.length > 0 ? String(urls[0]) : "";
-+        return url.startsWith("file://") ? decodeURIComponent(url.slice(7)) : "";
++        if (!url.startsWith("file://")) {
++            return "";
++        }
++        const path = decodeURIComponent(url.slice(7));
++        const home = decodeURIComponent(String(StandardPaths.writableLocation(StandardPaths.HomeLocation)).slice(7));
++        return home && (path === home || path.startsWith(home + "/")) ? "~" + path.slice(home.length) : path;
 +    }
-+    readonly property var subtextLines: String(model.subtext || "").split("\n")
 +
      Accessible.role: Accessible.ListItem
      Accessible.name: displayLabel.text
      Accessible.description: {
-@@ -131,7 +141,7 @@
+@@ -131,7 +146,7 @@
              anchors.bottomMargin: Kirigami.Units.smallSpacing
              imagePath: "widgets/line"
              elementId: "horizontal-line"
@@ -36,7 +48,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
                       && !resultDelegate.isCurrent
                       && resultDelegate.index !== 0
                       && resultDelegate.ListView.view.currentIndex !== (resultDelegate.index - indexModifier)
-@@ -145,6 +155,7 @@
+@@ -145,6 +160,7 @@
                  verticalCenter: labelWrapper.verticalCenter
              }
              width: resultDelegate.categoryWidth - Kirigami.Units.largeSpacing
@@ -44,7 +56,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
              opacity: 0.75
              color: resultDelegate.down ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
              elide: Text.ElideRight
-@@ -177,6 +188,7 @@
+@@ -177,6 +193,7 @@
  
              PlasmaComponents3.Label {
                  id: displayLabel
@@ -52,7 +64,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
  
                  elide: Text.ElideMiddle
                  wrapMode: model.multiLine ? Text.WordWrap : Text.NoWrap
-@@ -191,7 +203,7 @@
+@@ -191,7 +208,7 @@
  
                  PlasmaComponents3.ToolTip {
                      text: displayLabel.text
@@ -61,56 +73,84 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
                      timeout: -1
                  }
  
-@@ -202,6 +214,7 @@
+@@ -200,31 +217,57 @@
+                 }
+             }
  
-             PlasmaComponents3.Label {
-                 id: subtextLabel
-+                font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.2
+-            PlasmaComponents3.Label {
+-                id: subtextLabel
++            Item {
++                id: subtextClip
                  Layout.fillWidth: true
++                implicitHeight: subtextLabel.implicitHeight
++                clip: true
                  // HACK If displayLabel is too long it will shift this label outside boundaries
                  // but still render the text leading to it overlapping the action buttons looking horrible
-@@ -209,7 +222,8 @@
-                 color: resultDelegate.down ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
-                 // SourcesModel returns number of duplicates in this property
-                 // ResultsModel just has it as a boolean as you would expect from the name of the property
+                 opacity: width > 0 ? 0.75 : 0
+-                color: resultDelegate.down ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
+-                // SourcesModel returns number of duplicates in this property
+-                // ResultsModel just has it as a boolean as you would expect from the name of the property
 -                text: model.isDuplicate === true || model.isDuplicate > 1 || resultDelegate.isCurrent ? String(model.subtext || "") : ""
-+                text: resultDelegate.filePath !== "" || model.isDuplicate === true || model.isDuplicate > 1 || resultDelegate.isCurrent
-+                    ? resultDelegate.subtextLines[0] : ""
  
-                 elide: Text.ElideMiddle
-                 wrapMode: Text.NoWrap
-@@ -219,7 +233,7 @@
- 
-                 PlasmaComponents3.ToolTip {
-                     text: subtextLabel.text
+-                elide: Text.ElideMiddle
+-                wrapMode: Text.NoWrap
+-                maximumLineCount: 1
+-                verticalAlignment: Text.AlignVCenter
+-                textFormat: Text.PlainText
+-
+-                PlasmaComponents3.ToolTip {
+-                    text: subtextLabel.text
 -                    visible: subtextLabelHoverHandler.hovered && subtextLabel.truncated
-+                    visible: subtextLabelHoverHandler.hovered && subtextLabel.truncated && resultDelegate.filePath === ""
-                     timeout: -1
+-                    timeout: -1
+-                }
+-
+-                HoverHandler {
+-                    id: subtextLabelHoverHandler
++                readonly property bool fullPath: resultDelegate.hovered && resultDelegate.filePath !== ""
++                // how far the full path runs past the row, scrolled through while it's hovered
++                readonly property real overflow: fullPath ? Math.max(0, Math.ceil(subtextLabel.implicitWidth - width)) : 0
++
++                PlasmaComponents3.Label {
++                    id: subtextLabel
++                    anchors.verticalCenter: parent.verticalCenter
++                    width: subtextClip.overflow > 0 ? implicitWidth : subtextClip.width
++                    font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.2
++                    color: resultDelegate.down ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
++                    // SourcesModel returns number of duplicates in this property
++                    // ResultsModel just has it as a boolean as you would expect from the name of the property
++                    text: subtextClip.fullPath ? resultDelegate.filePath
++                        : resultDelegate.filePath !== "" || model.isDuplicate === true || model.isDuplicate > 1 || resultDelegate.isCurrent
++                        ? String(model.subtext || "").split("\n")[0] : ""
++
++                    elide: subtextClip.overflow > 0 ? Text.ElideNone : Text.ElideMiddle
++                    wrapMode: Text.NoWrap
++                    maximumLineCount: 1
++                    verticalAlignment: Text.AlignVCenter
++                    textFormat: Text.PlainText
++
++                    // a pause at each end, and 80 px/s between them
++                    SequentialAnimation on x {
++                        running: subtextClip.overflow > 0
++                        loops: Animation.Infinite
++                        onRunningChanged: if (!running) subtextLabel.x = 0
++                        PauseAnimation { duration: 700 }
++                        NumberAnimation { to: -subtextClip.overflow; duration: subtextClip.overflow * 1000 / 80; easing.type: Easing.InOutSine }
++                        PauseAnimation { duration: 1200 }
++                        NumberAnimation { to: 0; duration: subtextClip.overflow * 1000 / 160; easing.type: Easing.InOutSine }
++                    }
++
++                    PlasmaComponents3.ToolTip {
++                        text: subtextLabel.text
++                        visible: subtextLabelHoverHandler.hovered && subtextLabel.truncated && resultDelegate.filePath === ""
++                        timeout: -1
++                    }
++
++                    HoverHandler {
++                        id: subtextLabelHoverHandler
++                    }
                  }
- 
-@@ -229,12 +243,22 @@
              }
          }
- 
-+        PlasmaComponents3.ToolTip {
-+            // the full path, breakable after each slash, then the rest of the subtext
-+            text: [resultDelegate.filePath.replace(/\//g, "/\u200b")].concat(resultDelegate.subtextLines.slice(1)).join("\n\n")
-+            visible: resultDelegate.hovered && resultDelegate.filePath !== "" && !actionsHover.hovered
-+        }
-+
-         Row {
-             id: actionsRow
-             anchors.right: parent.right
-             anchors.verticalCenter: labelWrapper.verticalCenter
-             visible: resultDelegate.isCurrent && actionsRepeater.count > 0
- 
-+            HoverHandler {
-+                id: actionsHover
-+            }
-+
-             Repeater {
-                 id: actionsRepeater
-                 model: resultDelegate.actions
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultsView.qml b/lib/ResultsView.qml
 --- a/lib/ResultsView.qml
 +++ b/lib/ResultsView.qml
