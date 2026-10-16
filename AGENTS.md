@@ -575,6 +575,18 @@ docs are in README.md; this file covers how to work on it.
   (`perf record -a -F 199`) is what showed KRunner at 0.8% of the CPU beside the apps. Profiling the
   preview at 150 fps capture (unfold.sh) misleads here: the capture itself is the biggest load, and its
   stalls were its own.
+- **The dropdown's momentum waves restarted and rode down the glass** (2026-10-16, the user: "the wave
+  animation seems to be somehow restarting every frame", then "the wave is translating down the element
+  as the window opens"). Counted with `dbus-monitor --session "type=method_call,member=Knock"` in the real
+  session: 11 bottom-edge knocks in 6 s, most at the full 1.3, in threes 0.3-0.9 s apart. Results arrive
+  in batches, so opening unfolded, stopped and unfolded again, and each stop (the bottom edge speeding up
+  upwards) knocked; and a knock while the dropdown still grew rode down with it, since a bottom wave is
+  placed from the current bottom edge (KWin's and busywaves' window coordinates). Now the bottom edge's
+  swings only remember the strongest, and `settling` (a 150 ms Timer, restarted by every change of height)
+  sends one wave once the dropdown has stopped, at most one every 1.2 s. The preview never showed it: its
+  query arrives at once and unfolds once (2 knocks in a session). A wave can still move if the height
+  changes later in its life (more typing); anchoring bottom waves to their birth height needs KWin's
+  ripple.frag and busywaves.frag to take it.
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and
   transformers 5.19 or later. Installing `sentence-transformers[image,audio]` downgraded
   transformers once.
