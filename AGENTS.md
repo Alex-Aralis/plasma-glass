@@ -585,8 +585,11 @@ docs are in README.md; this file covers how to work on it.
   swings only remember the strongest, and `settling` (a 150 ms Timer, restarted by every change of height)
   sends one wave once the dropdown has stopped, at most one every 1.2 s. The preview never showed it: its
   query arrives at once and unfolds once (2 knocks in a session). A wave can still move if the height
-  changes later in its life (more typing); anchoring bottom waves to their birth height needs KWin's
-  ripple.frag and busywaves.frag to take it.
+  changes later in its life (the user: "if a wave is already propagating it still gets pulled down with
+  the bottom of the window as it opens"), so each knock now keeps the window's size when it struck (KWin's
+  `LiquidGlassKnock::size`, KRunner's `w0`/`h0`) and a bottom or right wave's distance travelled gets the
+  edge's move since (`knocks[i][2] = speed * age + moved`, the same in RunCommand.qml's `kv`): its crest
+  stays where it is on screen while the window grows or shrinks. KWin's half only runs after a relogin.
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and
   transformers 5.19 or later. Installing `sentence-transformers[image,audio]` downgraded
   transformers once.

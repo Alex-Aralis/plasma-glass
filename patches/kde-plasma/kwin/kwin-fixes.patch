@@ -337,7 +337,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      m_downsamplePass.shader = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture,
                                                                                  QStringLiteral(":/effects/blur/shaders/vertex.vert"),
                                                                                  QStringLiteral(":/effects/blur/shaders/downsample.frag"));
-@@ -181,14 +312,143 @@
+@@ -181,14 +312,144 @@
          slotWindowAdded(window);
      }
  
@@ -470,6 +470,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +    for (auto &[window, data] : m_windows) {
 +        if (window->pid() == pid_t(pid.value())) {
 +            data.knocks.push_back(knock);
++            data.knocks.back().size = window->frameGeometry().size();
 +            if (data.knocks.size() > 8) { // as many as the shader takes
 +                data.knocks.erase(data.knocks.begin());
 +            }
@@ -481,7 +482,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  void BlurEffect::initBlurStrengthValues()
  {
      // This function creates an array of blur strength values that are evenly distributed
-@@ -571,6 +831,21 @@
+@@ -571,6 +832,21 @@
  
      blurShape.translate(w->pos());
  
@@ -503,7 +504,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      const Rect backgroundRect = blurShape.boundingRect().rounded();
      const Rect scaledBackgroundRect = backgroundRect.scaled(viewport.scale()).rounded();
      const Rect deviceBackgroundRect = viewport.mapToDeviceCoordinates(backgroundRect).rounded();
-@@ -605,12 +880,12 @@
+@@ -605,12 +881,12 @@
          textureFormat = renderTarget.texture()->internalFormat();
      }
  
@@ -518,7 +519,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
              auto texture = GLTexture::allocate(textureFormat, backgroundRect.size() / (1 << i));
              if (!texture) {
                  qCWarning(KWIN_BLUR) << "Failed to allocate an offscreen texture";
-@@ -742,6 +1017,136 @@
+@@ -742,6 +1018,140 @@
  
      vbo->bindArrays();
  
@@ -557,7 +558,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +                    const double age = now - knock.born;
 +                    knocks[i][0] = knock.side + 0.9 * (knock.born * 0.6180339887 - std::floor(knock.born * 0.6180339887)); // and its noise's seed
 +                    knocks[i][1] = knock.at;
-+                    knocks[i][2] = knock.speed * age;
++                    // how far it has come, from where its side was: the bottom or right edge may have moved since
++                    const double moved = knock.side == 3 ? window.height() - knock.size.height()
++                        : knock.side == 1                ? window.width() - knock.size.width()
++                                                         : 0;
++                    knocks[i][2] = knock.speed * age + moved;
 +                    knocks[i][3] = knock.bump + knock.spread * age;
 +                    shapes[i][0] = knock.amp * std::exp(-age / knock.damping) * smoothStep(0, 0.05, age) * (1 - smoothStep(0.8 * knock.life, knock.life, age));
 +                    shapes[i][1] = knock.strike / 2;
@@ -655,7 +660,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      // The downsample pass of the dual Kawase algorithm: the background will be scaled down 50% every iteration.
      {
          ShaderManager::instance()->pushShader(m_downsamplePass.shader.get());
-@@ -750,7 +1155,7 @@
+@@ -750,7 +1160,7 @@
          projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
  
          m_downsamplePass.shader->setUniform(m_downsamplePass.mvpMatrixLocation, projectionMatrix);
@@ -664,7 +669,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
          for (size_t i = 1; i < renderInfo.framebuffers.size(); ++i) {
              const auto &read = renderInfo.framebuffers[i - 1];
-@@ -760,7 +1165,7 @@
+@@ -760,7 +1170,7 @@
                                        0.5 / read->colorAttachment()->height());
              m_downsamplePass.shader->setUniform(m_downsamplePass.halfpixelLocation, halfpixel);
  
@@ -673,7 +678,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
              GLFramebuffer::pushFramebuffer(draw.get());
              vbo->draw(GL_TRIANGLES, 0, 6);
-@@ -777,7 +1182,7 @@
+@@ -777,7 +1187,7 @@
          projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
  
          m_upsamplePass.shader->setUniform(m_upsamplePass.mvpMatrixLocation, projectionMatrix);
@@ -682,7 +687,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
          for (size_t i = renderInfo.framebuffers.size() - 1; i > 1; --i) {
              GLFramebuffer::popFramebuffer();
-@@ -824,7 +1229,7 @@
+@@ -824,7 +1234,7 @@
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.mvpMatrixLocation, projectionMatrix);
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.colorMatrixLocation, m_colorMatrix);
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.halfpixelLocation, halfpixel);
@@ -691,7 +696,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.boxLocation, QVector4D(nativeBox.horizontalCenter(), nativeBox.verticalCenter(), nativeBox.width() * 0.5, nativeBox.height() * 0.5));
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.cornerRadiusLocation, nativeCornerRadius.toVector());
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.opacityLocation, modulation);
-@@ -839,6 +1244,61 @@
+@@ -839,6 +1249,61 @@
          glDisable(GL_BLEND);
  
          ShaderManager::instance()->popShader();
@@ -753,7 +758,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      } else {
          ShaderManager::instance()->pushShader(m_onscreenPass.shader.get());
  
-@@ -854,7 +1314,7 @@
+@@ -854,7 +1319,7 @@
          m_onscreenPass.shader->setUniform(m_onscreenPass.mvpMatrixLocation, projectionMatrix);
          m_onscreenPass.shader->setUniform(m_onscreenPass.colorMatrixLocation, m_colorMatrix);
          m_onscreenPass.shader->setUniform(m_onscreenPass.halfpixelLocation, halfpixel);
@@ -777,7 +782,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  #include <unordered_map>
  
  namespace KWin
-@@ -28,6 +31,34 @@
+@@ -28,6 +31,36 @@
      std::vector<std::unique_ptr<GLFramebuffer>> framebuffers;
  };
  
@@ -807,12 +812,14 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
 +    double chopScale;
 +    int chopSide; // the side the busy knocks land on, which the chop runs away from (momentum's knocks
 +                  // come from any side)
++    QSizeF size; // the window's when it knocked: a wave off the bottom or right side stays where it set out
++                 // as the window grows or shrinks (the side is where the window's edge is now)
 +};
 +
  struct BlurEffectData
  {
      /// The region that should be blurred behind the window
-@@ -43,9 +74,17 @@
+@@ -43,9 +76,17 @@
      std::unordered_map<RenderView *, BlurRenderData> render;
  
      std::unique_ptr<BackgroundEffectItem> blurItem;
@@ -831,7 +838,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  {
      Q_OBJECT
  
-@@ -81,6 +120,11 @@
+@@ -81,6 +122,11 @@
  #endif
      void setupDecorationConnections(EffectWindow *w);
  
@@ -843,7 +850,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  private:
      void initBlurStrengthValues();
      RegionF blurRegion(EffectWindow *w) const;
-@@ -90,6 +134,7 @@
+@@ -90,6 +136,7 @@
      void updateBlurRegion(EffectWindow *w);
      void blur(const RenderTarget &renderTarget, const RenderViewport &viewport, EffectWindow *w, int mask, const Region &deviceRegion, WindowPaintData &data);
      GLTexture *ensureNoiseTexture();
@@ -851,7 +858,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  
  private:
      struct
-@@ -113,6 +158,75 @@
+@@ -113,6 +160,75 @@
          int opacityLocation;
      } m_roundedOnscreenPass;
  
