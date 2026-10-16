@@ -67,7 +67,8 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
   show once in results.
 - **Results:** KRunner always shows the top five. Up to three files whose name and path hold every
   word of the query come first (at least one word in the name; a word can be a substring, or its
-  letters in order from a word's start, as in fzf), then the closest by meaning. Similarity scores
+  letters in order from a word's start, as in fzf), then the closest by meaning. A word with slashes
+  goes folder by folder: `02/020/030` puts files under `02/020-…/` first even when there's no `030`. Similarity scores
   can't reliably separate nonsense from real queries, so there's no cutoff.
 
 ## What gets changed

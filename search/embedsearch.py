@@ -457,12 +457,55 @@ def match_word(word, s, low, name_start):
     return 0.7 * good * (1.0 if pos[0] >= name_start else 0.85), pos[0] >= name_start
 
 
+def match_path(word, s, low):
+    """How well a word with slashes ("02/020/030") follows the path's folders, 0-1: each part counts
+    1 where a folder or the file's name starts with it (0.8 where a word inside one does; a number only
+    as a whole number, so "02" isn't in "020-x"), half as much
+    again where it's in the folder right after the last part's, and a quarter if the last part is in
+    the file's name. Earlier parts weigh more (1.5 for the first down to 1 for the last), since they say
+    where: "02/020/030" is nearer 02/020/010 than 01/020/030. Parts may go unmatched ("02/020/030" still finds 02/020-x/010-y.md), but at least
+    half of them (two of three, both of two) have to match, in order."""
+    parts = [x for x in word.split("/") if x]
+    if not parts or not any(x in low for x in parts):
+        return 0.0
+    comps, lows = s.split("/"), low.split("/")
+
+    def part(x, k):  # a number only matches a whole number: "02" isn't in "020-morning-praxis"
+        c, i = lows[k], lows[k].find(x)
+        while i >= 0:
+            j = i + len(x)
+            if (i == 0 or word_start(comps[k], i)) and not (x[-1].isdigit() and j < len(c) and c[j].isdigit()):
+                return 1.0 if i == 0 else 0.8
+            i = c.find(x, i + 1)
+        return 0.0
+
+    memo = {}
+
+    def best(i, j, chained):  # parts i.. in folders j..; chained: part i-1 matched folder j-1
+        if i == len(parts):
+            return 0.0
+        if (i, j, chained) not in memo:
+            r = best(i + 1, j, False)
+            for k in range(j, len(comps)):
+                if q := part(parts[i], k) * weights[i]:
+                    q += (0.5 if chained and k == j else 0) + (0.25 if i == len(parts) - 1 and k == len(comps) - 1 else 0)
+                    r = max(r, q + best(i + 1, k + 1, True))
+            memo[i, j, chained] = r
+        return memo[i, j, chained]
+
+    n = len(parts)
+    weights = [1 + 0.5 * (n - 1 - i) / max(1, n - 1) for i in range(n)]
+    score = best(0, 0, False)
+    return score / (sum(weights) + 0.5 * (n - 1) + 0.25) if score >= 0.8 * min(n, max(2, -(-n // 2))) else 0.0
+
+
 def match_name(words, entry):
-    """Score (0-1) of a file whose name or path holds every word, at least one in the name; else 0."""
+    """Score (0-1) of a file whose name or path holds every word, at least one in the name or one a path
+    (with slashes); else 0."""
     s, low, name_start = entry
     total, any_in_name = 0.0, False
     for w in words:
-        q, in_name = match_word(w, s, low, name_start)
+        q, in_name = (match_path(w, s, low), True) if "/" in w else match_word(w, s, low, name_start)
         if not q:
             return 0.0
         total += q

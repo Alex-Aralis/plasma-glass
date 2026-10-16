@@ -466,7 +466,12 @@ docs are in README.md; this file covers how to work on it.
   `vae·lor-e·state`. Checked on the main box's index: "pragconv", "fso armour", "t14 readme",
   "embedsearch py", "borrowed shift" put the file first, where meaning alone missed or ranked it
   lower; queries in words got the same or better (the `.config` files for "kernel config for the
-  laptop"). Match ids are the paths now (no chunk ids).
+  laptop"). Match ids are the paths now (no chunk ids). A word with slashes is matched folder by folder
+  (`match_path`, 2026-10-16: "02/020/030" ranked `01/090-warm-hands/020-…` first, by meaning, since no
+  path held all three): each part has to start a folder or the file's name (or a word in one), in order,
+  a number only as a whole number ("02" isn't in "020-x"); parts in consecutive folders count 1.5x, the
+  last one in the file's name a quarter more, earlier parts weigh more (1.5 down to 1: 02/020/010 beats
+  01/020/030), and half the parts may go unmatched.
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and
   transformers 5.19 or later. Installing `sentence-transformers[image,audio]` downgraded
   transformers once.
