@@ -447,6 +447,11 @@ docs are in README.md; this file covers how to work on it.
   `tools/preview/fake-indexer.py` in the preview session (it owns `local.embedsearch`, so semantic
   matches fail there with an UnknownMethod error). The bar's slide measured with
   `INDEXING="4.5 2" KEYS="-" SECONDS_CAPTURED=4.5 BOTTOMS=1 tools/preview/unfold.sh`.
+  While it indexes, the busy ripple runs too (`busy` in RunCommand.qml includes `indexingProgress >= 0`;
+  2026-10-16, the user: "while the index is loading enable the wave effect"), whether or not a search is
+  running, and the last waves fade out as usual once it ends. Checked in the preview by motion in the
+  query area: none without indexing, waves throughout with `INDEXING="3 7"` (over ColorfulCups, since on
+  dark glass only KWin's bending shows them).
 - **`Kirigami.Icon` rounds to standard sizes** (`roundToIconSize`): ask for 28 px and you get 22.
 - **QQuickWindow sees every press as accepted after delivery**, even on empty space. Handle input
   in QML, as the KRunner drag area does (a MouseArea under the content).

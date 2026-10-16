@@ -67,7 +67,7 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
   shows what's indexed, and `journalctl --user -fu embedsearch` shows indexing progress.
 - **Updates:** new and changed files are picked up every 15 minutes, or right away with the "Index"
   launcher (KRunner or the app menu), which ends with a notification saying what it indexed. While
-  it indexes, KRunner shows a progress bar. Identical text is only embedded once, and renamed copies
+  it indexes, KRunner shows a progress bar and its busy waves run. Identical text is only embedded once, and renamed copies
   show once in results.
 - **Results:** KRunner always shows the top five. Up to three files whose name and path hold every
   word of the query come first (at least one word in the name; a word can be a substring, or its

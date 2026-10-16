@@ -215,7 +215,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunne
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -16,11 +16,457 @@
+@@ -16,11 +16,459 @@
  import org.kde.milou as Milou
  import org.kde.krunner.private.view
  import org.kde.kirigami as Kirigami
@@ -225,8 +225,10 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
      id: root
  
      required property RunnerWindow runnerWindow
-+    // a search has run for half a second (queryTimer): busy feedback (busyRipple, or busyPulse without shaders)
-+    readonly property bool busy: queryTimer.queryDisplay || root.runnerWindow.busyDemo || root.runnerWindow.tuning
++    // a search has run for half a second (queryTimer), or the semantic search service is indexing (the bar
++    // under the query): busy feedback (busyRipple, or busyPulse without shaders)
++    readonly property bool busy: queryTimer.queryDisplay || root.runnerWindow.indexingProgress >= 0
++                                 || root.runnerWindow.busyDemo || root.runnerWindow.tuning
 +
 +    // Drag the floating window from any spot nothing else uses (the glass rim beside the content). It sits
 +    // under this layout, across the whole window, and the window remembers where it was left.
@@ -673,7 +675,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
      property string query
      property string singleRunner
      property bool showHistory: false
-@@ -62,6 +508,13 @@
+@@ -62,6 +510,13 @@
      Connections {
          target: root.runnerWindow
          function onVisibleChanged() {
@@ -687,7 +689,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              if (root.runnerWindow.visible) {
                  queryField.forceActiveFocus();
                  listView.currentIndex = -1
-@@ -74,6 +527,8 @@
+@@ -74,6 +529,8 @@
                      }
                  }
              } else {
@@ -696,7 +698,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
                  if (root.runnerWindow.retainPriorSearch) {
                      root.priorSearch = root.query
                  }
-@@ -98,6 +553,7 @@
+@@ -98,6 +555,7 @@
      }
      
      RowLayout {
@@ -704,7 +706,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          Layout.alignment: Qt.AlignTop
          PlasmaComponents3.ToolButton {
              visible: root.runnerWindow.helpEnabled
-@@ -131,14 +587,33 @@
+@@ -131,14 +589,33 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -741,7 +743,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              QQC2.Label {
                  id: fadedTextCompletion
-@@ -157,35 +632,25 @@
+@@ -157,35 +634,25 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -789,7 +791,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              }
  
              function focusCurrentListView() {
-@@ -301,6 +766,7 @@
+@@ -301,6 +768,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -797,7 +799,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -313,12 +779,102 @@
+@@ -313,12 +781,102 @@
          }
      }
  
@@ -903,7 +905,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -327,6 +883,10 @@
+@@ -327,6 +885,10 @@
              queryString: root.query
              queryField: queryField
              singleRunner: root.singleRunner
@@ -914,7 +916,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              Keys.onEscapePressed: {
                  root.runnerWindow.visible = false
-@@ -347,9 +907,18 @@
+@@ -347,9 +909,18 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -934,7 +936,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
          visible: root.query.length === 0 && listView.count > 0
-@@ -358,6 +927,8 @@
+@@ -358,6 +929,8 @@
  
          ListView {
              id: listView // needs this id so the delegate can access it
