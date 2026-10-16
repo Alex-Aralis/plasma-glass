@@ -590,6 +590,21 @@ docs are in README.md; this file covers how to work on it.
   `LiquidGlassKnock::size`, KRunner's `w0`/`h0`) and a bottom or right wave's distance travelled gets the
   edge's move since (`knocks[i][2] = speed * age + moved`, the same in RunCommand.qml's `kv`): its crest
   stays where it is on screen while the window grows or shrinks. KWin's half only runs after a relogin.
+- **The dropdown reopened half unfolded, and flickered while typing** (2026-10-16, the user: "stuck between
+  open and close", rare; "flickering between open and closed when quickly typing then backspacing
+  repeatedly"). Caught with a KWin script logging KRunner's frameGeometry height on every change
+  (`KRUNNERSIZE` in the journal; loaded over org.kde.kwin.Scripting, nothing in KRunner): one session opened
+  at 121 px against an empty 69 and stayed so until the first key, and typing and deleting reversed the
+  height 356 times in 2.5 min, folding shut and unfolding every 0.2-0.5 s. The window followed only
+  changes of the content's implicitHeight, so after it was hidden mid-fold (clicked away) it reopened at
+  the height it had; `View::fitContent()` now also runs as it shows (and calls `update()`: a layer-shell
+  size only applies with a commit). The dropdown unfolds at once but folds only after its results have
+  stayed fewer for 200 ms (`foldLater`, compared against `targetHeight`, as shownHeight reads as its
+  Behavior animates); type-and-delete in the preview then folded once, where it had folded, reopened and
+  folded. `foldLater` is outside the ScrollView: inside it, a QQC2 ScrollView takes it for content and the
+  list stopped being its scrolling area (an empty window as tall as the screen allowed).
+  `tools/preview/krunner.sh` takes `HOLD` (s before HOVER_INPUT and the screenshot, default 8), used to
+  script open/close cycles over the preview's bus as a `KRUNNER` wrapper.
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and
   transformers 5.19 or later. Installing `sentence-transformers[image,audio]` downgraded
   transformers once.

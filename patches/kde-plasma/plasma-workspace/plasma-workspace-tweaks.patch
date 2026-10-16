@@ -850,7 +850,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -313,12 +832,102 @@
+@@ -313,12 +832,122 @@
          }
      }
  
@@ -914,6 +914,14 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        }
 +    }
 +
++    // resultsScrollView's fold, a moment after its results got fewer (outside it: a ScrollView takes its
++    // children for content, and a second one stopped the list from being its scrolling area)
++    Timer {
++        id: foldLater
++        interval: 200
++        onTriggered: resultsScrollView.shownHeight = resultsScrollView.targetHeight = resultsScrollView.fullHeight
++    }
++
      PlasmaComponents3.ScrollView {
 -        visible: results.count > 0
 -        enabled: visible
@@ -931,10 +939,22 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        // from nothing as results arrive, eases as their number changes and folds away when they go.
 +        readonly property real fullHeight: results.count > 0 ? Math.max(listView.contentHeight, results.contentHeight) : 0
 +        property real shownHeight: 0
-+        onFullHeightChanged: shownHeight = fullHeight
++        property real targetHeight: 0 // where shownHeight is heading (it reads as the animation goes)
++        // It unfolds at once and folds only once the results have stayed fewer for a moment: typing fast and
++        // deleting, the query emptied and filled again every few tenths of a second, and the dropdown folded
++        // shut and unfolded again each time (the user: "flickering between open and closed")
++        onFullHeightChanged: {
++            if (fullHeight >= targetHeight) {
++                foldLater.stop();
++                shownHeight = targetHeight = fullHeight;
++            } else {
++                foldLater.restart();
++            }
++        }
 +        function foldShut() {
++            foldLater.stop();
 +            unfold.enabled = false;
-+            shownHeight = 0;
++            shownHeight = targetHeight = 0;
 +            unfold.enabled = true;
 +        }
 +        Behavior on shownHeight {
@@ -956,7 +976,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -327,6 +936,10 @@
+@@ -327,6 +956,10 @@
              queryString: root.query
              queryField: queryField
              singleRunner: root.singleRunner
@@ -967,7 +987,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              Keys.onEscapePressed: {
                  root.runnerWindow.visible = false
-@@ -347,9 +960,18 @@
+@@ -347,9 +980,18 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -987,7 +1007,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
          visible: root.query.length === 0 && listView.count > 0
-@@ -358,6 +980,8 @@
+@@ -358,6 +1000,8 @@
  
          ListView {
              id: listView // needs this id so the delegate can access it
@@ -1670,7 +1690,40 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      } else {
          return {}; // Zeros
      }
-@@ -119,11 +248,48 @@
+@@ -104,13 +233,26 @@
+     auto item = qobject_cast<QQuickItem *>(m_engine->rootObject());
+     setMainItem(item);
+ 
+-    auto updateSize = [this]() {
+-        resize(QSize(mainItem()->implicitWidth(), mainItem()->implicitHeight()).grownBy(padding()).boundedTo(screen()->availableSize().shrunkBy(margins())));
+-    };
++    connect(item, &QQuickItem::implicitHeightChanged, this, &View::fitContent);
++    connect(this, &View::paddingChanged, this, &View::fitContent);
++    // Hidden while the dropdown still moved (clicked away mid-fold), the window kept that height, and as the
++    // content's height didn't change again it reopened half unfolded (121 px against 69 on the laptop) until
++    // the first key; so fit it again whenever it shows
++    connect(this, &QWindow::visibleChanged, this, [this](bool visible) {
++        if (visible) {
++            QTimer::singleShot(0, this, &View::fitContent);
++        }
++    });
++    fitContent();
++}
+ 
+-    connect(item, &QQuickItem::implicitHeightChanged, this, updateSize);
+-    connect(this, &View::paddingChanged, this, updateSize);
+-    updateSize();
++void View::fitContent()
++{
++    if (!mainItem()) {
++        return;
++    }
++    resize(QSize(mainItem()->implicitWidth(), mainItem()->implicitHeight()).grownBy(padding()).boundedTo(screen()->availableSize().shrunkBy(margins())));
++    update(); // a layer-shell size only applies with a commit, which an unchanged scene doesn't make
+ }
+ 
+ void View::slotFocusWindowChanged()
+@@ -119,11 +261,48 @@
          displayWithClipboardContents();
      }
  
@@ -1720,7 +1773,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
  bool View::freeFloating() const
  {
      return m_floating;
-@@ -145,6 +311,9 @@
+@@ -145,6 +324,9 @@
  
  void View::loadConfig()
  {
@@ -1730,7 +1783,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      setFreeFloating(m_config.readEntry("FreeFloating", false));
      setRetainPriorSearch(m_config.readEntry("RetainPriorSearch", true));
      setPinned(m_stateData.readEntry("Pinned", false));
-@@ -157,6 +326,7 @@
+@@ -157,6 +339,7 @@
          KX11Extras::setOnAllDesktops(winId(), true);
      }
      QQuickWindow::showEvent(event);
@@ -1738,7 +1791,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      requestActivate();
      if (KWindowSystem::isPlatformX11()) {
          KX11Extras::forceActiveWindow(winId());
-@@ -167,7 +337,15 @@
+@@ -167,7 +350,15 @@
  {
      const auto screens = QGuiApplication::screens();
      auto screenIt = screens.cend();
@@ -1755,7 +1808,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
          auto message = QDBusMessage::createMethodCall(u"org.kde.KWin"_s, u"/KWin"_s, u"org.kde.KWin"_s, u"activeOutputName"_s);
          QDBusReply<QString> reply = QDBusConnection::sessionBus().call(message);
          if (reply.isValid()) {
-@@ -187,11 +365,10 @@
+@@ -187,11 +378,10 @@
  
      if (KWindowSystem::isPlatformWayland()) {
          auto layerWindow = LayerShellQt::Window::get(this);
@@ -1768,7 +1821,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
          if (m_floating) {
              layerWindow->setScreen(shownOnScreen);
          } else {
-@@ -209,6 +386,269 @@
+@@ -209,6 +399,269 @@
      }
  }
  
@@ -2147,7 +2200,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  
  public Q_SLOTS:
      void display();
-@@ -97,6 +168,9 @@
+@@ -97,15 +168,53 @@
      void query(const QString &term);
      void querySingleRunner(const QString &runnerName, const QString &term);
  
@@ -2157,7 +2210,10 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  protected Q_SLOTS:
      void loadConfig();
      void objectIncubated();
-@@ -106,6 +180,40 @@
++    void fitContent();
+     void slotFocusWindowChanged();
+ 
+ private:
      void writeHistory();
      QPoint m_customPos;
      QMargins margins();
