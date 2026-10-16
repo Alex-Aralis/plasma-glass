@@ -515,6 +515,20 @@ docs are in README.md; this file covers how to work on it.
   once and found by name. On the main box /etc added 763 text files, 1.6 MB of text, 1,977 chunks, about
   4 minutes on the CPU. A user's existing config.toml lists its folders, so adding /etc to the defaults
   doesn't reach it: add `"/etc"` to `folders` there.
+- **The search service's CPU per query** (2026-10-16, the user: "huge cpu spikes and lag when opening
+  the dropdown" on the laptop, after the name search and /etc doubled its work). Over D-Bus a query cost
+  0.5-1.3 s of the service's CPU for 0.3 s of wall time, and a typed query (a Match per key) 0.5-10 s.
+  Two causes, measured with `time.process_time()` per stage: numpy's OpenBLAS pool spun on every core
+  after each matrix product (`match_names`, pure Python, read 24 ms wall and 236 ms CPU), fixed with
+  `OPENBLAS_NUM_THREADS=1` before numpy loads (search 140 to 11 ms CPU, a whole `find` 350 to 14); and on
+  the GPU each new query length compiled its kernels anew (IGC on the CPU: 100-200 ms a key, seconds now
+  and then), fixed by padding queries to a multiple of 16 tokens (masked, cosine 0.99999; a steady 49 ms
+  a query). Typing a query then cost 80-590 ms of service CPU, the first ones after a restart more while
+  the 16 and 32 token shapes compile. The index also no longer reloads inside a query (0.3 s): the
+  indexing thread reloads it, at most once a minute during a run and once at its end. Tried and left
+  out: `GPU_QUEUE_THROTTLE` LOW (55 to 39 ms CPU, but 55 to 76 ms wall). KRunner itself was not it:
+  in the preview its CPU over a query and unfold read 870-890 ms with milou from before and after that
+  day's changes (a wrapper sampling /proc/PID/stat as `KRUNNER`).
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and
   transformers 5.19 or later. Installing `sentence-transformers[image,audio]` downgraded
   transformers once.

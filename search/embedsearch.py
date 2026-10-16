@@ -45,6 +45,9 @@ def take_signals():
 if __name__ == "__main__":
     take_signals()  # before numpy, which starts its threads on import
 
+# One BLAS thread: the searches' products take ~10 ms on one, and numpy's OpenBLAS pool spun on every core
+# for a while after each, which made each query cost 10x its time in CPU (2026-10-16, on the laptop).
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 import numpy as np
 import openvino as ov
 from tokenizers import Tokenizer
@@ -179,11 +182,12 @@ class Embedder:
             self._local.req = self.compiled.create_infer_request()
         return self._local.req
 
-    def embed(self, texts, batch_size=16, max_tokens=1024, pause=None, progress=None):
+    def embed(self, texts, batch_size=16, max_tokens=1024, pause=None, progress=None, pad_to=1):
         """Embed texts (prompts already applied). Returns float32 array (n, 768), unit length.
 
         pause, if given, is called before each batch (used to let interactive queries go first);
-        progress, after each one, with the number of texts embedded so far.
+        progress, after each one, with the number of texts embedded so far. Batches are padded to a
+        multiple of pad_to tokens, so the GPU sees fewer input shapes (each new one compiles).
         """
         encs = self.tok.encode_batch(texts)
         ids = [e.ids[:max_tokens] for e in encs]
@@ -194,7 +198,7 @@ class Embedder:
             if pause:
                 pause()
             idx = order[b : b + batch_size]
-            width = max(len(ids[i]) for i in idx)
+            width = -(-max(len(ids[i]) for i in idx) // pad_to) * pad_to
             input_ids = np.full((len(idx), width), self.pad_id, dtype=np.int64)
             mask = np.zeros((len(idx), width), dtype=np.int64)
             for row, i in enumerate(idx):
@@ -207,7 +211,10 @@ class Embedder:
         return out
 
     def embed_query(self, query):
-        return self.embed([QUERY_PROMPT + query], max_tokens=256)[0]
+        # Padded to 16 tokens: as a query is typed its length changes with nearly every key, and on the GPU
+        # each new length compiled anew (2-7x a query's time in CPU, 100-200 ms instead of 45 on the laptop).
+        # The padding is masked out (cosine 0.99999 to the unpadded vector).
+        return self.embed([QUERY_PROMPT + query], max_tokens=256, pad_to=16)[0]
 
 
 # ---------------------------------------------------------------------------- text extraction
@@ -731,8 +738,7 @@ def serve():
                 return []
             loop = asyncio.get_running_loop()
 
-            def work():
-                index.refresh()
+            def work():  # the index is reloaded by the indexing thread, not here, where it held up typing
                 return index.find(query, emb.embed_query(query), cfg["max_results"], cfg["min_score"])
 
             results = await loop.run_in_executor(query_pool, work)
@@ -812,8 +818,13 @@ def serve():
         reindex_emb = emb  # same compiled model; each thread gets its own infer request
         last = [0.0]
 
+        reloaded = [time.monotonic()]
+
         def report(share):  # from this thread to the bus, at most 4 times a second while it goes on
             now = time.monotonic()
+            if share is not None and now - reloaded[0] >= 60:  # a long run's files show as it goes
+                reloaded[0] = now
+                index.refresh(force=True)
             if share is not None and share > 0 and now - last[0] < 0.25:
                 return
             last[0] = now
@@ -824,6 +835,7 @@ def serve():
             index_now.clear()
             try:
                 indexed, removed = update_index(reindex_emb, load_config(), progress=report)
+                index.refresh(force=True)  # here rather than in a query: a reload takes ~0.3 s
                 done = ([f"{files(indexed)} indexed"] if indexed else []) + ([f"{files(removed)} removed"] if removed else [])
                 summary, body = "Index up to date", ", ".join(done) or "No new or changed files"
             except Exception as e:
