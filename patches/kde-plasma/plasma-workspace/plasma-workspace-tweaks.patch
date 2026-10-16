@@ -180,7 +180,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunner/CMakeLists.txt
 --- a/krunner/CMakeLists.txt
 +++ b/krunner/CMakeLists.txt
-@@ -15,7 +15,22 @@
+@@ -15,6 +15,13 @@
  
  add_executable(krunner ${krunner_SRCS})
  
@@ -192,18 +192,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunne
 +    FILES ${CMAKE_CURRENT_SOURCE_DIR}/relative-pointer-unstable-v1.xml)
 +
  ecm_add_qml_module(krunner URI "org.kde.krunner.private.view" QML_FILES qml/RunCommand.qml DEPENDENCIES org.kde.plasma.core)
-+# the busy feedback's shaders, next to RunCommand.qml in the module's resources
-+qt6_add_shaders(krunner "krunner_shaders"
-+    PRECOMPILE
-+    OPTIMIZED
-+    PREFIX "/qt/qml/org/kde/krunner/private/view/"
-+    FILES qml/busyripple.frag qml/busywaves.frag qml/busyfoil.frag
-+    OUTPUTS qml/busyripple.frag.qsb qml/busywaves.frag.qsb qml/busyfoil.frag.qsb
-+)
  
  target_link_libraries(krunner PRIVATE
-     Qt::Quick
-@@ -29,6 +44,8 @@
+@@ -29,6 +36,8 @@
      KF6::Runner
      PW::KWorkspace
      LayerShellQt::Interface
@@ -215,18 +206,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunne
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/krunner/qml/RunCommand.qml
 --- a/krunner/qml/RunCommand.qml
 +++ b/krunner/qml/RunCommand.qml
-@@ -16,11 +16,510 @@
- import org.kde.milou as Milou
- import org.kde.krunner.private.view
- import org.kde.kirigami as Kirigami
-+import org.kde.ksvg as KSvg
- 
- ColumnLayout {
+@@ -21,6 +21,151 @@
      id: root
  
      required property RunnerWindow runnerWindow
 +    // a search has run for half a second (queryTimer), or the semantic search service is indexing (the bar
-+    // under the query): busy feedback (busyRipple, or busyPulse without shaders)
++    // under the query): busy feedback (busyStir, or busyPulse without shaders)
 +    readonly property bool busy: queryTimer.queryDisplay || root.runnerWindow.indexingProgress >= 0
 +                                 || root.runnerWindow.busyDemo || root.runnerWindow.tuning
 +
@@ -243,7 +228,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        onReleased: mouse => root.runnerWindow.endFloatingDrag(mouse.x, mouse.y)
 +        onCanceled: root.runnerWindow.endFloatingDrag(NaN, NaN)
 +    }
-+    // Busy feedback with software rendering (no shaders for busyRipple): a band of light sweeps across the
++    // Busy feedback with software rendering (no shaders, so no liquid): a band of light sweeps across the
 +    // glass, under the content. The band is this rounded rectangle's gradient, so it keeps to the glass's
 +    // corners at every size (a layer mask lagged behind the window while the results folded away).
 +    property Item busyPulse: Rectangle {
@@ -252,7 +237,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        anchors.fill: parent
 +        z: -0.5 // over the glass, under the query and the results
 +        radius: 26 // Liquid Glass's corner radius (generate.py R)
-+        readonly property bool active: root.busy && !busyRipple.shaders
++        readonly property bool active: root.busy && !busyStir.shaders
 +        property real progress: 0 // 0..1: the band from off the left edge to off the right one
 +        // until the band is off the glass: a sweep under way when the search ends runs to the end
 +        visible: pulseSweep.running || (progress > 0 && progress < 1)
@@ -293,411 +278,58 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +            PauseAnimation { duration: 250 }
 +        }
 +    }
-+    // While a search takes a while: the glass is knocked on its left rim beside the query every 1.2 s, and
-+    // each knock sends a wave across the glass, a crest with a ringing train behind. On dark glass nothing
-+    // here draws them: each knock goes to KWin, which bends what's behind the glass under the same waves
-+    // (plasma-glass's KWin patch), and the content stays as it is. On Liquid Glass Light, busyRipple
-+    // (busyripple.frag) draws them as a foil sheen, from their slope and height (busyWaves, busywaves.frag,
-+    // at half resolution, since they're broad); it draws the content too, over the sheen, so it sits over
-+    // the content, which is hidden while it runs. Waves under way when the search ends run out.
-+    property Item busyRipple: ShaderEffect {
-+        id: busyRipple
++    // While a search takes a while, or the search index builds (root.busy), the liquid in the glass is
++    // stirred. plasma-glass's KWin patch runs a liquid in the Liquid Glass windows that ask for it: it
++    // sloshes as the window moves and its dropdown opens and closes, and while the window is busy a stretch
++    // of its rim pushes into it again and again; what's behind the glass bends under its waves. This tells
++    // KWin when KRunner is busy and where the pushes land: on the left or right side, beside the query while
++    // the window shows only that and, once results show, this far down the glass (never above the query);
++    // along the top or bottom, this far across ([Ripple] side and position in ~/.config/plasma-glassrc,
++    // which plasma-glass-tune edits). Without the patch nothing happens. Reduced motion: no pushes.
++    property Item busyStir: Item {
++        id: busyStir
 +        parent: root.parent
 +        anchors.fill: parent
-+        z: 0.5 // over the query and the results, which it draws
 +        readonly property bool shaders: GraphicsInfo.api !== GraphicsInfo.Software
-+        readonly property bool active: root.busy && shaders && Kirigami.Units.longDuration > 0 // reduced motion: none
-+        readonly property bool rippling: active || knocks.length > 0
-+        visible: lightStyle && rippling && sheen > 0
-+        fragmentShader: Qt.resolvedUrl("busyripple.frag.qsb")
-+        property var source: ShaderEffectSource {
-+            sourceItem: root
-+            hideSource: busyRipple.visible
-+            live: busyRipple.visible
-+            sourceRect: Qt.rect(-root.x, -root.y, busyRipple.width, busyRipple.height) // rows run into the padding
-+        }
-+        property var waves: ShaderEffectSource {
-+            sourceItem: busyWaves
-+            hideSource: true
-+            live: busyRipple.visible
-+            textureSize: Qt.size(Math.ceil(busyRipple.width / 2), Math.ceil(busyRipple.height / 2))
-+            format: ShaderEffectSource.RGBA16F // slopes go negative
-+        }
-+        property var foil: ShaderEffectSource {
-+            sourceItem: busyFoil
-+            hideSource: true
-+            wrapMode: ShaderEffectSource.Repeat
-+            smooth: false // crisp shard edges
-+        }
-+
-+        property size itemSize: Qt.size(width, height)
-+        property real radius: 26 // Liquid Glass's corner radius (generate.py R)
-+        property real steep: 0.5 // steepest slope of a fresh wave
-+        // Both styles show the waves by what KWin does behind the glass (plasma-glass's KWin patch: on dark
-+        // glass it bends what's behind; on Liquid Glass Light the waves go beneath the frost, lit in shards
-+        // of colour). On light glass the foil can light up on top of the glass instead, or as well: [Light]
-+        // layer top or both, drawn here as a flat sheen, as bright as [Light] diffraction (1.2 here is the
-+        // 0.35 the sheen had before the waves went beneath the frost)
-+        readonly property bool lightStyle: KSvg.ImageSet.imageSetName === "liquid-glass-light"
-+        readonly property string diffractionLayer: String(tuned["light.layer"] ?? "beneath")
-+        property real sheen: diffractionLayer === "top" || diffractionLayer === "both"
-+            ? 0.3 * Math.max(0, tunedNumber("light.diffraction", 1.2)) * amplitude : 0
-+        property real foilTile: busyFoil.width
-+        property real foilSat: Math.min(1, Math.max(0, tunedNumber("light.saturation", 0.8)))
-+        property real time: clock
-+
-+        // The ripple's settings: ~/.config/plasma-glassrc's [Ripple] group, which plasma-glass-tune edits live
-+        // (each knock takes them as they are when it lands); these are the defaults
++        readonly property bool active: root.busy && shaders && Kirigami.Units.longDuration > 0
 +        readonly property var tuned: root.runnerWindow.liquidGlass
-+        function tunedNumber(key: string, fallback: real): real {
-+            const value = tuned[key];
-+            return typeof value === "number" && isFinite(value) ? value : fallback;
-+        }
-+        readonly property real speed: Math.max(1, tunedNumber("speed", 120)) // px/s
-+        readonly property real bump: Math.max(1, tunedNumber("width", 21)) // px: half-width of a fresh wave
-+        readonly property real spread: Math.max(0, tunedNumber("widening", 8)) // px/s it widens
-+        // s a wave takes to fall by e (84% of it is left across the glass)
-+        readonly property real damping: Math.max(0.1, tunedNumber("damping", 36))
-+        readonly property real period: Math.max(0.2, tunedNumber("interval", 1.2)) // s between knocks
-+        // s a knock's wave lasts: it and its ringing cross the glass in about 9; never so long that more than
-+        // 8 are alive, as many as the shaders take
-+        readonly property real life: Math.min(Math.max(0.5, tunedNumber("lifetime", 9.5)), 8 * period - 0.05)
-+        // how far a fresh wave's steepest slope leans the glass, against the bevel at its edge (KWin), and how
-+        // strong the light sheen is
-+        readonly property real amplitude: Math.max(0, tunedNumber("amplitude", 1))
-+        // px red and blue part each way where a wave leans the glass fully (KWin; the bevel's is 2)
-+        readonly property real aberration: Math.max(0, tunedNumber("aberration", 3))
-+        // half-widths over which the ringing behind a crest fades by e, and the profile's steepest slope with
-+        // that ringing, which a fresh wave's steepest stands for
-+        readonly property real ringing: Math.min(Math.max(0.3, tunedNumber("ringing", 1.7)), 6)
-+        readonly property real slopeNorm: steepest(ringing)
-+        // px: heading into the rim, a wave fades over about twice this, this far in from it
-+        readonly property real edgeFade: Math.max(0.5, tunedNumber("edgeFade", 3))
-+        readonly property real edgeStandoff: Math.max(0, tunedNumber("standoff", 0))
-+        // px: the stretch of the side a knock strikes at once (wider, and the wave starts flatter)
-+        readonly property real strike: Math.max(1, tunedNumber("strike", 1))
-+        // to look more natural (0 turns each off; all 0 is one smooth wave per knock, every 1.2 s): chop, small
-+        // waves across the glass while it ripples; packet, two more waves out of each knock; front noise,
-+        // crests that wander and change strength along their length; the chop's wavelength (all in KWin's
-+        // ripple.frag and busywaves.frag); and jitter, each knock a little different in where it lands, how
-+        // strong and wide it is, and when it comes
-+        readonly property real chop: Math.max(0, tunedNumber("chop", 0.3))
-+        readonly property real chopScale: Math.max(4, tunedNumber("chopScale", 40))
-+        readonly property real packet: Math.min(1, Math.max(0, tunedNumber("packet", 0.7)))
-+        readonly property real frontNoise: Math.min(1, Math.max(0, tunedNumber("frontNoise", 0.5)))
-+        readonly property real jitter: Math.min(1, Math.max(0, tunedNumber("jitter", 0.6)))
-+        // The liquid's momentum ([Ripple] momentum, how strong; 0: none): when the window starts or stops
-+        // moving (dragged), or the dropdown's bottom edge does (it unfolds or folds), the wall that pushes
-+        // into the liquid sends a wave across it from most of its length, as strong as the change in speed.
-+        // Sampled each frame while anything moves, the speed over the last 100 ms (frame to frame it
-+        // flickered with the pointer's steps, and over 60 ms a steady fast drag still wobbled 500 px/s). A
-+        // change of speed sends its wave once it's over: the speed has swung at least 400 px/s from where it
-+        // was and then held for 60 ms or come back 30%, so a sudden stop makes one wave, not a burst; swings
-+        // under 400 px/s just move the anchor on, and so do
-+        // rebounds, a swing back within 0.2 s and under half as big (the speed settling after overshooting).
-+        readonly property real momentum: Math.max(0, tunedNumber("momentum", 1))
-+        // the window's place on its screen and its height over the last 100 ms: {t, x, y, h}
-+        property var motionTrail: []
-+        property real motionTime: 0
-+        property real motionUntil: 0 // s, monotonic: sample until then at least
-+        property real knownHeight: 0
-+        // per axis (x, y, the bottom edge's): the speed where the current swing began, its furthest from
-+        // there and when (px/s, s); and when each side last sent a wave
-+        property var motion: ({anchor: [0, 0, 0], peak: [0, 0, 0], peakT: [0, 0, 0], last: [0, 0, 0], lastT: [0, 0, 0]})
-+        property var lastPush: ({})
-+        FrameAnimation {
-+            id: sloshing
-+            onTriggered: busyRipple.sampleMotion()
-+        }
-+        Connections {
-+            target: root.runnerWindow
-+            function onFloatingMoved(from: point): void {
-+                busyRipple.moved(from, busyRipple.height);
-+            }
-+        }
-+        onHeightChanged: {
-+            const before = knownHeight;
-+            knownHeight = height;
-+            if (settlingSwing > 0) {
-+                settling.restart(); // the dropdown's wave waits until it has stopped moving
-+            }
-+            if (before > 0) {
-+                moved(root.runnerWindow.floatingPosition(), before);
-+            }
-+        }
-+        function moved(from: point, heightBefore: real): void {
-+            if (momentum <= 0 || !root.runnerWindow.visible) {
-+                return;
-+            }
-+            const now = root.runnerWindow.monotonicTime();
-+            if (!sloshing.running) {
-+                // from where it was before this change
-+                motionTrail = [{t: now - 1 / 60, x: from.x, y: from.y, h: heightBefore}];
-+                motionTime = now - 1 / 60;
-+                motion = {anchor: [0, 0, 0], peak: [0, 0, 0], peakT: [now, now, now], last: [0, 0, 0], lastT: [0, 0, 0]};
-+                sloshing.running = true;
-+            }
-+            motionUntil = now + 0.3;
-+        }
-+        function sampleMotion(): void {
-+            const now = root.runnerWindow.monotonicTime();
-+            const dt = now - motionTime;
-+            if (dt < 0.002) {
-+                return;
-+            }
-+            const pos = root.runnerWindow.floatingPosition();
-+            const trail = motionTrail;
-+            const last = trail[trail.length - 1];
-+            const step = [(pos.x - last.x) / dt, (pos.y - last.y) / dt, (height - last.h) / dt];
-+            trail.push({t: now, x: pos.x, y: pos.y, h: height});
-+            motionTime = now;
-+            const m = motion;
-+            // a hop to another screen, a jump or a long gap: start over from here
-+            if (root.runnerWindow.changingScreen || dt > 0.25 || step.some(r => Math.abs(r) > 12000)) {
-+                motionTrail = [trail[trail.length - 1]];
-+                motion = {anchor: [0, 0, 0], peak: [0, 0, 0], peakT: [now, now, now], last: [0, 0, 0], lastT: [0, 0, 0]};
-+                return;
-+            }
-+            while (trail.length > 2 && now - trail[1].t >= 0.1) {
-+                trail.shift();
-+            }
-+            const span = now - trail[0].t;
-+            const speed = [(pos.x - trail[0].x) / span, (pos.y - trail[0].y) / span, (height - trail[0].h) / span];
-+            for (let i = 0; i < 3; ++i) {
-+                const v = speed[i];
-+                if (Math.abs(v - m.anchor[i]) > Math.abs(m.peak[i] - m.anchor[i])) {
-+                    m.peak[i] = v;
-+                    m.peakT[i] = now;
-+                }
-+                const swing = m.peak[i] - m.anchor[i];
-+                const held = now - m.peakT[i];
-+                if (Math.abs(swing) >= 400 && (held >= 0.06 || Math.abs(m.peak[i] - v) > 0.3 * Math.abs(swing))) {
-+                    const rebound = swing * m.last[i] < 0 && now - m.lastT[i] < 0.2 && Math.abs(swing) < 0.5 * Math.abs(m.last[i]);
-+                    if (!rebound) {
-+                        wallPushed(i, swing, now);
-+                        m.last[i] = swing;
-+                        m.lastT[i] = now;
-+                    }
-+                    m.anchor[i] = m.peak[i]; // the next swing starts from there
-+                    m.peak[i] = v;
-+                    m.peakT[i] = now;
-+                } else if (Math.abs(swing) < 400 && held >= 0.12) {
-+                    m.anchor[i] = v;
-+                    m.peak[i] = v;
-+                    m.peakT[i] = now;
-+                }
-+            }
-+            if (now > motionUntil && speed.every(v => Math.abs(v) < 20)) {
-+                sloshing.running = false;
-+            }
-+        }
-+        // speeding up rightwards the left wall pushes into the liquid, downwards the top one; the bottom
-+        // edge only pushes in when it speeds up upwards (the dropdown folds, or stops unfolding)
-+        function wallPushed(axis: int, dv: real, now: real): void {
-+            let side;
-+            if (axis === 0) {
-+                side = dv > 0 ? 0 : 1;
-+            } else if (axis === 1) {
-+                side = dv > 0 ? 2 : 3;
-+            } else if (dv < 0) {
-+                // The dropdown's own moves wait until it has stopped (150 ms without a change of height) and
-+                // send one wave, the strongest swing's: results come in batches, so opening it unfolded,
-+                // stopped and unfolded again a few times a second, and each stop sent a wave (11 in 6 s in
-+                // the user's session, most at full strength), so the waves seemed to restart all the time;
-+                // and a wave sent while it still grew rode down with the bottom edge (they're placed from it)
-+                settlingSwing = Math.max(settlingSwing, Math.abs(dv));
-+                settling.restart();
-+                return;
-+            } else {
-+                return;
-+            }
-+            sendWave(side, Math.abs(dv), now);
-+        }
-+        property real settlingSwing: 0
-+        Timer {
-+            id: settling
-+            interval: 150
-+            onTriggered: {
-+                const now = root.runnerWindow.monotonicTime();
-+                // and at most one wave off the bottom every 1.2 s, while results keep changing as you type
-+                if (root.runnerWindow.visible && now - (busyRipple.lastPush[3] ?? -10) >= 1.2) {
-+                    busyRipple.sendWave(3, busyRipple.settlingSwing, now);
-+                }
-+                busyRipple.settlingSwing = 0;
-+            }
-+        }
-+        function sendWave(side: int, swing: real, now: real): void {
-+            if (now - (lastPush[side] ?? -1) < 0.12) {
-+                return;
-+            }
-+            lastPush[side] = now;
-+            const sideLength = side < 2 ? height : width;
-+            const wave = {speed, bump, spread, damping, life, steep, lean: amplitude, dispersion: aberration,
-+                          ring: ringing, norm: slopeNorm, edge: edgeFade, standoff: edgeStandoff,
-+                          strike: 0.6 * sideLength, amp: momentum * Math.min(1.3, swing / 1500),
-+                          chop, chopScale, packet, frontNoise, chopSide: knockSide};
-+            knocks = knocks.concat([Object.assign({side, at: sideLength / 2, born: now, w0: width, h0: height}, wave)]);
-+            root.runnerWindow.knock(now, side, sideLength / 2, wave);
-+        }
-+        // where the knocks land: on the left side (or right, top, bottom), beside the query while the window
-+        // shows only that and, once results show, this far down the glass (never above the query); along the
-+        // top or bottom, this far across
-+        readonly property int knockSide: {
++        readonly property int side: {
 +            const side = tuned.side;
 +            const index = typeof side === "number" ? Math.round(side) : ["left", "right", "top", "bottom"].indexOf(String(side));
 +            return index >= 0 && index <= 3 ? index : 0;
 +        }
-+        readonly property real knockAlong: Math.min(1, Math.max(0, tunedNumber("position", 1 / 3)))
-+        // the steepest slope of busywaves.frag's profile() with ringing d: ahead of the crest 0.858, or behind
-+        function steepest(d: real): real {
-+            let most = 0.858;
-+            for (let u = 0.01; u < 1.4 + 4.6 * d; u += 0.01) {
-+                const r = Math.sqrt(u * u + 1.96);
-+                const e = Math.exp(-(r - 1.4) / d);
-+                const ph = Math.PI * Math.pow(u / 2.6, 1.5);
-+                const dph = 1.5 * Math.PI / 2.6 * Math.sqrt(u / 2.6);
-+                most = Math.max(most, Math.abs(-u / (r * d) * e * Math.cos(ph) - e * Math.sin(ph) * dph));
++        readonly property real along: typeof tuned.position === "number" && isFinite(tuned.position)
++                                      ? Math.min(1, Math.max(0, tuned.position)) : 1 / 3
++        // px along the side
++        readonly property real at: {
++            if (side >= 2) {
++                return width * along;
 +            }
-+            return most;
++            const beside = queryField.mapToItem(busyStir, 0, queryField.height / 2).y;
++            return root.listHeight > 0 ? Math.max(beside, height * along) : beside;
 +        }
-+        // s, on the monotonic clock, which KWin's half of the ripple runs on too
-+        property real clock: root.runnerWindow.monotonicTime()
-+        property real nextKnock: 0
-+        property var knocks: [] // {side, at, born} and the wave's settings: side 0 is the left one, at px along it
-+        onActiveChanged: if (active) {
-+            if (knocks.length === 0) {
-+                nextKnock = root.runnerWindow.monotonicTime(); // knock at once
-+            }
-+            knockTimer.interval = 16; // and don't wait out a long sleep (below)
++        function send(): void {
++            root.runnerWindow.stir(active, side, at);
 +        }
-+        // On Liquid Glass Light KRunner draws the waves, so they advance every frame. On dark glass KWin draws
-+        // them and KRunner only times the knocks: a frame animation there kept Qt rendering the same frame at
-+        // the screen's rate (and KWin blurring each one anew) for as long as waves lived, 5 s of CPU in 25 on
-+        // the laptop on battery. A timer wakes it for the next knock, or when the oldest wave has died out.
-+        FrameAnimation {
-+            running: busyRipple.rippling && busyRipple.visible
-+            onTriggered: busyRipple.advance()
++        onActiveChanged: send()
++        onSideChanged: send()
++        onAtChanged: if (active) {
++            moved.restart(); // as the dropdown settles, not at each step of it
 +        }
 +        Timer {
-+            id: knockTimer
-+            running: busyRipple.rippling && !busyRipple.visible
-+            repeat: true
-+            interval: 16
-+            onRunningChanged: if (running) interval = 16
-+            onTriggered: {
-+                busyRipple.advance();
-+                const now = root.runnerWindow.monotonicTime();
-+                let next = busyRipple.active ? busyRipple.nextKnock : Infinity;
-+                for (const k of busyRipple.knocks) {
-+                    next = Math.min(next, k.born + k.life);
++            id: moved
++            interval: 100
++            onTriggered: busyStir.send()
++        }
++        Connections {
++            target: root.runnerWindow
++            // a new window each time it opens: KWin gives it the liquid, busy or not
++            function onVisibleChanged(): void {
++                if (root.runnerWindow.visible) {
++                    busyStir.send();
 +                }
-+                interval = Number.isFinite(next) ? Math.max(16, Math.ceil((next - now) * 1000)) : 16;
 +            }
 +        }
-+        function advance(): void {
-+            clock = root.runnerWindow.monotonicTime();
-+            const list = knocks.filter(k => clock - k.born < k.life);
-+            if (active && clock >= nextKnock) {
-+                let at = width * knockAlong;
-+                if (knockSide < 2) {
-+                    const beside = queryField.mapToItem(busyRipple, 0, queryField.height / 2).y;
-+                    at = root.listHeight > 0 ? Math.max(beside, height * knockAlong) : beside;
-+                }
-+                const jit = () => jitter * (Math.random() - 0.5);
-+                const sideLength = knockSide < 2 ? height : width;
-+                at = Math.min(sideLength - 1, Math.max(1, at + jit() * 0.4 * sideLength));
-+                // each knock keeps the settings it landed with, here and in KWin, so changing them doesn't jolt
-+                // the waves under way
-+                const wave = {speed, bump: bump * (1 + jit() * 0.8), spread, damping, life, steep, lean: amplitude,
-+                              dispersion: aberration, ring: ringing, norm: slopeNorm, edge: edgeFade,
-+                              standoff: edgeStandoff, strike, amp: 1 + jit() * 1.2, chop, chopScale, packet, frontNoise,
-+                              chopSide: knockSide};
-+                list.push(Object.assign({side: knockSide, at, born: clock, w0: width, h0: height}, wave));
-+                // the same wave bends what's behind the glass, which only KWin has (plasma-glass's KWin patch)
-+                root.runnerWindow.knock(clock, knockSide, at, wave);
-+                nextKnock = clock + period * (1 + jit());
-+            }
-+            knocks = list;
-+            // what's the same for every pixel, worked out here once a frame: how far each wave has come and
-+            // its half-width; how much of it is left with age, half the stretch it strikes, its ringing and
-+            // its profile's steepest slope
-+            const smooth = (a, b, x) => {
-+                const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-+                return t * t * (3 - 2 * t);
-+            };
-+            // (the side, plus a share of 0.9 that seeds the knock's noise, as KWin does; how far it has come
-+            // from where its side was, as the bottom or right edge may have moved since, as KWin does too)
-+            const kv = list.slice(-8).map(k => Qt.vector4d(k.side + 0.9 * ((k.born * 0.6180339887) % 1), k.at,
-+                                                           k.speed * (clock - k.born) + (k.side === 3 ? height - k.h0 : k.side === 1 ? width - k.w0 : 0),
-+                                                           k.bump + k.spread * (clock - k.born)));
-+            const sh = list.slice(-8).map(k => {
-+                const age = clock - k.born;
-+                return Qt.vector4d(k.amp * Math.exp(-age / k.damping) * smooth(0, 0.05, age) * (1 - smooth(0.8 * k.life, k.life, age)),
-+                                   k.strike / 2, k.ring, k.norm);
-+            });
-+            const latest = list[list.length - 1];
-+            if (latest) {
-+                busyWaves.nature = Qt.vector4d(latest.chop, latest.packet, latest.frontNoise, latest.chopScale);
-+                busyWaves.mainAngle = [0, Math.PI, Math.PI / 2, -Math.PI / 2][latest.chopSide ?? latest.side];
-+            }
-+            const none = Qt.vector4d(0, 0, 0, 0);
-+            busyWaves.knock0 = kv[0] ?? none; busyWaves.shape0 = sh[0] ?? none;
-+            busyWaves.knock1 = kv[1] ?? none; busyWaves.shape1 = sh[1] ?? none;
-+            busyWaves.knock2 = kv[2] ?? none; busyWaves.shape2 = sh[2] ?? none;
-+            busyWaves.knock3 = kv[3] ?? none; busyWaves.shape3 = sh[3] ?? none;
-+            busyWaves.knock4 = kv[4] ?? none; busyWaves.shape4 = sh[4] ?? none;
-+            busyWaves.knock5 = kv[5] ?? none; busyWaves.shape5 = sh[5] ?? none;
-+            busyWaves.knock6 = kv[6] ?? none; busyWaves.shape6 = sh[6] ?? none;
-+            busyWaves.knock7 = kv[7] ?? none; busyWaves.shape7 = sh[7] ?? none;
-+        }
-+    }
-+    // the foil's shards for busyRipple on light glass ([Light] etch px, a tile of 64 by 64 that repeats), rendered once
-+    // into its `foil` texture
-+    property Item busyFoil: ShaderEffect {
-+        id: busyFoil
-+        parent: root.parent
-+        width: 64 * grain
-+        height: width
-+        visible: busyRipple.lightStyle && busyRipple.sheen > 0 // only for the sheen over the glass
-+        blending: false
-+        fragmentShader: Qt.resolvedUrl("busyfoil.frag.qsb")
-+        property real grain: Math.max(2, busyRipple.tunedNumber("light.etch", 32)) // px, as KWin's foil beneath the frost
-+        property real cells: 64
-+    }
-+    // the waves' slope and height for busyRipple, rendered only into its `waves` texture
-+    property Item busyWaves: ShaderEffect {
-+        id: busyWaves
-+        parent: root.parent
-+        anchors.fill: parent
-+        visible: busyRipple.visible
-+        blending: false
-+        fragmentShader: Qt.resolvedUrl("busywaves.frag.qsb")
-+        property size itemSize: Qt.size(width, height)
-+        property real steep: busyRipple.steep
-+        property real edge: busyRipple.edgeFade
-+        property real standoff: busyRipple.edgeStandoff
-+        // as KWin: the latest knock's chop, packet, front noise and chop wavelength, the way it sent its
-+        // wave, the clock (wrapping every 1000 s) and how far in from the rim the chop comes in
-+        property vector4d nature
-+        property real mainAngle
-+        property real time: busyRipple.clock % 1000
-+        property real calm: Math.max(1, busyRipple.tunedNumber("light.bevelWidth", 24))
-+        property vector4d knock0 // set by busyRipple.advance()
-+        property vector4d knock1
-+        property vector4d knock2
-+        property vector4d knock3
-+        property vector4d knock4
-+        property vector4d knock5
-+        property vector4d knock6
-+        property vector4d knock7
-+        property vector4d shape0
-+        property vector4d shape1
-+        property vector4d shape2
-+        property vector4d shape3
-+        property vector4d shape4
-+        property vector4d shape5
-+        property vector4d shape6
-+        property vector4d shape7
 +    }
 +    // Lines under the query and under the indexing bar, as wide as the result rows, as in Spotlight.
 +    // Each fades in over the first few pixels of what unfolds below it and out over the last ones.
@@ -726,7 +358,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
      property string query
      property string singleRunner
      property bool showHistory: false
-@@ -62,6 +561,13 @@
+@@ -62,6 +207,13 @@
      Connections {
          target: root.runnerWindow
          function onVisibleChanged() {
@@ -740,16 +372,15 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              if (root.runnerWindow.visible) {
                  queryField.forceActiveFocus();
                  listView.currentIndex = -1
-@@ -74,6 +580,8 @@
+@@ -74,6 +226,7 @@
                      }
                  }
              } else {
 +                resultsScrollView.foldShut() // so it unfolds again next time, not finish folding then
-+                busyRipple.knocks = [] // and no waves left over from this time
                  if (root.runnerWindow.retainPriorSearch) {
                      root.priorSearch = root.query
                  }
-@@ -98,6 +606,7 @@
+@@ -98,6 +251,7 @@
      }
      
      RowLayout {
@@ -757,7 +388,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          Layout.alignment: Qt.AlignTop
          PlasmaComponents3.ToolButton {
              visible: root.runnerWindow.helpEnabled
-@@ -131,14 +640,33 @@
+@@ -131,14 +285,33 @@
              id: queryField
              property bool allowCompletion: false
  
@@ -794,7 +425,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              QQC2.Label {
                  id: fadedTextCompletion
-@@ -157,35 +685,25 @@
+@@ -157,35 +330,25 @@
                  text: ""
                  textFormat: Text.PlainText
                  renderType: parent.renderType
@@ -842,7 +473,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              }
  
              function focusCurrentListView() {
-@@ -301,6 +819,7 @@
+@@ -301,6 +464,7 @@
              }
          }
          PlasmaComponents3.ToolButton {
@@ -850,7 +481,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -313,12 +832,107 @@
+@@ -313,12 +477,107 @@
          }
      }
  
@@ -961,7 +592,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
  
-@@ -327,6 +941,10 @@
+@@ -327,6 +586,10 @@
              queryString: root.query
              queryField: queryField
              singleRunner: root.singleRunner
@@ -972,7 +603,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              Keys.onEscapePressed: {
                  root.runnerWindow.visible = false
-@@ -347,9 +965,18 @@
+@@ -347,9 +610,18 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -992,7 +623,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
          visible: root.query.length === 0 && listView.count > 0
-@@ -358,6 +985,8 @@
+@@ -358,6 +630,8 @@
  
          ListView {
              id: listView // needs this id so the delegate can access it
@@ -1001,361 +632,6 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              keyNavigationWraps: true
              highlight: PlasmaExtras.Highlight {}
              highlightMoveDuration: 0
-diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busyfoil.frag b/krunner/qml/busyfoil.frag
---- a/krunner/qml/busyfoil.frag
-+++ b/krunner/qml/busyfoil.frag
-@@ -0,0 +1,56 @@
-+/*
-+    SPDX-FileCopyrightText: 2026 Alex Aralis
-+
-+    SPDX-License-Identifier: GPL-2.0-or-later
-+*/
-+
-+// The foil of KRunner's busy feedback on light glass (RunCommand.qml, drawn by busyripple.frag): shards
-+// about `grain` px across (the Voronoi cells of a jittered grid), each with its own colour and sparkle.
-+// Drawn once into a texture that tiles (the cells wrap every `cells` cells), not every frame. Out: the
-+// shard's place on the spectrum (0..1) and its sparkle.
-+#version 440
-+
-+layout(location = 0) in vec2 qt_TexCoord0;
-+layout(location = 0) out vec4 fragColor;
-+layout(std140, binding = 0) uniform buf {
-+    mat4 qt_Matrix;
-+    float qt_Opacity;
-+    float grain; // px: the shards' size
-+    float cells; // shards across (and down) the tile
-+};
-+
-+// hashes without sine (Dave Hoskins), stable in float precision
-+float hash12(vec2 p)
-+{
-+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-+    p3 += dot(p3, p3.yzx + 33.33);
-+    return fract((p3.x + p3.y) * p3.z);
-+}
-+
-+vec2 hash22(vec2 p)
-+{
-+    vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
-+    p3 += dot(p3, p3.yzx + 33.33);
-+    return fract((p3.xx + p3.yz) * p3.zy);
-+}
-+
-+void main()
-+{
-+    vec2 q = qt_TexCoord0 * cells;
-+    vec2 cell = floor(q);
-+    vec2 f = q - cell;
-+    float best = 8.0;
-+    vec2 id = cell;
-+    for (int j = -1; j <= 1; ++j) {
-+        for (int i = -1; i <= 1; ++i) {
-+            vec2 c = mod(cell + vec2(float(i), float(j)), cells); // wraps, so the tile repeats seamlessly
-+            vec2 o = vec2(float(i), float(j)) + hash22(c) - f;
-+            float d2 = dot(o, o);
-+            if (d2 < best) {
-+                best = d2;
-+                id = c;
-+            }
-+        }
-+    }
-+    fragColor = vec4(hash22(id + 17.17).y, 0.3 + 0.7 * hash12(id + 3.7), 0.0, 1.0);
-+}
-diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busyripple.frag b/krunner/qml/busyripple.frag
---- a/krunner/qml/busyripple.frag
-+++ b/krunner/qml/busyripple.frag
-@@ -0,0 +1,63 @@
-+/*
-+    SPDX-FileCopyrightText: 2026 Alex Aralis
-+
-+    SPDX-License-Identifier: GPL-2.0-or-later
-+*/
-+
-+// KRunner's busy feedback on Liquid Glass Light (RunCommand.qml): waves run across the glass (their height
-+// comes from busywaves.frag, at half resolution), drawn as a flat foil sheen in shards of colour, under the
-+// content, which this draws as it is. On dark glass this doesn't run: plasma-glass's KWin patch bends
-+// what's behind the glass under the same waves instead.
-+#version 440
-+
-+layout(location = 0) in vec2 qt_TexCoord0;
-+layout(location = 0) out vec4 fragColor;
-+layout(std140, binding = 0) uniform buf {
-+    mat4 qt_Matrix;
-+    float qt_Opacity;
-+    vec2 itemSize;     // logical px
-+    float radius;      // the glass's corner radius
-+    float sheen;       // how strong the foil sheen is
-+    float foilTile;    // px: the size of the foil's tile
-+    float foilSat;     // how saturated the shards are (0: white)
-+    float time;        // s, for the shards' slow colour drift
-+};
-+layout(binding = 1) uniform sampler2D source; // the content (query, results), over the whole glass
-+layout(binding = 2) uniform sampler2D waves;  // the glass's slope (x, y) and the waves' height
-+layout(binding = 3) uniform sampler2D foil;   // the foil's shards (busyfoil.frag): place on the spectrum, sparkle
-+
-+float boxSdf(vec2 p, vec2 halfSize, float r)
-+{
-+    vec2 q = abs(p) - halfSize + r;
-+    return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
-+}
-+
-+// a rainbow: w 0 (red) .. 1 (violet)
-+vec3 spectral(float w)
-+{
-+    vec3 x = 3.2 * (w - vec3(0.18, 0.48, 0.78));
-+    vec3 c = max(1.0 - x * x, 0.0);
-+    c.r += 0.35 * max(1.0 - 10.0 * (w - 1.0) * (w - 1.0), 0.0); // violet has some red
-+    return c;
-+}
-+
-+void main()
-+{
-+    vec2 p = qt_TexCoord0 * itemSize;
-+    float sdf = boxSdf(p - itemSize * 0.5, itemSize * 0.5, radius);
-+    float cover = clamp(0.5 - sdf / fwidth(sdf), 0.0, 1.0);
-+    float height = texture(waves, qt_TexCoord0).z * smoothstep(0.0, 2.0, -sdf); // flat at the very rim
-+
-+    // a flat sheen where a wave's crests are, in shards of colour; drawn as a tint (colour col / alpha at
-+    // alpha max(col)), so the colours show on bright glass too. The foil only where there's a wave to show it.
-+    vec4 surface = vec4(0.0);
-+    if (height > 0.002) {
-+        vec2 shard = texture(foil, p / foilTile).xy; // the tile repeats
-+        vec3 col = min(sheen * min(height, 1.0) * shard.y * mix(vec3(1.0), spectral(fract(shard.x + 0.03 * time)), foilSat),
-+                       vec3(1.0));
-+        surface = vec4(col, max(col.r, max(col.g, col.b))) * cover;
-+    }
-+    // the content as it is, over the sheen
-+    vec4 content = texture(source, qt_TexCoord0);
-+    fragColor = (content + surface * (1.0 - content.a)) * qt_Opacity;
-+}
-diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/busywaves.frag b/krunner/qml/busywaves.frag
---- a/krunner/qml/busywaves.frag
-+++ b/krunner/qml/busywaves.frag
-@@ -0,0 +1,224 @@
-+/*
-+    SPDX-FileCopyrightText: 2026 Alex Aralis
-+
-+    SPDX-License-Identifier: GPL-2.0-or-later
-+*/
-+
-+// The waves of KRunner's busy feedback (RunCommand.qml; on light glass busyripple.frag draws them as a foil
-+// sheen, on dark glass plasma-glass's KWin patch works them out again, behind the glass): knocks on the
-+// glass's rim each send a wave across it, a crest with a ringing train behind (profile()). A knock flexes
-+// its side, most at the knock and not at all at the corners, and the side pushes the wave in; waves fade
-+// with time and as they head into a rim. Out: the glass's slope (x, y) and the waves' height. Rendered at
-+// half the window's resolution, since the waves are broad.
-+#version 440
-+
-+layout(location = 0) in vec2 qt_TexCoord0;
-+layout(location = 0) out vec4 fragColor;
-+layout(std140, binding = 0) uniform buf {
-+    mat4 qt_Matrix;
-+    float qt_Opacity;
-+    vec2 itemSize; // logical px
-+    // a knock (worked out once per frame in RunCommand.qml): side (0 left, 1 right, 2 top, 3 bottom, plus a
-+    // share of 0.9 that seeds its noise), px along it, how far its wave has come (px), the wave's half-width
-+    vec4 knock0;
-+    vec4 knock1;
-+    vec4 knock2;
-+    vec4 knock3;
-+    vec4 knock4;
-+    vec4 knock5;
-+    vec4 knock6;
-+    vec4 knock7;
-+    // and: how much of the wave is left with age (0: none, nothing to add), half the stretch of the side it
-+    // strikes (px), the half-widths over which its ringing fades by e, and its profile's steepest slope
-+    // with that ringing
-+    vec4 shape0;
-+    vec4 shape1;
-+    vec4 shape2;
-+    vec4 shape3;
-+    vec4 shape4;
-+    vec4 shape5;
-+    vec4 shape6;
-+    vec4 shape7;
-+    float steep; // steepest slope of a fresh wave
-+    float edge;     // px: a wave heading into the rim fades over about twice this
-+    float standoff; // px in from the rim where that fade is
-+    // to look more natural, as KWin's ripple.frag: chop, packet, front noise, the chop's wavelength (px)
-+    vec4 nature;
-+    float time;      // s (wrapping every 1000), for the chop and the front noise
-+    float mainAngle; // which way the knocks send their waves, for the chop to run along
-+    float calm;      // px in from the rim over which the chop comes in
-+};
-+
-+// A wave's profile across its front, x half-widths ahead of its crest (behind it, x < 0), as a knock leaves
-+// it in a dispersive medium: a smooth rise ahead, the crest, then a ringing train behind, ripples that get
-+// shorter and fade (an Airy function's tail, damped), over D half-widths by e: at D 1.7, -0.42, +0.18,
-+// -0.09, +0.05 of the crest, under 1% from 9 half-widths behind (1.4 + 4.6 D). Out: the height and its
-+// slope per half-width, whose steepest at D 1.7 is 0.991 (just behind the crest; the front's is 0.858).
-+vec2 profile(float x, float D)
-+{
-+    if (x >= 0.0) {
-+        float h = exp(-x * x);
-+        return vec2(h, -2.0 * x * h);
-+    }
-+    const float C = 1.4; // half-widths over which the envelope rounds off at the crest
-+    const float U = 2.6; // half-widths behind the crest to the first trough; the ripples' phase goes as u^1.5
-+    float u = -x;
-+    float r = sqrt(u * u + C * C);
-+    float e = exp(-(r - C) / D);
-+    float de = -u / (r * D) * e;
-+    float ph = 3.14159265 * pow(u / U, 1.5);
-+    float dph = 1.5 * 3.14159265 / U * sqrt(u / U);
-+    return vec2(e * cos(ph), -(de * cos(ph) - e * sin(ph) * dph)); // per x: minus the slope per u
-+}
-+
-+// One knock's wave at p: adds its slope and height. The flex starts at once on the stretch the knock
-+// strikes (shape.y px either side of it; 0.5 strikes 1 px) and slows down beyond it over 30 px to the
-+// waves' speed (its time per px rises as a smoothstep), so the wave leaves as a short, rounded front, flat
-+// across the stretch struck. `die`: how much of a wave heading for the nearest rim is left at p; `toRim`:
-+// the way to that rim.
-+// value noise, smooth, 0..1
-+float hash11(float x)
-+{
-+    return fract(sin(x * 127.1) * 43758.5453);
-+}
-+
-+float vnoise(vec2 x)
-+{
-+    vec2 i = floor(x);
-+    vec2 f = x - i;
-+    f = f * f * (3.0 - 2.0 * f);
-+    float a = hash11(i.x + i.y * 57.0);
-+    float b = hash11(i.x + 1.0 + i.y * 57.0);
-+    float c = hash11(i.x + (i.y + 1.0) * 57.0);
-+    float d = hash11(i.x + 1.0 + (i.y + 1.0) * 57.0);
-+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-+}
-+
-+void knock(vec2 p, vec4 k, vec4 shape, float die, vec2 toRim, inout vec2 slope, inout float height)
-+{
-+    // k.x: the side, plus a share of 0.9 that tells this knock's noise from the others'
-+    float sideOf = floor(k.x + 0.001);
-+    float seed = k.x - sideOf;
-+    if (shape.x <= 0.0)
-+        return;
-+    // p in the side's terms: n px in from it, s px along it (len long); `inward`, `along`: those directions
-+    float n;
-+    float s;
-+    float len;
-+    vec2 inward;
-+    vec2 along;
-+    if (sideOf < 0.5) {
-+        n = p.x; s = p.y; len = itemSize.y; inward = vec2(1.0, 0.0); along = vec2(0.0, 1.0);
-+    } else if (sideOf < 1.5) {
-+        n = itemSize.x - p.x; s = p.y; len = itemSize.y; inward = vec2(-1.0, 0.0); along = vec2(0.0, 1.0);
-+    } else if (sideOf < 2.5) {
-+        n = p.y; s = p.x; len = itemSize.x; inward = vec2(0.0, 1.0); along = vec2(1.0, 0.0);
-+    } else {
-+        n = itemSize.y - p.y; s = p.x; len = itemSize.x; inward = vec2(0.0, -1.0); along = vec2(1.0, 0.0);
-+    }
-+    float front = k.z;
-+    float wb = k.w;
-+    float a = abs(s - k.y);
-+    // The wave has come between n and the straight line from the knock; 2.5 half-widths ahead of its crest
-+    // and past its ringing behind (1.4 + 4.6 x its fade, 9 at the default), what's left (under 1% of its
-+    // height) doesn't show
-+    float behind = front * (1.0 - 0.1 * nature.y) - (1.4 + 4.6 * shape.z) * wb * (1.0 + 0.6 * nature.y);
-+    if (front * (1.0 + 0.12 * nature.y) + 2.5 * wb < n || (behind > 0.0 && behind * behind > a * a + n * n))
-+        return;
-+    // The first wave to reach p left the side where the flex's time to get there plus the path on to p is
-+    // shortest (both as distances at the waves' speed). That's convex along the side: bisect its slope.
-+    // Past the 30 px where the flex slows down it moves as fast as the waves, so no later start is shorter:
-+    // the search only spans those 30 px, and 4 halvings do (an error there changes `from` only to second
-+    // order).
-+    float w = max(shape.y, 0.5); // half the stretch that moves at once (px)
-+    const float L = 30.0;        // px over which the flex slows down to the waves' speed
-+    float from = n;       // how far the wave has come
-+    vec2 dir = inward;    // and its direction at p
-+    if (a > w) {
-+        float lo = w;
-+        float hi = min(a, w + L);
-+        for (int i = 0; i < 4; ++i) {
-+            float mid = 0.5 * (lo + hi);
-+            float xm = clamp((mid - w) / L, 0.0, 1.0);
-+            float dm = a - mid;
-+            if (xm * xm * (3.0 - 2.0 * xm) < dm / sqrt(dm * dm + n * n + 1e-6))
-+                lo = mid;
-+            else
-+                hi = mid;
-+        }
-+        float d = 0.5 * (lo + hi);
-+        float xd = clamp((d - w) / L, 0.0, 1.0);
-+        float dd = a - d;
-+        float r = sqrt(dd * dd + n * n);
-+        from = L * xd * xd * xd * (1.0 - 0.5 * xd) + max(d - w - L, 0.0) + r;
-+        dir = (n * inward + sign(s - k.y) * dd * along) / max(r, 1e-3);
-+    }
-+    // how strongly the side moves there: sin^2 of a warped position that puts its peak at the knock
-+    float flex = sin(3.14159265 * pow(clamp(s / len, 0.0, 1.0), log(0.5) / log(clamp(k.y / len, 0.02, 0.98))));
-+    float fade = flex * flex * shape.x * mix(1.0, die, smoothstep(-0.3, 0.3, dot(dir, toRim)));
-+    if (nature.z > 0.0) {
-+        // the crest wanders and changes strength along its length, slowly
-+        float wander = vnoise(vec2(s / 70.0 + seed * 37.0, time * 0.35)) * 2.0 - 1.0;
-+        float swell = vnoise(vec2(s / 45.0 + seed * 53.0 + 11.0, time * 0.5 + 5.0)) * 2.0 - 1.0;
-+        from += nature.z * 0.5 * wb * wander;
-+        fade *= 1.0 + nature.z * 0.6 * swell;
-+    }
-+    vec2 shape_ = profile((from - front) / wb, shape.z);
-+    if (nature.y > 0.0) {
-+        // a shorter wave running ahead and a longer one lagging, out of the same knock
-+        vec2 ahead = profile((from - front * 1.12) / (wb * 0.6), shape.z);
-+        vec2 lagging = profile((from - front * 0.9) / (wb * 1.6), shape.z);
-+        shape_ = (shape_ + nature.y * (0.55 * ahead + 0.45 * lagging)) / (1.0 + 0.3 * nature.y);
-+    }
-+    slope += steep * fade * (shape_.y / shape.w) * dir; // its steepest is a fresh wave's steepest
-+    height += fade * shape_.x;
-+}
-+
-+void main()
-+{
-+    vec2 p = qt_TexCoord0 * itemSize;
-+    vec4 dist = vec4(p.x, itemSize.x - p.x, p.y, itemSize.y - p.y); // to the left, right, top, bottom edge
-+    // a wave heading into the rim fades out over about twice edge px, standoff px in from it: at the
-+    // defaults (3, 0) it runs on across the bevel and fades only at the very edge, half of it left 3 px
-+    // from the rim, 90% 6 px in, all of it from 15 px in
-+    float die = 1.0;
-+    vec2 toRim = vec2(0.0);
-+    if (min(min(dist.x, dist.y), min(dist.z, dist.w)) < standoff + 5.0 * edge) {
-+        vec4 ed = exp(-max(dist - standoff, 0.0) / edge);
-+        float near = ed.x + ed.y + ed.z + ed.w;
-+        die = exp(-(near * near) / (0.45 * 0.45));
-+        vec4 e = exp(-dist / 20.0);
-+        vec2 rimward = vec2(e.y - e.x, e.w - e.z);
-+        toRim = rimward / max(length(rimward), 1e-4);
-+    }
-+    vec2 slope = vec2(0.0);
-+    float height = 0.0;
-+    // chop: small waves across all of the glass while it ripples, at angles around the knocks' way, longer
-+    // ones faster (as on water); it comes and goes with the knocks' waves, and keeps off the rim
-+    if (nature.x > 0.0) {
-+        float activity = max(shape0.x, 0.0) + max(shape1.x, 0.0) + max(shape2.x, 0.0) + max(shape3.x, 0.0)
-+                       + max(shape4.x, 0.0) + max(shape5.x, 0.0) + max(shape6.x, 0.0) + max(shape7.x, 0.0);
-+        activity = clamp(activity * 0.6, 0.0, 1.0);
-+        float rimCalm = smoothstep(0.0, max(calm, 1.0), min(min(dist.x, dist.y), min(dist.z, dist.w)));
-+        for (int j = 0; j < 7; ++j) {
-+            float fj = float(j);
-+            float ang = mainAngle + (hash11(fj * 1.31 + 0.17) - 0.5) * 2.4;
-+            vec2 d = vec2(cos(ang), sin(ang));
-+            float lambda = nature.w * mix(0.5, 1.6, hash11(fj * 2.71 + 0.43));
-+            float c = 30.0 * sqrt(lambda / nature.w); // px/s
-+            float ph = 6.2831853 * ((dot(d, p) - c * time) / lambda + hash11(fj * 3.97 + 0.71));
-+            float w = nature.x * activity * rimCalm * mix(0.4, 1.0, hash11(fj * 5.13 + 0.29)) / sqrt(7.0);
-+            slope += steep * w * cos(ph) * d;
-+            height += 0.25 * w * sin(ph);
-+        }
-+    }
-+    knock(p, knock0, shape0, die, toRim, slope, height);
-+    knock(p, knock1, shape1, die, toRim, slope, height);
-+    knock(p, knock2, shape2, die, toRim, slope, height);
-+    knock(p, knock3, shape3, die, toRim, slope, height);
-+    knock(p, knock4, shape4, die, toRim, slope, height);
-+    knock(p, knock5, shape5, die, toRim, slope, height);
-+    knock(p, knock6, shape6, die, toRim, slope, height);
-+    knock(p, knock7, shape7, die, toRim, slope, height);
-+    fragColor = vec4(slope, height, 1.0);
-+}
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/relative-pointer-unstable-v1.xml b/krunner/relative-pointer-unstable-v1.xml
 --- a/krunner/relative-pointer-unstable-v1.xml
 +++ b/krunner/relative-pointer-unstable-v1.xml
@@ -1643,7 +919,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      connect(&m_consumer, &KActivities::Consumer::currentActivityChanged, this, &View::activityChanged);
      Q_EMIT activityChanged(m_consumer.currentActivity());
  
-+    // the busy ripple's settings, followed as a file: plasma-glass-tune writes them as you move its sliders
++    // the liquid's settings, followed as a file: plasma-glass-tune writes them as you move its sliders
 +    m_liquidGlassConfig = KSharedConfig::openConfig(u"plasma-glassrc"_s, KConfig::NoGlobals);
 +    const QString liquidGlassFile = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) + u"/plasma-glassrc"_s;
 +    KDirWatch::self()->addFile(liquidGlassFile);
@@ -1708,7 +984,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
  }
  
  void View::slotFocusWindowChanged()
-@@ -119,11 +261,48 @@
+@@ -119,11 +261,46 @@
          displayWithClipboardContents();
      }
  
@@ -1727,13 +1003,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
 +void View::loadLiquidGlass()
 +{
 +    QVariantMap settings;
-+    for (const auto &[group, prefix] : {std::pair(u"Ripple"_s, QString()), std::pair(u"Light"_s, u"light."_s)}) {
-+        const QMap<QString, QString> entries = m_liquidGlassConfig->group(group).entryMap();
-+        for (auto it = entries.cbegin(); it != entries.cend(); ++it) {
-+            bool number = false;
-+            const double value = it.value().toDouble(&number);
-+            settings.insert(prefix + it.key(), number ? QVariant(value) : QVariant(it.value()));
-+        }
++    const QMap<QString, QString> entries = m_liquidGlassConfig->group(u"Ripple"_s).entryMap();
++    for (auto it = entries.cbegin(); it != entries.cend(); ++it) {
++        bool number = false;
++        const double value = it.value().toDouble(&number);
++        settings.insert(it.key(), number ? QVariant(value) : QVariant(it.value()));
 +    }
 +    // the heartbeat comes every 2 s; the settings only change while someone tunes them
 +    const double left = settings.take(u"tuning"_s).toDouble() - QDateTime::currentMSecsSinceEpoch() / 1000.0;
@@ -1758,7 +1032,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
  bool View::freeFloating() const
  {
      return m_floating;
-@@ -145,6 +324,9 @@
+@@ -145,6 +322,9 @@
  
  void View::loadConfig()
  {
@@ -1768,7 +1042,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      setFreeFloating(m_config.readEntry("FreeFloating", false));
      setRetainPriorSearch(m_config.readEntry("RetainPriorSearch", true));
      setPinned(m_stateData.readEntry("Pinned", false));
-@@ -157,6 +339,7 @@
+@@ -157,6 +337,7 @@
          KX11Extras::setOnAllDesktops(winId(), true);
      }
      QQuickWindow::showEvent(event);
@@ -1776,7 +1050,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      requestActivate();
      if (KWindowSystem::isPlatformX11()) {
          KX11Extras::forceActiveWindow(winId());
-@@ -167,7 +350,15 @@
+@@ -167,7 +348,15 @@
  {
      const auto screens = QGuiApplication::screens();
      auto screenIt = screens.cend();
@@ -1793,7 +1067,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
          auto message = QDBusMessage::createMethodCall(u"org.kde.KWin"_s, u"/KWin"_s, u"org.kde.KWin"_s, u"activeOutputName"_s);
          QDBusReply<QString> reply = QDBusConnection::sessionBus().call(message);
          if (reply.isValid()) {
-@@ -187,11 +378,10 @@
+@@ -187,11 +376,10 @@
  
      if (KWindowSystem::isPlatformWayland()) {
          auto layerWindow = LayerShellQt::Window::get(this);
@@ -1806,7 +1080,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
          if (m_floating) {
              layerWindow->setScreen(shownOnScreen);
          } else {
-@@ -209,6 +399,269 @@
+@@ -209,6 +397,262 @@
      }
  }
  
@@ -1844,12 +1118,10 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
 +    }
 +    const qreal left = std::clamp(topLeft.x(), 0.0, std::max(0.0, qreal(r.width() - width())));
 +    const qreal top = std::clamp(topLeft.y(), 0.0, std::max(0.0, qreal(r.height() - height())));
-+    const QPointF from = floatingTopLeft();
 +    m_floatCenterX = (left + width() / 2.0) / r.width();
 +    m_floatTop = top / r.height();
 +    applyFloatingMargins();
 +    update(); // margins only take effect with a commit, so render a frame even if nothing changed
-+    Q_EMIT floatingMoved(from);
 +}
 +
 +// A relative pointer for the current wl_pointer, kept while KRunner runs so no motion is missed at a press.
@@ -1962,15 +1234,10 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
 +    return key == u"Alt"_s ? Qt::AltModifier : Qt::MetaModifier;
 +}
 +
-+double View::monotonicTime() const
++void View::stir(bool busy, int side, qreal at)
 +{
-+    return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
-+}
-+
-+void View::knock(double born, int side, qreal at, const QVariantMap &wave)
-+{
-+    QDBusMessage message = QDBusMessage::createMethodCall(u"org.kde.KWin"_s, u"/org/kde/KWin/LiquidGlass"_s, u"org.kde.KWin.LiquidGlass"_s, u"Knock"_s);
-+    message << born << side << double(at) << wave;
++    QDBusMessage message = QDBusMessage::createMethodCall(u"org.kde.KWin"_s, u"/org/kde/KWin/LiquidGlass"_s, u"org.kde.KWin.LiquidGlass"_s, u"Stir"_s);
++    message << busy << side << double(at);
 +    QDBusConnection::sessionBus().call(message, QDBus::NoBlock);
 +}
 +
@@ -2101,7 +1368,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  
  class View : public PlasmaQuick::PlasmaWindow
  {
-@@ -47,6 +54,62 @@
+@@ -47,6 +54,53 @@
  
      void positionOnScreen();
  
@@ -2123,35 +1390,26 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 +        return qEnvironmentVariableIntValue("KRUNNER_BUSY_DEMO") > 0;
 +    }
 +
-+    // The busy ripple's settings: ~/.config/plasma-glassrc's [Ripple] group, and its [Light] group's as
-+    // light.key (numbers as numbers, the rest as text), which plasma-glass-tune edits; read again whenever
-+    // the file changes
++    // The liquid's settings: ~/.config/plasma-glassrc's [Ripple] group (numbers as numbers, the rest as text),
++    // which plasma-glass-tune edits; read again whenever the file changes (KRunner uses side and position,
++    // KWin reads the rest itself)
 +    Q_PROPERTY(QVariantMap liquidGlass READ liquidGlass NOTIFY liquidGlassChanged)
 +    QVariantMap liquidGlass() const
 +    {
 +        return m_liquidGlass;
 +    }
 +    // plasma-glass-tune is open (its heartbeat, [Ripple] tuning, s since the epoch, hasn't run out): the
-+    // ripple runs all the time and the window stays open when it loses focus, to tune it live
++    // liquid is stirred all the time and the window stays open when it loses focus, to tune it live
 +    Q_PROPERTY(bool tuning READ tuning NOTIFY tuningChanged)
 +    bool tuning() const
 +    {
 +        return m_tuning;
 +    }
 +
-+    // Where the floating window is on its screen (logical px, its top left), for the busy ripple's momentum:
-+    // floatingMoved() says it moved, and from where
-+    Q_INVOKABLE QPointF floatingPosition()
-+    {
-+        return floatingTopLeft();
-+    }
-+
-+    // The busy ripple's clock: seconds on the monotonic clock, which KWin runs the ripple on too
-+    Q_INVOKABLE double monotonicTime() const;
-+    // A knock of the busy ripple (born on monotonicTime(), side 0 left .. 3 bottom, px along it, and the wave:
-+    // speed, bump, spread, damping, life, steep), for plasma-glass's KWin patch to bend what's behind the
-+    // glass with the same wave. Without that patch nothing happens.
-+    Q_INVOKABLE void knock(double born, int side, qreal at, const QVariantMap &wave);
++    // The liquid in the glass (plasma-glass's KWin patch): KWin runs it in this window, sloshing as it moves;
++    // while busy, a stretch of the rim (side 0 left .. 3 bottom, peaking at px along it) pushes into it again
++    // and again. Without that patch nothing happens.
++    Q_INVOKABLE void stir(bool busy, int side, qreal at);
 +
 +    // Indexing progress of plasma-glass's semantic search service (local.embedsearch): 0-1 while it
 +    // indexes new or changed files, -1 otherwise. RunCommand.qml shows a bar for it.
@@ -2164,7 +1422,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
      bool freeFloating() const;
      void setFreeFloating(bool floating);
  
-@@ -82,12 +145,20 @@
+@@ -82,12 +136,19 @@
      }
  
  Q_SIGNALS:
@@ -2172,7 +1430,6 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 +    void indexingProgressChanged();
 +    void liquidGlassChanged();
 +    void tuningChanged();
-+    void floatingMoved(QPointF from);
      void pinnedChanged();
      void helpEnabledChanged();
      void activityChanged(const QString &activity);
@@ -2185,7 +1442,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  
  public Q_SLOTS:
      void display();
-@@ -97,15 +168,53 @@
+@@ -97,15 +158,53 @@
      void query(const QString &term);
      void querySingleRunner(const QString &runnerName, const QString &term);
  

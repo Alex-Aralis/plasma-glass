@@ -174,7 +174,15 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/multigpuswapchain.h b/src/m
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src/plugins/blur/blur.cpp
 --- a/src/plugins/blur/blur.cpp
 +++ b/src/plugins/blur/blur.cpp
-@@ -30,17 +30,23 @@
+@@ -10,6 +10,7 @@
+ // KConfigSkeleton
+ #include "blurconfig.h"
+ 
++#include "core/renderbackend.h"
+ #include "core/rendertarget.h"
+ #include "core/renderviewport.h"
+ #include "effect/effecthandler.h"
+@@ -30,17 +31,23 @@
  #include "x11window.h"
  #endif
  
@@ -198,7 +206,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
  #include <KDecoration3/Decoration>
  
-@@ -57,6 +63,62 @@
+@@ -57,6 +64,76 @@
  
  static const QByteArray s_blurAtomName = QByteArrayLiteral("_KDE_NET_WM_BLUR_BEHIND_REGION");
  
@@ -207,10 +215,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +// corners of this radius (logical px, generate.py R), which their mask, and so the blur region, leaves out.
 +static const QString s_liquidGlassTheme = QStringLiteral("liquid-glass");
 +// and Liquid Glass Light: its glass is frosted more and looks flat (a bevel only if [Light] asks for one),
-+// and KRunner's waves go beneath the frost: what's behind bends under them and an etched foil lights up in
-+// shards of colour where they crest, then the blur frosts it all. [Light] frost, refraction, diffraction,
-+// etch, saturation, layer (where the foil lights up: beneath the frost, the default; top, only KRunner's
-+// over the glass; both), bevelWidth, bevelRefraction, bevelDispersion, bevelSharpness
++// and the liquid's waves go beneath the frost: what's behind bends under them and an etched foil lights up
++// in shards of colour where they crest, then the blur frosts it all. [Light] frost, refraction, diffraction,
++// etch, saturation, bevelWidth, bevelRefraction, bevelDispersion, bevelSharpness
 +static const QString s_liquidGlassLightTheme = QStringLiteral("liquid-glass-light");
 +static const QVector4D s_lightBevel(24, 0, 0, 0);
 +static constexpr int s_lightFrost = 5;
@@ -225,13 +232,28 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +// The glass is frosted lightly all over, so what's behind still shows through and the bevel bends that
 +// same frost: a blur strength (BlurStrength's 1..15) it never goes above. [Glass] frost; KWIN_LIQUID_GLASS_FROST
 +static constexpr int s_liquidGlassFrost = 2;
-+// KRunner's busy ripple leans the glass too: a fresh wave's steepest slope as far as the bevel at its edge
-+// (1), times this; and where a wave leans it fully, its colours part by a little more than the bevel's
-+// (logical px each way). KRunner sends both with each knock (plasma-glassrc's [Ripple] amplitude and
-+// aberration); these stand in when it doesn't. KWIN_LIQUID_GLASS_RIPPLE=scale[,dispersion] overrides
-+// them (scale 0: no waves).
-+static constexpr double s_liquidGlassRipple = 1;
-+static constexpr double s_liquidGlassRippleDispersion = 3;
++// The liquid's waves lean the glass too: a fresh wave's steepest slope as far as the bevel at its edge
++// (plasma-glassrc's [Ripple] amplitude, 1), and where a wave leans it fully, its colours part by a little
++// more than the bevel's ([Ripple] aberration, logical px each way). KWIN_LIQUID_GLASS_RIPPLE=scale[,dispersion]
++// overrides both (scale 0: no waves).
++//
++// The liquid (shaders/fluid.frag): ripples on cells this many logical px across, swell (the long waves
++// that slosh) on cells this big; a fresh wave's steepest slope (the push's), which [Ripple] amplitude
++// leans the glass by; the sponge along the rim that takes up the ripples [Ripple] reflection doesn't send
++// back (px wide); how fast the level settles back after a moving rim (1/s); how strongly a window's moves
++// slosh the swell and stir the ripples, at [Ripple] momentum 1 (as if the liquid were that much deeper:
++// a change of speed of 1000 px/s sloshes the swell about as far as a push's wave leans the glass); and how
++// fast the followers of the window's place and size take up its moves (Hz: its pointer's 60 Hz steps
++// smoothed into a change of speed over about 0.15 s).
++static constexpr double s_ripplesCell = 3;
++static constexpr double s_swellCell = 8;
++static constexpr double s_liquidSteep = 0.5;
++static constexpr double s_pushSlope = 0.8;
++static constexpr double s_liquidRim = 32;
++static constexpr double s_liquidLevel = 1.0 / 3.0;
++static constexpr double s_swellMomentum = 30;
++static constexpr double s_ripplesMomentum = 0.15;
++static constexpr double s_liquidFollow = 3;
 +
 +// The corners of a blur shape that a Liquid Glass frame rounds off (none: it's not one)
 +static BorderRadius liquidGlassCorners(const RegionF &shape, const RectF &bounds)
@@ -246,7 +268,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +    return BorderRadius(cut(left, top), cut(right, top), cut(right, bottom), cut(left, bottom));
 +}
 +
-+// Seconds on the monotonic clock, which KRunner's ripple runs on too
++// Seconds on the monotonic clock
 +static double monotonicNow()
 +{
 +    return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -261,7 +283,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  static QMatrix4x4 colorTransformMatrix(qreal saturation, qreal contrast)
  {
      QMatrix4x4 saturationMatrix;
-@@ -119,6 +181,75 @@
+@@ -119,6 +196,89 @@
          m_roundedOnscreenPass.opacityLocation = m_roundedOnscreenPass.shader->uniformLocation("opacity");
      }
  
@@ -285,25 +307,39 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        m_bevelOnscreenPass.wavesUnitLocation = m_bevelOnscreenPass.shader->uniformLocation("wavesUnit");
 +        m_bevelOnscreenPass.rippleLocation = m_bevelOnscreenPass.shader->uniformLocation("ripple");
 +    }
-+    m_ripplePass.shader = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture,
-+                                                                            QStringLiteral(":/effects/blur/shaders/vertex.vert"),
-+                                                                            QStringLiteral(":/effects/blur/shaders/ripple.frag"));
-+    if (!m_ripplePass.shader) {
-+        qCWarning(KWIN_BLUR) << "Failed to load the Liquid Glass ripple shader";
++    m_fluidPass.shader = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture,
++                                                                           QStringLiteral(":/effects/blur/shaders/vertex.vert"),
++                                                                           QStringLiteral(":/effects/blur/shaders/fluid.frag"));
++    if (!m_fluidPass.shader) {
++        qCWarning(KWIN_BLUR) << "Failed to load the Liquid Glass fluid shader";
 +    } else {
-+        m_ripplePass.mvpMatrixLocation = m_ripplePass.shader->uniformLocation("modelViewProjectionMatrix");
-+        m_ripplePass.sizeLocation = m_ripplePass.shader->uniformLocation("size");
-+        m_ripplePass.originLocation = m_ripplePass.shader->uniformLocation("origin");
-+        m_ripplePass.areaLocation = m_ripplePass.shader->uniformLocation("area");
-+        m_ripplePass.knocksLocation = m_ripplePass.shader->uniformLocation("knocks");
-+        m_ripplePass.shapesLocation = m_ripplePass.shader->uniformLocation("shapes");
-+        m_ripplePass.steepLocation = m_ripplePass.shader->uniformLocation("steep");
-+        m_ripplePass.edgeLocation = m_ripplePass.shader->uniformLocation("edge");
-+        m_ripplePass.standoffLocation = m_ripplePass.shader->uniformLocation("standoff");
-+        m_ripplePass.natureLocation = m_ripplePass.shader->uniformLocation("nature");
-+        m_ripplePass.timeLocation = m_ripplePass.shader->uniformLocation("time");
-+        m_ripplePass.mainAngleLocation = m_ripplePass.shader->uniformLocation("mainAngle");
-+        m_ripplePass.calmLocation = m_ripplePass.shader->uniformLocation("calm");
++        m_fluidPass.mvpMatrixLocation = m_fluidPass.shader->uniformLocation("modelViewProjectionMatrix");
++        m_fluidPass.glassLocation = m_fluidPass.shader->uniformLocation("glass");
++        m_fluidPass.cornersLocation = m_fluidPass.shader->uniformLocation("corners");
++        m_fluidPass.cellLocation = m_fluidPass.shader->uniformLocation("cell");
++        m_fluidPass.timingLocation = m_fluidPass.shader->uniformLocation("timing");
++        m_fluidPass.dampingLocation = m_fluidPass.shader->uniformLocation("damping");
++        m_fluidPass.accelLocation = m_fluidPass.shader->uniformLocation("accel");
++        m_fluidPass.pushLocation = m_fluidPass.shader->uniformLocation("push");
++        m_fluidPass.pressLocation = m_fluidPass.shader->uniformLocation("press");
++        m_fluidPass.breezeLocation = m_fluidPass.shader->uniformLocation("breeze");
++    }
++    m_surfacePass.shader = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture,
++                                                                             QStringLiteral(":/effects/blur/shaders/vertex.vert"),
++                                                                             QStringLiteral(":/effects/blur/shaders/surface.frag"));
++    if (!m_surfacePass.shader) {
++        qCWarning(KWIN_BLUR) << "Failed to load the Liquid Glass surface shader";
++    } else {
++        m_surfacePass.mvpMatrixLocation = m_surfacePass.shader->uniformLocation("modelViewProjectionMatrix");
++        m_surfacePass.ripplesLocation = m_surfacePass.shader->uniformLocation("ripples");
++        m_surfacePass.swellLocation = m_surfacePass.shader->uniformLocation("swell");
++        m_surfacePass.ripplesCellLocation = m_surfacePass.shader->uniformLocation("ripplesCell");
++        m_surfacePass.swellCellLocation = m_surfacePass.shader->uniformLocation("swellCell");
++        m_surfacePass.glassLocation = m_surfacePass.shader->uniformLocation("glass");
++        m_surfacePass.cornersLocation = m_surfacePass.shader->uniformLocation("corners");
++        m_surfacePass.originLocation = m_surfacePass.shader->uniformLocation("origin");
++        m_surfacePass.areaLocation = m_surfacePass.shader->uniformLocation("area");
++        m_surfacePass.gainLocation = m_surfacePass.shader->uniformLocation("gain");
 +    }
 +    m_underlayPass.shader = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture,
 +                                                                              QStringLiteral(":/effects/blur/shaders/vertex.vert"),
@@ -337,7 +373,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      m_downsamplePass.shader = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture,
                                                                                  QStringLiteral(":/effects/blur/shaders/vertex.vert"),
                                                                                  QStringLiteral(":/effects/blur/shaders/downsample.frag"));
-@@ -181,14 +312,144 @@
+@@ -181,14 +341,136 @@
          slotWindowAdded(window);
      }
  
@@ -414,27 +450,43 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +                               std::max(light.readEntry("bevelDispersion", double(s_lightBevel.z())), 0.0),
 +                               std::clamp(light.readEntry("bevelSharpness", double(s_lightBevel.w())), 0.0, 1.0));
 +    const int lightFrost = std::clamp(light.readEntry("frost", s_lightFrost), 1, 15);
-+    // where the foil lights up: beneath the frost (KWin, here), on top of the glass (KRunner) or both
-+    const QString layer = light.readEntry("layer", QStringLiteral("beneath"));
-+    const bool diffractionBeneath = layer != QLatin1String("top");
 +    const QVector4D lightUnderlay(std::max(light.readEntry("refraction", double(s_lightUnderlay.x())), 0.0),
 +                                  std::max(light.readEntry("diffraction", double(s_lightUnderlay.y())), 0.0),
 +                                  std::max(light.readEntry("etch", double(s_lightUnderlay.z())), 2.0),
 +                                  std::clamp(light.readEntry("saturation", double(s_lightUnderlay.w())), 0.0, 1.0));
 +
-+    if (bevel != m_bevel || frost != m_frost || lightBevel != m_lightBevel || lightFrost != m_lightFrost || lightUnderlay != m_lightUnderlay
-+        || diffractionBeneath != m_lightDiffractionBeneath) {
++    // the liquid's: it takes them at its next step
++    const KConfigGroup ripple = glassrc->group(QStringLiteral("Ripple"));
++    const auto number = [&ripple](const char *key, double fallback, double low, double high) {
++        return std::clamp(ripple.readEntry(key, fallback), low, high);
++    };
++    m_liquid.speed = number("speed", 120, 20, 1000);
++    m_liquid.width = number("width", 21, 2, 300);
++    m_liquid.interval = number("interval", 1.2, 0.2, 60);
++    m_liquid.damping = number("damping", 36, 0.2, 600);
++    m_liquid.reflection = number("reflection", 0.3, 0, 1);
++    m_liquid.amplitude = number("amplitude", 1, 0, 5);
++    m_liquid.aberration = number("aberration", 3, 0, 30);
++    m_liquid.strike = number("strike", 1, 1, 4000);
++    m_liquid.jitter = number("jitter", 0.6, 0, 1);
++    m_liquid.chop = number("chop", 0.3, 0, 5);
++    m_liquid.chopScale = number("chopScale", 40, 4, 400);
++    m_liquid.press = ripple.readEntry("stir", QStringLiteral("push")) == QLatin1String("press");
++    m_liquid.momentum = number("momentum", 1, 0, 5);
++    m_liquid.sloshSpeed = number("sloshSpeed", 900, 100, 4000);
++    m_liquid.sloshDamping = number("sloshDamping", 1.5, 0.1, 60);
++
++    if (bevel != m_bevel || frost != m_frost || lightBevel != m_lightBevel || lightFrost != m_lightFrost || lightUnderlay != m_lightUnderlay) {
 +        m_bevel = bevel;
 +        m_frost = frost;
 +        m_lightBevel = lightBevel;
 +        m_lightFrost = lightFrost;
 +        m_lightUnderlay = lightUnderlay;
-+        m_lightDiffractionBeneath = diffractionBeneath;
 +        effects->addRepaintFull();
 +    }
 +}
 +
-+void BlurEffect::Knock(double born, int side, double at, const QVariantMap &wave)
++void BlurEffect::Stir(bool busy, int side, double at)
 +{
 +    if (!calledFromDBus()) {
 +        return;
@@ -443,37 +495,13 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +    if (!pid.isValid()) {
 +        return;
 +    }
-+    const LiquidGlassKnock knock{
-+        .born = born,
-+        .side = side,
-+        .at = at,
-+        .speed = wave.value(QStringLiteral("speed"), 120.0).toDouble(),
-+        .bump = wave.value(QStringLiteral("bump"), 21.0).toDouble(),
-+        .spread = wave.value(QStringLiteral("spread"), 8.0).toDouble(),
-+        .damping = wave.value(QStringLiteral("damping"), 36.0).toDouble(),
-+        .life = wave.value(QStringLiteral("life"), 9.5).toDouble(),
-+        .steep = wave.value(QStringLiteral("steep"), 0.5).toDouble(),
-+        .lean = wave.value(QStringLiteral("lean"), s_liquidGlassRipple).toDouble(),
-+        .dispersion = wave.value(QStringLiteral("dispersion"), s_liquidGlassRippleDispersion).toDouble(),
-+        .ring = std::max(wave.value(QStringLiteral("ring"), 1.7).toDouble(), 0.1),
-+        .norm = std::max(wave.value(QStringLiteral("norm"), 0.991).toDouble(), 0.01),
-+        .edge = std::max(wave.value(QStringLiteral("edge"), 3.0).toDouble(), 0.5),
-+        .standoff = std::max(wave.value(QStringLiteral("standoff"), 0.0).toDouble(), 0.0),
-+        .strike = std::max(wave.value(QStringLiteral("strike"), 1.0).toDouble(), 1.0),
-+        .amp = std::max(wave.value(QStringLiteral("amp"), 1.0).toDouble(), 0.0),
-+        .chop = std::max(wave.value(QStringLiteral("chop"), 0.3).toDouble(), 0.0),
-+        .packet = std::clamp(wave.value(QStringLiteral("packet"), 0.7).toDouble(), 0.0, 1.0),
-+        .frontNoise = std::clamp(wave.value(QStringLiteral("frontNoise"), 0.5).toDouble(), 0.0, 1.0),
-+        .chopScale = std::max(wave.value(QStringLiteral("chopScale"), 40.0).toDouble(), 4.0),
-+        .chopSide = wave.value(QStringLiteral("chopSide"), side).toInt(),
-+    };
++    // kept by process, for the windows it shows later too (KRunner's is a new one each time it opens)
++    LiquidGlassClient &client = m_liquidGlassClients[pid_t(pid.value())];
++    client.busy = busy;
++    client.side = std::clamp(side, 0, 3);
++    client.at = at;
 +    for (auto &[window, data] : m_windows) {
 +        if (window->pid() == pid_t(pid.value())) {
-+            data.knocks.push_back(knock);
-+            data.knocks.back().size = window->frameGeometry().size();
-+            if (data.knocks.size() > 8) { // as many as the shader takes
-+                data.knocks.erase(data.knocks.begin());
-+            }
 +            window->addRepaintFull();
 +        }
 +    }
@@ -482,7 +510,339 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  void BlurEffect::initBlurStrengthValues()
  {
      // This function creates an array of blur strength values that are evenly distributed
-@@ -571,6 +832,21 @@
+@@ -479,6 +761,8 @@
+ void BlurEffect::prePaintScreen(ScreenPrePaintData &data)
+ {
+     m_currentView = data.view;
++    // plasma-glass: the liquid runs up to when this frame shows, in steps as even as the screen's refreshes
++    m_frameTime = data.frame ? std::chrono::duration<double>(data.frame->targetPageflipTime().time_since_epoch()).count() : monotonicNow();
+ 
+     effects->prePaintScreen(data);
+ }
+@@ -547,6 +831,322 @@
+     return m_noisePass.noiseTexture.get();
+ }
+ 
++// plasma-glass: where a follower is dt s on, and how fast it goes (it closes in on its target critically
++// damped, at omega 1/s; exact while the target holds, as it does between frames)
++static double followerAt(const LiquidGlassFollower &follower, double dt, double omega, double *velocity = nullptr)
++{
++    const double e0 = follower.x - follower.target;
++    const double k = std::exp(-omega * dt);
++    if (velocity) {
++        *velocity = (follower.v - omega * (follower.v + omega * e0) * dt) * k;
++    }
++    return follower.target + (e0 + (follower.v + omega * e0) * dt) * k;
++}
++
++// 0..1, the same for the same n
++static double hash01(quint32 n)
++{
++    n ^= n >> 16;
++    n *= 0x7feb352dU;
++    n ^= n >> 15;
++    n *= 0x846ca68bU;
++    n ^= n >> 16;
++    return n / 4294967296.0;
++}
++
++// how long the ripples take to settle after the last push (to about 5%, e^-3, and then they fade out over
++// 2 s): they fade with time, and lose what the rim doesn't send back each time they reach it
++double BlurEffect::liquidSettleTime(const RectF &glass) const
++{
++    const double crossing = std::max(10.0, (glass.width() + glass.height()) / 2) / m_liquid.speed;
++    const double ripples = 1 / m_liquid.damping - std::log(std::max(m_liquid.reflection, 0.02)) / crossing;
++    return std::min(3 / ripples, 15.0);
++}
++
++// Runs a layer of the liquid on for span s, in even steps of at most maxStep s; uniforms(t, dt) sets the
++// fluid pass's uniforms for the step from t s into the span. The layer grows to hold `cells` (keeping
++// what's in it) and starts at rest.
++void BlurEffect::stepLiquid(LiquidGlassLayer &layer, const QSize &cells, double cell, double span, double maxStep, const std::function<void(double t, double dt)> &uniforms, GLVertexBuffer *vbo)
++{
++    std::unique_ptr<GLTexture> kept;
++    GLTexture *source = layer.textures[layer.current].get();
++    if (!source || source->width() < cells.width() || source->height() < cells.height()) {
++        // a larger pair of textures (in steps of 16 cells), the first step reading the old state (fluid.frag
++        // takes cells past it as dry)
++        const auto room = [](int need, int have) {
++            return (std::max(need, have) + 15) / 16 * 16;
++        };
++        const QSize size(room(cells.width(), source ? source->width() : 0), room(cells.height(), source ? source->height() : 0));
++        kept = std::move(layer.textures[layer.current]);
++        layer = LiquidGlassLayer();
++        for (int i = 0; i < 2; ++i) {
++            layer.textures[i] = GLTexture::allocate(GL_RGBA32F, size);
++            if (!layer.textures[i]) {
++                qCWarning(KWIN_BLUR) << "Failed to allocate the Liquid Glass fluid";
++                layer = LiquidGlassLayer();
++                return;
++            }
++            layer.textures[i]->setFilter(GL_LINEAR); // surface.frag samples it smoothly (fluid.frag fetches texels)
++            layer.textures[i]->setWrapMode(GL_CLAMP_TO_EDGE);
++            layer.framebuffers[i] = std::make_unique<GLFramebuffer>(layer.textures[i].get());
++            if (!layer.framebuffers[i]->valid()) {
++                layer = LiquidGlassLayer();
++                return;
++            }
++        }
++        layer.current = 1; // the first step writes the other one
++        source = kept.get();
++        if (!source) {
++            source = layer.textures[1].get();
++            GLFramebuffer::pushFramebuffer(layer.framebuffers[1].get());
++            glClearColor(0, 0, 0, 0);
++            glClear(GL_COLOR_BUFFER_BIT);
++            GLFramebuffer::popFramebuffer();
++        }
++    }
++
++    const int steps = std::max(1, int(std::ceil(span / maxStep)));
++    const double dt = span / steps;
++    glActiveTexture(GL_TEXTURE0);
++    ShaderManager::instance()->pushShader(m_fluidPass.shader.get());
++    m_fluidPass.shader->setUniform(m_fluidPass.cellLocation, float(cell));
++    for (int i = 0; i < steps; ++i) {
++        uniforms(i * dt, dt);
++        const int next = 1 - layer.current;
++        source->bind();
++        GLFramebuffer::pushFramebuffer(layer.framebuffers[next].get());
++        vbo->draw(GL_TRIANGLES, 0, 6);
++        GLFramebuffer::popFramebuffer();
++        source->unbind();
++        layer.current = next;
++        source = layer.textures[next].get();
++    }
++    ShaderManager::instance()->popShader();
++}
++
++// Runs the liquid in a Liquid Glass window on to this frame, and draws its surface into data.wavesTexture.
++// Returns how much of it to show (1 while it moves, less as it settles; 0: nothing drawn yet), or nothing
++// once it's calm.
++std::optional<double> BlurEffect::runLiquid(BlurEffectData &data, const LiquidGlassClient &client, const RectF &glass, const BorderRadius &corners, const Rect &background, GLVertexBuffer *vbo)
++{
++    // it renders into float textures: desktop OpenGL
++    if (!m_fluidPass.shader || !m_surfacePass.shader || EglContext::currentContext()->isOpenGLES() || glass.isEmpty()) {
++        return std::nullopt;
++    }
++    const bool fresh = !data.fluid;
++    if (fresh) {
++        data.fluid = std::make_unique<LiquidGlassFluid>();
++    }
++    LiquidGlassFluid &f = *data.fluid;
++    const double now = std::max(m_frameTime, f.time);
++    if (fresh) {
++        f.time = now;
++        f.born = now;
++    }
++    // where the glass is now, for the followers to take up
++    LiquidGlassFollower *const followers[] = {&f.x, &f.y, &f.width, &f.height};
++    const double measured[] = {glass.x(), glass.y(), glass.width(), glass.height()};
++    bool moving = false;
++    for (int i = 0; i < 4; ++i) {
++        if (fresh) {
++            followers[i]->x = measured[i];
++        }
++        followers[i]->target = measured[i];
++        moving = moving || std::abs(followers[i]->x - followers[i]->target) > 0.05 || std::abs(followers[i]->v) > 0.5;
++    }
++    const double settle = liquidSettleTime(glass);
++    if (client.busy || f.pushStart >= 0) {
++        f.liveUntil = std::max(f.liveUntil, now + settle);
++    }
++    if (moving) {
++        // the swell settles as fast as it's damped; a move only stirs the ripples a little, so they're out of
++        // sight sooner than after a push
++        f.liveUntil = std::max(f.liveUntil, now + std::min(std::max(3 * m_liquid.sloshDamping, 0.4 * settle), 15.0));
++    }
++    if (now >= f.liveUntil) {
++        // calm: let go of the layers until something stirs it again
++        f.ripples = LiquidGlassLayer();
++        f.swell = LiquidGlassLayer();
++        for (LiquidGlassFollower *follower : followers) {
++            follower->x = follower->target;
++            follower->v = 0;
++        }
++        f.breeze = 0;
++        f.time = now;
++        return std::nullopt;
++    }
++
++    const double span = std::min(now - f.time, 0.1); // after a stall, carry on from now
++    const double start = now - span;
++    const double omega = 2 * M_PI * s_liquidFollow;
++    const QVector4D cornerRadii = corners.toVector();
++    QMatrix4x4 projection;
++    projection.ortho(QRectF(0.0, 0.0, background.width(), background.height()));
++
++    // The busy push: while the client is busy, a stretch of one side pushes in (over the time a wave as
++    // wide as [Ripple] width takes to pass) and eases back out over the rest of the interval, as far as it
++    // came in; or, pressing, a press on the surface there, let go once it's in. Jitter: no two alike.
++    const auto startPush = [&](double t) {
++        ++f.pushes;
++        const auto jit = [&](int k) {
++            return m_liquid.jitter * (hash01(f.pushes * 4 + k) - 0.5);
++        };
++        f.pushStart = t;
++        f.pushInterval = m_liquid.interval * (1 + jit(0));
++        const double width = m_liquid.width * (1 + 0.8 * jit(1));
++        f.pushIn = std::clamp(width / (0.38 * m_liquid.speed), 0.04, 0.8 * f.pushInterval);
++        const double strength = std::max(0.0, 1 + 1.2 * jit(2));
++        f.pushSide = client.side;
++        const double length = f.pushSide < 2 ? glass.height() : glass.width();
++        f.pushAt = std::clamp((client.at >= 0 ? client.at : length / 3) + 0.4 * length * jit(3), 1.0, std::max(1.0, length - 1));
++        const double c2 = m_liquid.speed * m_liquid.speed;
++        // pushing in at this speed at its fastest makes a wave whose steepest slope is s_pushSlope (in a
++        // straight channel; it spreads and loses some on its way across); pressing down by about the wave's
++        // width does about as much
++        f.pushStrength = strength * (m_liquid.press ? 0.8 * c2 * width : s_pushSlope * c2 * f.pushIn / M_PI);
++    };
++    const auto pushAt = [&](double t, QVector4D *push, QVector4D *press) {
++        if (f.pushStart >= 0 && t >= f.pushStart + f.pushInterval) {
++            const double next = f.pushStart + f.pushInterval;
++            f.pushStart = -1;
++            if (client.busy) {
++                startPush(next); // on the beat
++            }
++        }
++        if (f.pushStart < 0 && client.busy) {
++            startPush(t);
++        }
++        *push = QVector4D(-1, 0, 0, 0);
++        *press = QVector4D(0, 0, 1, 0);
++        if (f.pushStart < 0) {
++            return;
++        }
++        const double tc = t - f.pushStart;
++        if (m_liquid.press) {
++            const double radius = m_liquid.width;
++            const double inset = radius + 6;
++            const QPointF centres[] = {{inset, f.pushAt}, {glass.width() - inset, f.pushAt}, {f.pushAt, inset}, {f.pushAt, glass.height() - inset}};
++            const double in = tc < f.pushIn ? std::sin(M_PI * tc / f.pushIn) : 0;
++            *press = QVector4D(centres[f.pushSide].x(), centres[f.pushSide].y(), radius, f.pushStrength * in * in);
++            return;
++        }
++        const double rest = f.pushInterval - f.pushIn;
++        const double speed = tc < f.pushIn ? f.pushStrength * std::sin(M_PI * tc / f.pushIn)
++                                           : -f.pushStrength * f.pushIn / rest * std::sin(M_PI * (tc - f.pushIn) / rest);
++        *push = QVector4D(f.pushSide, f.pushAt, m_liquid.strike / 2, speed);
++    };
++
++    // what the glass's moves do over a step from t s into the span: the liquid is pushed against the
++    // acceleration of the glass's centre (scaled by gain), so the dropdown unfolding sloshes it too
++    const auto moves = [&](double t, double dt, double gain) {
++        const auto change = [&](const LiquidGlassFollower &place, const LiquidGlassFollower &size) {
++            double p0, p1, s0, s1;
++            followerAt(place, t, omega, &p0);
++            followerAt(place, t + dt, omega, &p1);
++            followerAt(size, t, omega, &s0);
++            followerAt(size, t + dt, omega, &s1);
++            return ((p1 - p0) + 0.5 * (s1 - s0)) / dt;
++        };
++        m_fluidPass.shader->setUniform(m_fluidPass.accelLocation, QVector2D(-gain * change(f.x, f.width), -gain * change(f.y, f.height)));
++    };
++    const auto common = [&]() {
++        m_fluidPass.shader->setUniform(m_fluidPass.mvpMatrixLocation, projection);
++        m_fluidPass.shader->setUniform(m_fluidPass.glassLocation, QVector2D(glass.width(), glass.height()));
++        m_fluidPass.shader->setUniform(m_fluidPass.cornersLocation, cornerRadii);
++    };
++
++    if (span > 0) {
++        // ripples: slow and short, pushed while busy, kept from the rim by the sponge
++        const double c = m_liquid.speed;
++        const double sponge = 3 * c * -std::log(std::max(m_liquid.reflection, 0.02)) / s_liquidRim;
++        stepLiquid(f.ripples, QSize(int(std::ceil(glass.width() / s_ripplesCell)) + 3, int(std::ceil(glass.height() / s_ripplesCell)) + 3), s_ripplesCell, span,
++                   0.5 * s_ripplesCell / c, [&](double t, double dt) {
++                       common();
++                       QVector4D push, press;
++                       pushAt(start + t + dt / 2, &push, &press);
++                       m_fluidPass.shader->setUniform(m_fluidPass.pushLocation, push);
++                       m_fluidPass.shader->setUniform(m_fluidPass.pressLocation, press);
++                       moves(t, dt, s_ripplesMomentum * m_liquid.momentum);
++                       // gusts about chopScale across, coming and going as fast as a wave crosses half of one,
++                       // pressing hard enough that the waves they raise lean the glass a little
++                       const double gusts = m_liquid.chopScale;
++                       m_fluidPass.shader->setUniform(m_fluidPass.breezeLocation, QVector3D(0.2 * m_liquid.chop * f.breeze * c * c * gusts, gusts, (start + t - f.born) * 0.5 * c / gusts));
++                       m_fluidPass.shader->setUniform(m_fluidPass.timingLocation, QVector4D(dt, c * c, 10 * s_ripplesCell * s_ripplesCell / (M_PI * M_PI), s_liquidLevel));
++                       m_fluidPass.shader->setUniform(m_fluidPass.dampingLocation, QVector3D(2 / m_liquid.damping, sponge, s_liquidRim));
++                   }, vbo);
++        // swell: fast and long, sloshed by the window's moves, every bit of it sent back by the rim
++        const double cs = m_liquid.sloshSpeed;
++        if (m_liquid.momentum > 0) {
++            stepLiquid(f.swell, QSize(int(std::ceil(glass.width() / s_swellCell)) + 3, int(std::ceil(glass.height() / s_swellCell)) + 3), s_swellCell, span,
++                       0.5 * s_swellCell / cs, [&](double t, double dt) {
++                           common();
++                           m_fluidPass.shader->setUniform(m_fluidPass.pushLocation, QVector4D(-1, 0, 0, 0));
++                           m_fluidPass.shader->setUniform(m_fluidPass.pressLocation, QVector4D(0, 0, 1, 0));
++                           m_fluidPass.shader->setUniform(m_fluidPass.breezeLocation, QVector3D(0, 1, 0));
++                           moves(t, dt, s_swellMomentum * m_liquid.momentum);
++                           m_fluidPass.shader->setUniform(m_fluidPass.timingLocation, QVector4D(dt, cs * cs, 10 * s_swellCell * s_swellCell / (M_PI * M_PI), s_liquidLevel));
++                           m_fluidPass.shader->setUniform(m_fluidPass.dampingLocation, QVector3D(2 / m_liquid.sloshDamping, 0, s_liquidRim));
++                       }, vbo);
++        } else {
++            f.swell = LiquidGlassLayer(); // no momentum: none of it left standing
++        }
++        for (LiquidGlassFollower *follower : followers) {
++            follower->x = followerAt(*follower, span, omega, &follower->v);
++        }
++        // the breeze rises over about half a second while busy, and dies down over a second after
++        f.breeze = client.busy ? 1 - (1 - f.breeze) * std::exp(-span / 0.5) : f.breeze * std::exp(-span / 1.0);
++        f.time = now;
++    }
++    GLTexture *ripples = f.ripples.textures[f.ripples.current].get();
++    GLTexture *swell = f.swell.textures[f.swell.current].get();
++    if (!ripples) {
++        return 0;
++    }
++
++    // the surface, at half size over the background
++    const QSize wavesSize((background.width() + 1) / 2, (background.height() + 1) / 2);
++    if (!data.wavesTexture || data.wavesTexture->size() != wavesSize) {
++        data.wavesFramebuffer.reset();
++        data.wavesTexture = GLTexture::allocate(GL_RGBA16F, wavesSize); // slopes go negative
++        if (data.wavesTexture) {
++            data.wavesTexture->setFilter(GL_LINEAR);
++            data.wavesTexture->setWrapMode(GL_CLAMP_TO_EDGE);
++            data.wavesFramebuffer = std::make_unique<GLFramebuffer>(data.wavesTexture.get());
++        }
++    }
++    if (!data.wavesFramebuffer || !data.wavesFramebuffer->valid()) {
++        return 0;
++    }
++    ShaderManager::instance()->pushShader(m_surfacePass.shader.get());
++    m_surfacePass.shader->setUniform(m_surfacePass.mvpMatrixLocation, projection);
++    m_surfacePass.shader->setUniform(m_surfacePass.ripplesLocation, 0);
++    m_surfacePass.shader->setUniform(m_surfacePass.swellLocation, 1);
++    m_surfacePass.shader->setUniform(m_surfacePass.ripplesCellLocation, float(s_ripplesCell));
++    m_surfacePass.shader->setUniform(m_surfacePass.swellCellLocation, float(s_swellCell));
++    m_surfacePass.shader->setUniform(m_surfacePass.glassLocation, QVector2D(glass.width(), glass.height()));
++    m_surfacePass.shader->setUniform(m_surfacePass.cornersLocation, cornerRadii);
++    m_surfacePass.shader->setUniform(m_surfacePass.originLocation, QVector2D(background.x() - glass.x(), background.y() - glass.y()));
++    m_surfacePass.shader->setUniform(m_surfacePass.areaLocation, QVector2D(background.width(), background.height()));
++    // a fresh wave's crest is about this high (the push's speed over the waves' speed, in a straight channel)
++    const double crest = s_pushSlope * m_liquid.width / (0.38 * M_PI);
++    m_surfacePass.shader->setUniform(m_surfacePass.gainLocation, QVector3D(1, swell ? 1 : 0, crest));
++    glActiveTexture(GL_TEXTURE1);
++    (swell ? swell : ripples)->bind();
++    glActiveTexture(GL_TEXTURE0);
++    ripples->bind();
++    GLFramebuffer::pushFramebuffer(data.wavesFramebuffer.get());
++    vbo->draw(GL_TRIANGLES, 0, 6);
++    GLFramebuffer::popFramebuffer();
++    glActiveTexture(GL_TEXTURE1);
++    (swell ? swell : ripples)->unbind();
++    glActiveTexture(GL_TEXTURE0);
++    ripples->unbind();
++    ShaderManager::instance()->popShader();
++
++    // over its last 2 s it fades out, so nothing is left standing when it stops
++    return smoothStep(0, 2, f.liveUntil - now);
++}
++
+ void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &viewport, EffectWindow *w, int mask, const Region &deviceRegion, WindowPaintData &data)
+ {
+     auto it = m_windows.find(w);
+@@ -571,6 +1171,21 @@
  
      blurShape.translate(w->pos());
  
@@ -504,7 +864,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      const Rect backgroundRect = blurShape.boundingRect().rounded();
      const Rect scaledBackgroundRect = backgroundRect.scaled(viewport.scale()).rounded();
      const Rect deviceBackgroundRect = viewport.mapToDeviceCoordinates(backgroundRect).rounded();
-@@ -605,12 +881,12 @@
+@@ -605,12 +1220,12 @@
          textureFormat = renderTarget.texture()->internalFormat();
      }
  
@@ -519,86 +879,27 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
              auto texture = GLTexture::allocate(textureFormat, backgroundRect.size() / (1 << i));
              if (!texture) {
                  qCWarning(KWIN_BLUR) << "Failed to allocate an offscreen texture";
-@@ -742,6 +1018,140 @@
+@@ -742,6 +1357,81 @@
  
      vbo->bindArrays();
  
-+    // KRunner's ripple, on a Liquid Glass surface: its waves' slope and height over the background, at half
-+    // size, for the bevel pass to lean and clear the glass by (what it multiplies them by; 0: no waves), and
-+    // how far their colours part (device px, where one leans the glass fully). The latest knock's settings
-+    // go for all of them.
++    // The liquid in a Liquid Glass surface whose client asked for it (Stir()): its surface's slope and the
++    // ripples' height over the background, at half size, for the bevel pass to lean and clear the glass by
++    // (what it multiplies them by; 0: still), and how far their colours part (device px, where a wave leans
++    // the glass fully)
 +    QVector2D ripple;
 +    float rippleDispersion = 0;
-+    if (!bevelCorners.isNull() && m_ripplePass.shader) {
-+        const double now = monotonicNow();
-+        std::erase_if(blurInfo.knocks, [now](const LiquidGlassKnock &knock) {
-+            return now - knock.born >= knock.life;
-+        });
-+        const double lean = blurInfo.knocks.empty() ? 0 : m_rippleLean.value_or(blurInfo.knocks.back().lean);
-+        if (lean > 0) {
-+            const QSize wavesSize((backgroundRect.width() + 1) / 2, (backgroundRect.height() + 1) / 2);
-+            if (!blurInfo.wavesTexture || blurInfo.wavesTexture->size() != wavesSize) {
-+                blurInfo.wavesFramebuffer.reset();
-+                blurInfo.wavesTexture = GLTexture::allocate(GL_RGBA16F, wavesSize); // slopes go negative
-+                if (blurInfo.wavesTexture) {
-+                    blurInfo.wavesTexture->setFilter(GL_LINEAR);
-+                    blurInfo.wavesTexture->setWrapMode(GL_CLAMP_TO_EDGE);
-+                    blurInfo.wavesFramebuffer = std::make_unique<GLFramebuffer>(blurInfo.wavesTexture.get());
++    if (!bevelCorners.isNull()) {
++        if (const auto client = m_liquidGlassClients.find(w->pid()); client != m_liquidGlassClients.end()) {
++            const double lean = m_rippleLean.value_or(m_liquid.amplitude);
++            if (lean > 0) {
++                if (const std::optional<double> shown = runLiquid(blurInfo, client->second, blurShape.boundingRect(), bevelCorners, backgroundRect, vbo)) {
++                    if (*shown > 0) {
++                        ripple = QVector2D(lean / s_liquidSteep, lean) * *shown;
++                        rippleDispersion = m_rippleDispersion.value_or(m_liquid.aberration);
++                    }
++                    w->addRepaintFull(); // it moves on, whether or not the window draws anything new
 +                }
-+            }
-+            if (blurInfo.wavesFramebuffer && blurInfo.wavesFramebuffer->valid()) {
-+                // as RunCommand.qml works them out each frame: how far each wave has come and its
-+                // half-width; how much of it is left with age, half the stretch it strikes, its ringing
-+                // and its profile's steepest slope
-+                const RectF window = w->frameGeometry();
-+                GLfloat knocks[8][4] = {};
-+                GLfloat shapes[8][4] = {};
-+                for (size_t i = 0; i < blurInfo.knocks.size(); ++i) {
-+                    const LiquidGlassKnock &knock = blurInfo.knocks[i];
-+                    const double age = now - knock.born;
-+                    knocks[i][0] = knock.side + 0.9 * (knock.born * 0.6180339887 - std::floor(knock.born * 0.6180339887)); // and its noise's seed
-+                    knocks[i][1] = knock.at;
-+                    // how far it has come, from where its side was: the bottom or right edge may have moved since
-+                    const double moved = knock.side == 3 ? window.height() - knock.size.height()
-+                        : knock.side == 1                ? window.width() - knock.size.width()
-+                                                         : 0;
-+                    knocks[i][2] = knock.speed * age + moved;
-+                    knocks[i][3] = knock.bump + knock.spread * age;
-+                    shapes[i][0] = knock.amp * std::exp(-age / knock.damping) * smoothStep(0, 0.05, age) * (1 - smoothStep(0.8 * knock.life, knock.life, age));
-+                    shapes[i][1] = knock.strike / 2;
-+                    shapes[i][2] = knock.ring;
-+                    shapes[i][3] = knock.norm;
-+                }
-+                const LiquidGlassKnock &latest = blurInfo.knocks.back();
-+                ripple = QVector2D(lean / latest.steep, lean);
-+                rippleDispersion = m_rippleDispersion.value_or(latest.dispersion);
-+
-+                ShaderManager::instance()->pushShader(m_ripplePass.shader.get());
-+
-+                QMatrix4x4 projectionMatrix;
-+                projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
-+
-+                m_ripplePass.shader->setUniform(m_ripplePass.mvpMatrixLocation, projectionMatrix);
-+                m_ripplePass.shader->setUniform(m_ripplePass.sizeLocation, QVector2D(window.width(), window.height()));
-+                m_ripplePass.shader->setUniform(m_ripplePass.originLocation, QVector2D(backgroundRect.x() - window.x(), backgroundRect.y() - window.y()));
-+                m_ripplePass.shader->setUniform(m_ripplePass.areaLocation, QVector2D(backgroundRect.width(), backgroundRect.height()));
-+                m_ripplePass.shader->setUniform(m_ripplePass.steepLocation, float(latest.steep));
-+                m_ripplePass.shader->setUniform(m_ripplePass.edgeLocation, float(latest.edge));
-+                m_ripplePass.shader->setUniform(m_ripplePass.standoffLocation, float(latest.standoff));
-+                m_ripplePass.shader->setUniform(m_ripplePass.natureLocation, QVector4D(latest.chop, latest.packet, latest.frontNoise, latest.chopScale));
-+                m_ripplePass.shader->setUniform(m_ripplePass.timeLocation, float(std::fmod(now, 1000.0)));
-+                static constexpr float angles[] = {0.0f, float(M_PI), float(M_PI / 2), float(-M_PI / 2)};
-+                m_ripplePass.shader->setUniform(m_ripplePass.mainAngleLocation, angles[std::clamp(latest.chopSide, 0, 3)]);
-+                m_ripplePass.shader->setUniform(m_ripplePass.calmLocation, float((light ? m_lightBevel : m_bevel).x()));
-+                glUniform4fv(m_ripplePass.knocksLocation, 8, &knocks[0][0]);
-+                glUniform4fv(m_ripplePass.shapesLocation, 8, &shapes[0][0]);
-+
-+                GLFramebuffer::pushFramebuffer(blurInfo.wavesFramebuffer.get());
-+                vbo->draw(GL_TRIANGLES, 0, 6);
-+                GLFramebuffer::popFramebuffer();
-+
-+                ShaderManager::instance()->popShader();
-+                w->addRepaintFull(); // the waves move on, whether or not the window draws anything new
 +            }
 +        }
 +    }
@@ -631,7 +932,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +            m_underlayPass.shader->setUniform(m_underlayPass.originLocation, QVector2D(backgroundRect.x() - window.x(), backgroundRect.y() - window.y()));
 +            m_underlayPass.shader->setUniform(m_underlayPass.areaLocation, QVector2D(backgroundRect.width(), backgroundRect.height()));
 +            m_underlayPass.shader->setUniform(m_underlayPass.leanLocation, ripple.x());
-+            m_underlayPass.shader->setUniform(m_underlayPass.lightLocation, QVector4D(m_lightUnderlay.x() * scale, m_lightDiffractionBeneath ? m_lightUnderlay.y() : 0.0f, m_lightUnderlay.z(), m_lightUnderlay.w()));
++            m_underlayPass.shader->setUniform(m_underlayPass.lightLocation, QVector4D(m_lightUnderlay.x() * scale, m_lightUnderlay.y(), m_lightUnderlay.z(), m_lightUnderlay.w()));
 +            m_underlayPass.shader->setUniform(m_underlayPass.timeLocation, float(std::fmod(monotonicNow(), 1000.0)));
 +            m_underlayPass.shader->setUniform(m_underlayPass.texUnitLocation, 0);
 +            m_underlayPass.shader->setUniform(m_underlayPass.wavesUnitLocation, 1);
@@ -660,7 +961,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      // The downsample pass of the dual Kawase algorithm: the background will be scaled down 50% every iteration.
      {
          ShaderManager::instance()->pushShader(m_downsamplePass.shader.get());
-@@ -750,7 +1160,7 @@
+@@ -750,7 +1440,7 @@
          projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
  
          m_downsamplePass.shader->setUniform(m_downsamplePass.mvpMatrixLocation, projectionMatrix);
@@ -669,7 +970,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
          for (size_t i = 1; i < renderInfo.framebuffers.size(); ++i) {
              const auto &read = renderInfo.framebuffers[i - 1];
-@@ -760,7 +1170,7 @@
+@@ -760,7 +1450,7 @@
                                        0.5 / read->colorAttachment()->height());
              m_downsamplePass.shader->setUniform(m_downsamplePass.halfpixelLocation, halfpixel);
  
@@ -678,7 +979,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
              GLFramebuffer::pushFramebuffer(draw.get());
              vbo->draw(GL_TRIANGLES, 0, 6);
-@@ -777,7 +1187,7 @@
+@@ -777,7 +1467,7 @@
          projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
  
          m_upsamplePass.shader->setUniform(m_upsamplePass.mvpMatrixLocation, projectionMatrix);
@@ -687,7 +988,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
          for (size_t i = renderInfo.framebuffers.size() - 1; i > 1; --i) {
              GLFramebuffer::popFramebuffer();
-@@ -824,7 +1234,7 @@
+@@ -824,7 +1514,7 @@
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.mvpMatrixLocation, projectionMatrix);
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.colorMatrixLocation, m_colorMatrix);
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.halfpixelLocation, halfpixel);
@@ -696,7 +997,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.boxLocation, QVector4D(nativeBox.horizontalCenter(), nativeBox.verticalCenter(), nativeBox.width() * 0.5, nativeBox.height() * 0.5));
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.cornerRadiusLocation, nativeCornerRadius.toVector());
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.opacityLocation, modulation);
-@@ -839,6 +1249,61 @@
+@@ -839,6 +1529,61 @@
          glDisable(GL_BLEND);
  
          ShaderManager::instance()->popShader();
@@ -729,7 +1030,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.wavesUnitLocation, 2);
 +        m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.rippleLocation, QVector3D(ripple.x(), ripple.y(), rippleDispersion * scale));
 +
-+        // the background as it is, before the blur (on light glass, with the waves in it); the ripple's waves
++        // the background as it is, before the blur (on light glass, with the waves in it); the liquid's surface
 +        glActiveTexture(GL_TEXTURE1);
 +        frostSource->bind();
 +        if (ripple.x() > 0) {
@@ -758,7 +1059,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      } else {
          ShaderManager::instance()->pushShader(m_onscreenPass.shader.get());
  
-@@ -854,7 +1319,7 @@
+@@ -854,7 +1599,7 @@
          m_onscreenPass.shader->setUniform(m_onscreenPass.mvpMatrixLocation, projectionMatrix);
          m_onscreenPass.shader->setUniform(m_onscreenPass.colorMatrixLocation, m_colorMatrix);
          m_onscreenPass.shader->setUniform(m_onscreenPass.halfpixelLocation, halfpixel);
@@ -776,56 +1077,75 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  
 +#include <QDBusContext>
  #include <QList>
-+#include <QVariantMap>
  
++#include <functional>
 +#include <optional>
  #include <unordered_map>
  
  namespace KWin
-@@ -28,6 +31,36 @@
+@@ -28,6 +31,55 @@
      std::vector<std::unique_ptr<GLFramebuffer>> framebuffers;
  };
  
-+// plasma-glass: a knock of KRunner's busy ripple, whose wave bends what's behind the glass (Knock())
-+struct LiquidGlassKnock
++// plasma-glass: the liquid in a Liquid Glass window that asked for one over D-Bus (KRunner, Stir()): shallow
++// water simulated on the GPU (shaders/fluid.frag), stirred while the window is busy and sloshing as it
++// moves. It runs in two layers, as on real water long waves run faster than short ones: ripples, the short
++// waves the busy push makes, and swell, the long ones the window's moves set sloshing.
++struct LiquidGlassLayer
 +{
-+    double born; // s, on the monotonic clock
-+    int side; // 0 left, 1 right, 2 top, 3 bottom
-+    double at; // logical px along it
-+    double speed; // px/s
-+    double bump; // px: a fresh wave's half-width
-+    double spread; // px/s the half-width grows
-+    double damping; // s
-+    double life; // s
-+    double steep; // a fresh wave's steepest slope
-+    double lean; // how far it leans the glass there, against the bevel at its edge (1)
-+    double dispersion; // logical px its colours part by each way where it leans the glass fully
-+    double ring; // half-widths over which the ringing behind its crest fades by e
-+    double norm; // the steepest slope of its profile (with that ringing), which steep stands for
-+    double edge; // px: heading into the rim, it fades over about twice this
-+    double standoff; // px in from the rim where that fade is
-+    double strike; // px: the stretch of the side it strikes at once
-+    double amp; // how strong it is, against the others (a knock's jitter)
-+    double chop; // to look more natural (ripple.frag's nature): chop, packet, front noise, chop's wavelength
-+    double packet;
-+    double frontNoise;
-+    double chopScale;
-+    int chopSide; // the side the busy knocks land on, which the chop runs away from (momentum's knocks
-+                  // come from any side)
-+    QSizeF size; // the window's when it knocked: a wave off the bottom or right side stays where it set out
-+                 // as the window grows or shrinks (the side is where the window's edge is now)
++    std::unique_ptr<GLTexture> textures[2]; // each cell's height and its right and bottom faces' velocity, in turns
++    std::unique_ptr<GLFramebuffer> framebuffers[2];
++    int current = 0; // which texture holds the state now
++};
++
++// a critically damped follower of where the glass is or how big: it smooths the steps a window moves in (a
++// pointer's 60 Hz against faster frames), and its speed and acceleration are what the liquid feels
++struct LiquidGlassFollower
++{
++    double x = 0;
++    double v = 0;
++    double target = 0;
++};
++
++struct LiquidGlassFluid
++{
++    LiquidGlassLayer ripples;
++    LiquidGlassLayer swell;
++    double time = 0; // s, monotonic: how far it has run
++    double liveUntil = 0; // s: until then it runs and the window repaints (anything that stirs it extends this)
++    LiquidGlassFollower x, y, width, height; // the glass's place and size, logical px
++    // the busy push under way: when it began (s; -1: none), how long until the next (s), how long it takes
++    // to push in (s), how fast it pushes in at its fastest (px/s; or how hard it presses), and where
++    double pushStart = -1;
++    double pushInterval = 0;
++    double pushIn = 0;
++    double pushStrength = 0;
++    int pushSide = 0;
++    double pushAt = 0; // px along the side
++    quint32 pushes = 0; // how many so far: each one's jitter
++    double breeze = 0; // how strong the breeze is now (0..1: it rises while busy, and dies down after)
++    double born = 0; // s: when the liquid was poured, which the breeze's gusts count from
++};
++
++// what a client asked for: whether its window is busy, and where the pushes land (side 0 left .. 3 bottom,
++// px along it; -1: a third of the way)
++struct LiquidGlassClient
++{
++    bool busy = false;
++    int side = 0;
++    double at = -1;
 +};
 +
  struct BlurEffectData
  {
      /// The region that should be blurred behind the window
-@@ -43,9 +76,17 @@
+@@ -43,9 +95,17 @@
      std::unordered_map<RenderView *, BlurRenderData> render;
  
      std::unique_ptr<BackgroundEffectItem> blurItem;
 +
-+    /// plasma-glass: KRunner's ripple, and its waves' slope at half size while it runs
-+    std::vector<LiquidGlassKnock> knocks;
++    /// plasma-glass: the liquid, and its surface's slope at half size while it moves
++    std::unique_ptr<LiquidGlassFluid> fluid;
 +    std::unique_ptr<GLTexture> wavesTexture;
 +    std::unique_ptr<GLFramebuffer> wavesFramebuffer;
 +    /// and on Liquid Glass Light, the background with the waves in it, for the blur to frost
@@ -838,27 +1158,32 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  {
      Q_OBJECT
  
-@@ -81,6 +122,11 @@
+@@ -81,6 +141,13 @@
  #endif
      void setupDecorationConnections(EffectWindow *w);
  
-+    // plasma-glass, on D-Bus as org.kde.KWin.LiquidGlass at /org/kde/KWin/LiquidGlass: KRunner's busy
-+    // ripple knocks on its glass. The wave (speed, bump, spread, damping, life, steep: as RunCommand.qml)
-+    // bends what's behind the caller's window as it runs, like the dark Liquid Glass bevel does.
-+    Q_SCRIPTABLE void Knock(double born, int side, double at, const QVariantMap &wave);
++    // plasma-glass, on D-Bus as org.kde.KWin.LiquidGlass at /org/kde/KWin/LiquidGlass: the caller's Liquid
++    // Glass windows get the liquid, which sloshes as they move; while busy, a stretch of the rim (side 0
++    // left .. 3 bottom, peaking at px along it; -1 for a third of the way) pushes into it again and again,
++    // and the waves bend what's behind the glass as its bevel does. KRunner calls it as it shows, and as it
++    // gets busy or done.
++    Q_SCRIPTABLE void Stir(bool busy, int side, double at);
 +
  private:
      void initBlurStrengthValues();
      RegionF blurRegion(EffectWindow *w) const;
-@@ -90,6 +136,7 @@
+@@ -90,6 +157,10 @@
      void updateBlurRegion(EffectWindow *w);
      void blur(const RenderTarget &renderTarget, const RenderViewport &viewport, EffectWindow *w, int mask, const Region &deviceRegion, WindowPaintData &data);
      GLTexture *ensureNoiseTexture();
 +    void updateLiquidGlass();
++    std::optional<double> runLiquid(BlurEffectData &data, const LiquidGlassClient &client, const RectF &glass, const BorderRadius &corners, const Rect &background, GLVertexBuffer *vbo);
++    void stepLiquid(LiquidGlassLayer &layer, const QSize &cells, double cell, double span, double maxStep, const std::function<void(double t0, double dt)> &uniforms, GLVertexBuffer *vbo);
++    double liquidSettleTime(const RectF &glass) const;
  
  private:
      struct
-@@ -113,6 +160,75 @@
+@@ -113,6 +184,105 @@
          int opacityLocation;
      } m_roundedOnscreenPass;
  
@@ -879,24 +1204,35 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
 +        int wavesUnitLocation;
 +        int rippleLocation;
 +    } m_bevelOnscreenPass;
-+    // the ripple's waves, worked out again from its knocks (shaders/ripple.frag)
++    // the liquid: a step of one layer (shaders/fluid.frag), and its surface (shaders/surface.frag)
 +    struct
 +    {
 +        std::unique_ptr<GLShader> shader;
 +        int mvpMatrixLocation;
-+        int sizeLocation;
++        int glassLocation;
++        int cornersLocation;
++        int cellLocation;
++        int timingLocation;
++        int dampingLocation;
++        int accelLocation;
++        int pushLocation;
++        int pressLocation;
++        int breezeLocation;
++    } m_fluidPass;
++    struct
++    {
++        std::unique_ptr<GLShader> shader;
++        int mvpMatrixLocation;
++        int ripplesLocation;
++        int swellLocation;
++        int ripplesCellLocation;
++        int swellCellLocation;
++        int glassLocation;
++        int cornersLocation;
 +        int originLocation;
 +        int areaLocation;
-+        int knocksLocation;
-+        int shapesLocation;
-+        int steepLocation;
-+        int edgeLocation;
-+        int standoffLocation;
-+        int natureLocation;
-+        int timeLocation;
-+        int mainAngleLocation;
-+        int calmLocation;
-+    } m_ripplePass;
++        int gainLocation;
++    } m_surfacePass;
 +    // Liquid Glass Light: the waves beneath the frost (shaders/underlay.frag)
 +    struct
 +    {
@@ -921,15 +1257,34 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
 +    // and its waves beneath the frost: logical px what's behind is seen from further in where one leans
 +    // fully, how bright the foil's colours are, its shards' size (logical px), how saturated they are
 +    QVector4D m_lightUnderlay;
-+    bool m_lightDiffractionBeneath = true; // [Light] layer: its foil lights up beneath the frost (else only
-+                                           // KRunner's, over the glass)
 +    QVector4D m_bevel; // logical px: width, refraction, dispersion; sharpness at the edge
 +    int m_frost; // its blur strength, at most (as BlurStrength)
-+    // KWIN_LIQUID_GLASS_RIPPLE: how far KRunner's ripple leans the glass, against the bevel's edge (0: not at
-+    // all), and how far its colours part (logical px each way where a wave leans it fully), over what each
-+    // knock says
++    // KWIN_LIQUID_GLASS_RIPPLE: how far the liquid's waves lean the glass, against the bevel's edge (0: not
++    // at all), and how far their colours part (logical px each way where a wave leans it fully), over
++    // plasma-glassrc's [Ripple] amplitude and aberration
 +    std::optional<double> m_rippleLean;
 +    std::optional<double> m_rippleDispersion;
++    // the liquid's settings: plasma-glassrc's [Ripple] group (plasma-glass-tune edits it), followed live
++    struct
++    {
++        double speed = 120; // px/s the ripples run at
++        double width = 21; // px: half the width of a push's wave
++        double interval = 1.2; // s from one push to the next
++        double damping = 36; // s the ripples take to fall by e
++        double reflection = 0.3; // how much of a ripple the rim sends back
++        double amplitude = 1; // how far a fresh wave's steepest slope leans the glass, against the bevel's edge
++        double aberration = 3; // px the colours part each way where a wave leans the glass fully
++        double strike = 1; // px of the side that moves as one
++        double jitter = 0.6; // how much each push differs: when, how hard, how wide, where
++        double chop = 0.3; // how hard the breeze blows while busy, raising small waves all over
++        double chopScale = 40; // px: how big its gusts are
++        bool press = false; // the pushes press on the surface beside the side, rather than push the side in
++        double momentum = 1; // how much the window's moves slosh the liquid
++        double sloshSpeed = 900; // px/s the long waves run at
++        double sloshDamping = 1.5; // s the sloshing takes to fall by e
++    } m_liquid;
++    std::unordered_map<pid_t, LiquidGlassClient> m_liquidGlassClients;
++    double m_frameTime = 0; // s, monotonic: when the frame being painted is due on screen
 +
      struct
      {
@@ -937,18 +1292,207 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.qrc b/src/plugins/blur/blur.qrc
 --- a/src/plugins/blur/blur.qrc
 +++ b/src/plugins/blur/blur.qrc
-@@ -3,8 +3,11 @@
+@@ -1,10 +1,14 @@
+ <!DOCTYPE RCC><RCC version="1.0">
+ <qresource prefix="/effects/blur/">
    <file>shaders/downsample.frag</file>
++  <file>shaders/fluid.frag</file>
    <file>shaders/noise.frag</file>
    <file>shaders/onscreen.frag</file>
 +  <file>shaders/onscreen_bevel.frag</file>
    <file>shaders/onscreen_rounded.frag</file>
    <file>shaders/onscreen_rounded.vert</file>
-+  <file>shaders/ripple.frag</file>
++  <file>shaders/surface.frag</file>
 +  <file>shaders/underlay.frag</file>
    <file>shaders/upsample.frag</file>
    <file>shaders/vertex.vert</file>
  </qresource>
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/fluid.frag b/src/plugins/blur/shaders/fluid.frag
+--- a/src/plugins/blur/shaders/fluid.frag
++++ b/src/plugins/blur/shaders/fluid.frag
+@@ -0,0 +1,182 @@
++#version 140
++
++#include "sdf.glsl"
++
++// plasma-glass: one step of the liquid in a Liquid Glass window (KRunner's): linear shallow water on a
++// staggered grid, worked forward then back (the faces' new velocities from the old heights, then the new
++// heights from those velocities), which keeps waves stable while c dt / cell stays under 1/sqrt(2). Each
++// texel is a cell: its height (px), the velocity on its right face and on its bottom face (px/s), and 1 if
++// it holds liquid. Cell (i, j) sits at ((i - 0.5) cell, (j - 0.5) cell) in the glass (y down), so row and
++// column 0 lie outside it: every rim is a face between a dry cell and a wet one. Dry cells stay at rest; a
++// cell the glass has just grown over starts at its wet neighbours' level. The rim holds the liquid in,
++// except where the busy push pushes it in; the glass's acceleration (its centre's, so growing counts too)
++// pushes the liquid the other way (momentum); and while busy a breeze, gusts pressing here and there that
++// come and go, raises small waves all over.
++
++uniform sampler2D state;
++uniform vec2 glass;        // the glass's size, logical px
++uniform vec4 corners;      // and its corners' radii: top left, top right, bottom left, bottom right
++uniform float cell;        // logical px a cell
++uniform vec4 timing;       // dt (s), c^2 (px^2/s^2), diffusion (px^2/s), how fast the level settles (1/s)
++uniform vec3 damping;      // the faces' velocities fade at this rate (1/s), and in the rim's band up to this
++                           // much more (the sponge, 1/s), over this many px in from the rim
++uniform vec2 accel;        // px/s^2: what the glass's acceleration does to the liquid (minus it, scaled)
++uniform vec4 push;         // the busy push: its side (0 left, 1 right, 2 top, 3 bottom; -1 none), the px
++                           // along it it peaks at, half the stretch that moves as one (px), and how fast it
++                           // moves in there now (px/s)
++uniform vec4 press;        // or a press on the surface: its centre (px), radius (px), and pressure
++                           // (px^2/s^2, as c^2 times the height it would push down by)
++uniform vec3 breeze;       // how hard the breeze's gusts press (px^2/s^2; 0: none), how big they are (px),
++                           // and the time in their turns (they come and go once a turn)
++
++out vec4 fragColor;
++
++vec4 fetch(ivec2 c)
++{
++    ivec2 n = textureSize(state, 0);
++    if (c.x < 0 || c.y < 0 || c.x >= n.x || c.y >= n.y) {
++        return vec4(0.0); // past a texture that has just grown: dry
++    }
++    return texelFetch(state, c, 0);
++}
++
++float rim(vec2 p)
++{
++    return sdfRoundedBox(p, glass * 0.5, glass * 0.5, corners);
++}
++
++vec2 centre(ivec2 c)
++{
++    return (vec2(c) - 0.5) * cell;
++}
++
++bool wet(ivec2 c)
++{
++    return rim(centre(c)) < 0.0;
++}
++
++// how far side `side` moves in at s px along it (len long): the busy push bows it in, most at push.y, not at
++// all at its ends; the stretch push.z either side of its peak moves as one
++float pushed(float side, float s, float len)
++{
++    if (abs(side - push.x) > 0.5) {
++        return 0.0;
++    }
++    float sw = s - clamp(s - push.y, -push.z, push.z);
++    float a = clamp(push.y / len, 0.02, 0.98);
++    float f = sin(3.14159265 * pow(clamp(sw / len, 0.0, 1.0), log(0.5) / log(a)));
++    return push.w * f * f;
++}
++
++// gradient noise in space and time, about -0.5..0.5: smooth gusts without the lattice's squares that value
++// noise shows
++vec3 hash33(vec3 p)
++{
++    p = fract(p * vec3(0.1031, 0.1030, 0.0973));
++    p += dot(p, p.yxz + 33.33);
++    return fract((p.xxy + p.yxx) * p.zyx) * 2.0 - 1.0;
++}
++
++float gnoise(vec3 x)
++{
++    vec3 i = floor(x);
++    vec3 f = x - i;
++    vec3 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
++    float n000 = dot(hash33(i), f);
++    float n100 = dot(hash33(i + vec3(1.0, 0.0, 0.0)), f - vec3(1.0, 0.0, 0.0));
++    float n010 = dot(hash33(i + vec3(0.0, 1.0, 0.0)), f - vec3(0.0, 1.0, 0.0));
++    float n110 = dot(hash33(i + vec3(1.0, 1.0, 0.0)), f - vec3(1.0, 1.0, 0.0));
++    float n001 = dot(hash33(i + vec3(0.0, 0.0, 1.0)), f - vec3(0.0, 0.0, 1.0));
++    float n101 = dot(hash33(i + vec3(1.0, 0.0, 1.0)), f - vec3(1.0, 0.0, 1.0));
++    float n011 = dot(hash33(i + vec3(0.0, 1.0, 1.0)), f - vec3(0.0, 1.0, 1.0));
++    float n111 = dot(hash33(i + vec3(1.0, 1.0, 1.0)), f - vec3(1.0, 1.0, 1.0));
++    return mix(mix(mix(n000, n100, u.x), mix(n010, n110, u.x), u.y), mix(mix(n001, n101, u.x), mix(n011, n111, u.x), u.y), u.z);
++}
++
++// what presses on the surface at p (px^2/s^2): the press, and the breeze
++float pressure(vec2 p)
++{
++    float sum = 0.0;
++    if (press.w != 0.0) {
++        vec2 d = (p - press.xy) / press.z;
++        sum += press.w * exp(-dot(d, d));
++    }
++    if (breeze.x != 0.0) {
++        sum += breeze.x * gnoise(vec3(p / breeze.y, breeze.z));
++    }
++    return sum;
++}
++
++// a face's new velocity: between cells a and b (b to the right of a or below it), along `axis` (0 x, 1 y),
++// its old velocity `v`, the heights and pressures either side
++float face(ivec2 a, ivec2 b, int axis, float v, float ha, float hb, float pa, float pb)
++{
++    bool wa = wet(a);
++    bool wb = wet(b);
++    vec2 p = 0.5 * (centre(a) + centre(b)); // the face's middle
++    if (wa && wb) {
++        float dt = timing.x;
++        float force = -timing.y * (hb - ha) / cell - (pb - pa) / cell + (axis == 0 ? accel.x : accel.y);
++        float sponge = damping.y * pow(clamp(1.0 + rim(p) / damping.z, 0.0, 1.0), 2.0);
++        return (v + dt * force) * exp(-(damping.x + sponge) * dt);
++    }
++    if (wa == wb) {
++        return 0.0; // dry on both sides
++    }
++    // the rim: the liquid follows its side where the push moves it (positive: towards +x or +y)
++    if (axis == 0) {
++        return wb ? pushed(0.0, p.y, glass.y) // the left side, liquid to its right
++                  : -pushed(1.0, p.y, glass.y);
++    }
++    return wb ? pushed(2.0, p.x, glass.x) // the top, liquid below
++              : -pushed(3.0, p.x, glass.x);
++}
++
++// a cell's state, and if the glass has just grown over it, at its wet neighbours' level
++vec4 cellAt(ivec2 c)
++{
++    vec4 s = fetch(c);
++    if (s.w > 0.0 || !wet(c)) {
++        return s;
++    }
++    vec4 sum = vec4(0.0);
++    for (int k = 0; k < 4; ++k) {
++        ivec2 n = c + (k == 0 ? ivec2(-1, 0) : k == 1 ? ivec2(1, 0) : k == 2 ? ivec2(0, -1) : ivec2(0, 1));
++        vec4 t = fetch(n);
++        sum += t.w > 0.0 ? vec4(t.x, 0.0, 0.0, 1.0) : vec4(0.0);
++    }
++    return vec4(sum.w > 0.0 ? sum.x / sum.w : 0.0, 0.0, 0.0, 0.0);
++}
++
++void main(void)
++{
++    ivec2 c = ivec2(gl_FragCoord.xy);
++    if (!wet(c)) {
++        fragColor = vec4(0.0);
++        return;
++    }
++    vec4 here = cellAt(c);
++    vec4 left = cellAt(c - ivec2(1, 0));
++    vec4 right = cellAt(c + ivec2(1, 0));
++    vec4 above = cellAt(c - ivec2(0, 1));
++    vec4 below = cellAt(c + ivec2(0, 1));
++
++    float p = pressure(centre(c));
++    float uR = face(c, c + ivec2(1, 0), 0, here.y, here.x, right.x, p, pressure(centre(c + ivec2(1, 0))));
++    float uL = face(c - ivec2(1, 0), c, 0, left.y, left.x, here.x, pressure(centre(c - ivec2(1, 0))), p);
++    float vB = face(c, c + ivec2(0, 1), 1, here.z, here.x, below.x, p, pressure(centre(c + ivec2(0, 1))));
++    float vT = face(c - ivec2(0, 1), c, 1, above.z, above.x, here.x, pressure(centre(c - ivec2(0, 1))), p);
++
++    float dt = timing.x;
++    float h = here.x - dt * ((uR - uL) + (vB - vT)) / cell;
++    // a little diffusion among wet cells, which only the shortest waves (a few cells) feel
++    float lap = 0.0;
++    lap += wet(c - ivec2(1, 0)) ? left.x - here.x : 0.0;
++    lap += wet(c + ivec2(1, 0)) ? right.x - here.x : 0.0;
++    lap += wet(c - ivec2(0, 1)) ? above.x - here.x : 0.0;
++    lap += wet(c + ivec2(0, 1)) ? below.x - here.x : 0.0;
++    h += dt * timing.z * lap / (cell * cell);
++    // and the level settles back to rest (what the push leaves, or a cell the glass grew over)
++    h *= exp(-timing.w * dt);
++    fragColor = vec4(h, uR, vB, 1.0);
++}
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/onscreen_bevel.frag b/src/plugins/blur/shaders/onscreen_bevel.frag
 --- a/src/plugins/blur/shaders/onscreen_bevel.frag
 +++ b/src/plugins/blur/shaders/onscreen_bevel.frag
@@ -961,11 +1505,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/onscre
 +// the edge the glass rounds off like a quarter circle, so it refracts the same frosted view as the rest of
 +// the glass, from further in the steeper it is (bevel.y at the very edge), and sharper towards the edge,
 +// where it's polished (bevel.w: how much of what's behind shows as it is, at the very edge). Blue bends
-+// more than red: the colours part along the edge by bevel.z each way. While KRunner's busy ripple runs,
-+// its waves lean the glass too, and bend what's behind it the same way: a fresh wave's steepest slope as
-+// far as the bevel at its edge, with its colours parting a little more (ripple.z where one leans fully). A
-+// wave clears the glass where it runs, over its crests and troughs too, where it doesn't lean: by its
-+// height (up or down), where that's more.
++// more than red: the colours part along the edge by bevel.z each way. While the liquid in the glass moves
++// (KRunner's: surface.frag), its waves lean the glass too, and bend what's behind it the same way: a
++// fresh wave's steepest slope as far as the bevel at its edge, with its colours parting a little more
++// (ripple.z where one leans fully). A ripple clears the glass where it runs, over its crests and troughs
++// too, where it doesn't lean: by its height (up or down), where that's more.
 +
 +uniform sampler2D texUnit;   // the blurred background at half size (its last upsample step is done here)
 +uniform sampler2D sharpUnit; // the background as it is
@@ -977,7 +1521,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/onscre
 +uniform float opacity;
 +uniform vec2 size;         // the background's size
 +uniform vec4 bevel;        // width, refraction, dispersion (device px), sharpness at the edge (0..1)
-+uniform sampler2D wavesUnit; // the ripple's waves: the glass's slope (x, y) and their height, at half size
++uniform sampler2D wavesUnit; // the liquid's surface: its slope (x, y) and the ripples' height, at half size
 +uniform vec3 ripple;         // while they run: what a wave's slope is multiplied by to lean the glass, and
 +                             // its height to clear it (0: no waves); how far its colours part where one
 +                             // leans the glass fully (device px)
@@ -1060,215 +1604,66 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/onscre
 +    fragColor = color * colorMatrix * opacity;
 +    fragColor *= 1.0 - clamp(0.5 + f / df, 0.0, 1.0);
 +}
-diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/ripple.frag b/src/plugins/blur/shaders/ripple.frag
---- a/src/plugins/blur/shaders/ripple.frag
-+++ b/src/plugins/blur/shaders/ripple.frag
-@@ -0,0 +1,206 @@
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/surface.frag b/src/plugins/blur/shaders/surface.frag
+--- a/src/plugins/blur/shaders/surface.frag
++++ b/src/plugins/blur/shaders/surface.frag
+@@ -0,0 +1,57 @@
 +#version 140
 +
-+// The waves of KRunner's busy ripple (plasma-glass), worked out again here so the glass bends what's
-+// behind it where they run: the same as KRunner's busywaves.frag, from the knocks KRunner tells KWin
-+// about (org.kde.KWin.LiquidGlass.Knock). Knocks on the glass's rim each send a wave across it, a crest with
-+// a ringing train behind (profile()). A knock flexes its side, most at the knock and not at all at the
-+// corners, and the side pushes the wave in; waves fade with time and as they head into a rim. Out: the
-+// glass's slope (x, y) and the waves' height. Rendered at half size, since the waves are broad.
++#include "sdf.glsl"
 +
-+uniform vec2 size;   // the window, logical px (the waves are worked out in its terms, as in KRunner)
-+uniform vec2 origin; // the background's top left in the window
-+uniform vec2 area;   // the background's size
-+// per knock: side (0 left, 1 right, 2 top, 3 bottom), px along it, how far its wave has come (px), the
-+// wave's half-width (px); and how much of the wave is left with age (0: none), half the stretch of the
-+// side it strikes (px), the half-widths over which its ringing fades by e, and its profile's steepest
-+// slope with that ringing
-+uniform vec4 knocks[8];
-+uniform vec4 shapes[8];
-+uniform float steep;    // steepest slope of a fresh wave
-+uniform float edge;     // px: a wave heading into the rim fades over about twice this
-+uniform float standoff; // px in from the rim where that fade is
-+// To look more natural (all 0: one smooth wave per knock): chop, small waves across the whole glass while
-+// it ripples (how steep, against a fresh wave); packet, two more waves out of each knock, a shorter one
-+// running ahead and a longer one lagging, so its crests change as they go (0..1); front noise, each crest
-+// wandering and changing strength along its length (0..1); and the chop's wavelength (px)
-+uniform vec4 nature;
-+uniform float time;      // s (wrapping every 1000), for the chop and the front noise
-+uniform float mainAngle; // which way the knocks send their waves, for the chop to run along
-+uniform float calm;      // px in from the rim over which the chop comes in (the bevel's width: there it
-+                         // would add to the bevel's lean and sparkle)
++// plasma-glass: the liquid's surface over the background behind a Liquid Glass window, for the bevel pass
++// (and Liquid Glass Light's underlay) to bend what's behind by: its slope (x, y) and the ripples' height,
++// at half size. The liquid runs in two layers of its own (fluid.frag), which add up: ripples, the short
++// waves (on cells of ripplesCell px), and swell, the long ones that slosh (swellCell px).
++
++uniform sampler2D ripples;
++uniform sampler2D swell;
++uniform float ripplesCell;
++uniform float swellCell;
++uniform vec2 glass;   // the glass's size, logical px
++uniform vec4 corners; // its corners' radii: top left, top right, bottom left, bottom right
++uniform vec2 origin;  // the background's top left in the glass
++uniform vec2 area;    // its size, logical px
++uniform vec3 gain;    // what the ripples' and the swell's slopes are multiplied by; the ripples' height
++                      // is divided by the last (a fresh wave's crest comes out as 1)
 +
 +in vec2 uv;
 +
 +out vec4 fragColor;
 +
-+// A wave's profile across its front, x half-widths ahead of its crest (behind it, x < 0), as a knock leaves
-+// it in a dispersive medium: a smooth rise ahead, the crest, then a ringing train behind, ripples that get
-+// shorter and fade (an Airy function's tail, damped), over D half-widths by e: at D 1.7, -0.42, +0.18,
-+// -0.09, +0.05 of the crest, under 1% from 9 half-widths behind (1.4 + 4.6 D). Out: the height and its
-+// slope per half-width, whose steepest at D 1.7 is 0.991 (just behind the crest; the front's is 0.858).
-+vec2 profile(float x, float D)
++float rim(vec2 p)
 +{
-+    if (x >= 0.0) {
-+        float h = exp(-x * x);
-+        return vec2(h, -2.0 * x * h);
-+    }
-+    const float C = 1.4; // half-widths over which the envelope rounds off at the crest
-+    const float U = 2.6; // half-widths behind the crest to the first trough; the ripples' phase goes as u^1.5
-+    float u = -x;
-+    float r = sqrt(u * u + C * C);
-+    float e = exp(-(r - C) / D);
-+    float de = -u / (r * D) * e;
-+    float ph = 3.14159265 * pow(u / U, 1.5);
-+    float dph = 1.5 * 3.14159265 / U * sqrt(u / U);
-+    return vec2(e * cos(ph), -(de * cos(ph) - e * sin(ph) * dph)); // per x: minus the slope per u
++    return sdfRoundedBox(p, glass * 0.5, glass * 0.5, corners);
 +}
 +
-+// One knock's wave at p: adds its slope and height. The flex starts at once on the stretch the knock
-+// strikes (shape.y px either side of it; 0.5 strikes 1 px) and slows down beyond it over 30 px to the
-+// waves' speed (its time per px rises as a smoothstep), so the wave leaves as a short, rounded front, flat
-+// across the stretch struck. `die`: how much of a wave heading for the nearest rim is left at p; `toRim`:
-+// the way to that rim.
-+// value noise, smooth, 0..1
-+float hash11(float x)
++// the height at p, from the cells around it: p is pulled in to at least a cell from the rim first, so
++// the dry cells past it (at rest) don't count
++float height(sampler2D layer, float cell, vec2 p)
 +{
-+    return fract(sin(x * 127.1) * 43758.5453);
++    float d = rim(p) + cell;
++    if (d > 0.0) {
++        vec2 g = vec2(rim(p + vec2(0.5, 0.0)) - rim(p - vec2(0.5, 0.0)), rim(p + vec2(0.0, 0.5)) - rim(p - vec2(0.0, 0.5)));
++        p -= g / max(length(g), 1e-4) * d;
++    }
++    return texture(layer, (p / cell + 1.0) / vec2(textureSize(layer, 0))).x;
 +}
 +
-+float vnoise(vec2 x)
++vec2 slope(sampler2D layer, float cell, vec2 p)
 +{
-+    vec2 i = floor(x);
-+    vec2 f = x - i;
-+    f = f * f * (3.0 - 2.0 * f);
-+    float a = hash11(i.x + i.y * 57.0);
-+    float b = hash11(i.x + 1.0 + i.y * 57.0);
-+    float c = hash11(i.x + (i.y + 1.0) * 57.0);
-+    float d = hash11(i.x + 1.0 + (i.y + 1.0) * 57.0);
-+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-+}
-+
-+void knock(vec2 p, vec4 k, vec4 shape, float die, vec2 toRim, inout vec2 slope, inout float height)
-+{
-+    // k.x: the side, plus a share of 0.9 that tells this knock's noise from the others'
-+    float sideOf = floor(k.x + 0.001);
-+    float seed = k.x - sideOf;
-+    if (shape.x <= 0.0)
-+        return;
-+    // p in the side's terms: n px in from it, s px along it (len long); `inward`, `along`: those directions
-+    float n;
-+    float s;
-+    float len;
-+    vec2 inward;
-+    vec2 along;
-+    if (sideOf < 0.5) {
-+        n = p.x; s = p.y; len = size.y; inward = vec2(1.0, 0.0); along = vec2(0.0, 1.0);
-+    } else if (sideOf < 1.5) {
-+        n = size.x - p.x; s = p.y; len = size.y; inward = vec2(-1.0, 0.0); along = vec2(0.0, 1.0);
-+    } else if (sideOf < 2.5) {
-+        n = p.y; s = p.x; len = size.x; inward = vec2(0.0, 1.0); along = vec2(1.0, 0.0);
-+    } else {
-+        n = size.y - p.y; s = p.x; len = size.x; inward = vec2(0.0, -1.0); along = vec2(1.0, 0.0);
-+    }
-+    float front = k.z;
-+    float wb = k.w;
-+    float a = abs(s - k.y);
-+    // The wave has come between n and the straight line from the knock; 2.5 half-widths ahead of its crest
-+    // and past its ringing behind (1.4 + 4.6 x its fade, 9 at the default), what's left (under 1% of its
-+    // height) doesn't show
-+    float behind = front * (1.0 - 0.1 * nature.y) - (1.4 + 4.6 * shape.z) * wb * (1.0 + 0.6 * nature.y);
-+    if (front * (1.0 + 0.12 * nature.y) + 2.5 * wb < n || (behind > 0.0 && behind * behind > a * a + n * n))
-+        return;
-+    // The first wave to reach p left the side where the flex's time to get there plus the path on to p is
-+    // shortest (both as distances at the waves' speed). That's convex along the side: bisect its slope.
-+    // Past the 30 px where the flex slows down it moves as fast as the waves, so no later start is shorter:
-+    // the search only spans those 30 px, and 4 halvings do (an error there changes `from` only to second
-+    // order).
-+    float w = max(shape.y, 0.5); // half the stretch that moves at once (px)
-+    const float L = 30.0;        // px over which the flex slows down to the waves' speed
-+    float from = n;       // how far the wave has come
-+    vec2 dir = inward;    // and its direction at p
-+    if (a > w) {
-+        float lo = w;
-+        float hi = min(a, w + L);
-+        for (int i = 0; i < 4; ++i) {
-+            float mid = 0.5 * (lo + hi);
-+            float xm = clamp((mid - w) / L, 0.0, 1.0);
-+            float dm = a - mid;
-+            if (xm * xm * (3.0 - 2.0 * xm) < dm / sqrt(dm * dm + n * n + 1e-6))
-+                lo = mid;
-+            else
-+                hi = mid;
-+        }
-+        float d = 0.5 * (lo + hi);
-+        float xd = clamp((d - w) / L, 0.0, 1.0);
-+        float dd = a - d;
-+        float r = sqrt(dd * dd + n * n);
-+        from = L * xd * xd * xd * (1.0 - 0.5 * xd) + max(d - w - L, 0.0) + r;
-+        dir = (n * inward + sign(s - k.y) * dd * along) / max(r, 1e-3);
-+    }
-+    // how strongly the side moves there: sin^2 of a warped position that puts its peak at the knock
-+    float flex = sin(3.14159265 * pow(clamp(s / len, 0.0, 1.0), log(0.5) / log(clamp(k.y / len, 0.02, 0.98))));
-+    float fade = flex * flex * shape.x * mix(1.0, die, smoothstep(-0.3, 0.3, dot(dir, toRim)));
-+    if (nature.z > 0.0) {
-+        // the crest wanders and changes strength along its length, slowly
-+        float wander = vnoise(vec2(s / 70.0 + seed * 37.0, time * 0.35)) * 2.0 - 1.0;
-+        float swell = vnoise(vec2(s / 45.0 + seed * 53.0 + 11.0, time * 0.5 + 5.0)) * 2.0 - 1.0;
-+        from += nature.z * 0.5 * wb * wander;
-+        fade *= 1.0 + nature.z * 0.6 * swell;
-+    }
-+    vec2 shape_ = profile((from - front) / wb, shape.z);
-+    if (nature.y > 0.0) {
-+        // a shorter wave running ahead and a longer one lagging, out of the same knock
-+        vec2 ahead = profile((from - front * 1.12) / (wb * 0.6), shape.z);
-+        vec2 lagging = profile((from - front * 0.9) / (wb * 1.6), shape.z);
-+        shape_ = (shape_ + nature.y * (0.55 * ahead + 0.45 * lagging)) / (1.0 + 0.3 * nature.y);
-+    }
-+    slope += steep * fade * (shape_.y / shape.w) * dir; // its steepest is a fresh wave's steepest
-+    height += fade * shape_.x;
++    return vec2(height(layer, cell, p + vec2(cell, 0.0)) - height(layer, cell, p - vec2(cell, 0.0)),
++                height(layer, cell, p + vec2(0.0, cell)) - height(layer, cell, p - vec2(0.0, cell))) / (2.0 * cell);
 +}
 +
 +void main(void)
 +{
 +    // the background is drawn with v from 1 at its top, as the blur's passes are
 +    vec2 p = origin + vec2(uv.x, 1.0 - uv.y) * area;
-+    vec4 dist = vec4(p.x, size.x - p.x, p.y, size.y - p.y); // to the left, right, top, bottom edge
-+    // a wave heading into the rim fades out over about twice edge px, standoff px in from it: at the
-+    // defaults (3, 0) it runs on across the bevel and fades only at the very edge, half of it left 3 px
-+    // from the rim, 90% 6 px in, all of it from 15 px in
-+    float die = 1.0;
-+    vec2 toRim = vec2(0.0);
-+    if (min(min(dist.x, dist.y), min(dist.z, dist.w)) < standoff + 5.0 * edge) {
-+        vec4 ed = exp(-max(dist - standoff, 0.0) / edge);
-+        float near = ed.x + ed.y + ed.z + ed.w;
-+        die = exp(-(near * near) / (0.45 * 0.45));
-+        vec4 e = exp(-dist / 20.0);
-+        vec2 rimward = vec2(e.y - e.x, e.w - e.z);
-+        toRim = rimward / max(length(rimward), 1e-4);
++    vec2 s = gain.x * slope(ripples, ripplesCell, p);
++    if (gain.y != 0.0) {
++        s += gain.y * slope(swell, swellCell, p);
 +    }
-+    vec2 slope = vec2(0.0);
-+    float height = 0.0;
-+    // chop: small waves across all of the glass while it ripples, at angles around the knocks' way, longer
-+    // ones faster (as on water); it comes and goes with the knocks' waves, and keeps off the rim
-+    if (nature.x > 0.0) {
-+        float activity = 0.0;
-+        for (int i = 0; i < 8; ++i) {
-+            activity += max(shapes[i].x, 0.0);
-+        }
-+        activity = clamp(activity * 0.6, 0.0, 1.0);
-+        float rimCalm = smoothstep(0.0, max(calm, 1.0), min(min(dist.x, dist.y), min(dist.z, dist.w)));
-+        for (int j = 0; j < 7; ++j) {
-+            float fj = float(j);
-+            float ang = mainAngle + (hash11(fj * 1.31 + 0.17) - 0.5) * 2.4;
-+            vec2 d = vec2(cos(ang), sin(ang));
-+            float lambda = nature.w * mix(0.5, 1.6, hash11(fj * 2.71 + 0.43));
-+            float c = 30.0 * sqrt(lambda / nature.w); // px/s
-+            float ph = 6.2831853 * ((dot(d, p) - c * time) / lambda + hash11(fj * 3.97 + 0.71));
-+            float w = nature.x * activity * rimCalm * mix(0.4, 1.0, hash11(fj * 5.13 + 0.29)) / sqrt(7.0);
-+            slope += steep * w * cos(ph) * d;
-+            height += 0.25 * w * sin(ph);
-+        }
-+    }
-+    for (int i = 0; i < 8; ++i) {
-+        knock(p, knocks[i], shapes[i], die, toRim, slope, height);
-+    }
-+    fragColor = vec4(slope, height, 1.0);
++    fragColor = vec4(s, height(ripples, ripplesCell, p) / gain.z, 1.0);
 +}
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/underlay.frag b/src/plugins/blur/shaders/underlay.frag
 --- a/src/plugins/blur/shaders/underlay.frag
@@ -1276,11 +1671,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/underl
 @@ -0,0 +1,84 @@
 +#version 140
 +
-+// KRunner's busy ripple on Liquid Glass Light (plasma-glass), beneath the frost: what's behind the glass,
-+// bent by the waves (seen from further in where a wave leans, as through a lens) and lit in shards of
-+// colour where they crest, as off an etched diffraction foil. The blur's passes then frost this, so the
-+// waves show through the frosting, softened. In: the background as it is, and the waves' slope and height
-+// (ripple.frag) at half size. Out: the background to frost.
++// The liquid in KRunner's glass on Liquid Glass Light (plasma-glass), beneath the frost: what's behind the
++// glass, bent by the waves (seen from further in where a wave leans, as through a lens) and lit in shards
++// of colour where they crest, as off an etched diffraction foil. The blur's passes then frost this, so the
++// waves show through the frosting, softened. In: the background as it is, and the liquid's slope and
++// height (surface.frag) at half size. Out: the background to frost.
 +
 +uniform sampler2D texUnit;   // the background as it is
 +uniform sampler2D wavesUnit; // the waves: the glass's slope (x, y) and their height

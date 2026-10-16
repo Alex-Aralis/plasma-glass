@@ -13,8 +13,10 @@ notification cruft trimmed.
   bands in applet popups. Everything else
   falls back to Breeze, and colours follow your colour scheme. With the KWin patch, the dark style's
   glass is frosted lightly and rounds off at the edge like a lens: what's behind bends there and parts
-  a little in colour. The light style's glass is frosted more, and KRunner's busy waves run beneath the
-  frost, lit in shards of colour as off an etched diffraction foil.
+  a little in colour. KRunner's glass holds a liquid, simulated: it sloshes as you drag KRunner or its
+  dropdown opens, and while a search runs its rim pushes into it, sending waves across that bend what's
+  behind. The light style's glass is frosted more, and the waves run beneath the frost, lit in shards of
+  colour as off an etched diffraction foil.
 - **Trimmed KRunner and notifications.** KRunner opens with Meta+Space (Alt+F2 still works) and floats where you drag it (by the glass rim, or anywhere
   with Meta held, as with other windows) and remembers the spot. It is wider, and types straight onto the glass in larger text, with no input box, like Spotlight. It uses
   compact section headers and has no help, settings, pin or clear buttons. Files show where they are on
@@ -86,7 +88,7 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 | `~/intel/openvino_telemetry` | `0`: opts out of OpenVINO's usage reporting to Google Analytics (sent on every import otherwise); an existing file is left alone |
 | `~/.local/share/krunner/dbusplugins/`, `~/.local/share/dbus-1/services/`, `~/.config/systemd/user/` | KRunner plugin and the service that runs it |
 | `~/.local/share/plasma/desktoptheme/liquid-glass/` | the Plasma Style (`generate.py` draws it) |
-| `~/.local/share/plasma-glass/`, `~/.local/bin/plasma-glass-tune`, `~/.local/share/applications/plasma-glass-tune.desktop` | Liquid Glass Tuning, which writes `~/.config/plasma-glassrc` (see [Tuning](#tuning-the-glass-and-krunners-ripple-live)) |
+| `~/.local/share/plasma-glass/`, `~/.local/bin/plasma-glass-tune`, `~/.local/share/applications/plasma-glass-tune.desktop` | Liquid Glass Tuning, which writes `~/.config/plasma-glassrc` (see [Tuning](#tuning-the-glass-and-krunners-liquid-live)) |
 | `~/.local/bin/plasma-glass-mode`, `~/.local/share/applications/plasma-glass-mode.desktop` | Toggle Dark/Light Mode (below) |
 | `~/.local/share/plasma/look-and-feel/plasma-glass.liquid-glass{,-light}/`, `kdeglobals` `[KDE] DefaultDarkLookAndFeel`, `DefaultLightLookAndFeel` | the Liquid Glass global themes, and KDE's default dark and light ones |
 | `krunnerrc`, `kdeglobals`, `kglobalshortcutsrc` | settings from [`desktop/plasma-settings.sh`](desktop/plasma-settings.sh) |
@@ -129,51 +131,50 @@ appears on your screen.
 tools/preview/krunner.sh /tmp/krunner.png "some query"
 ```
 
-### Tuning the glass and KRunner's ripple, live
+### Tuning the glass and KRunner's liquid, live
+
+KRunner's glass holds a liquid (with the KWin patch): shallow water simulated on the GPU, in two layers,
+since on real water long waves run faster than short ones. The ripples, short and slow, come from the
+busy push: while a search runs (or the index builds), a stretch of the rim beside the search field pushes
+into the liquid and eases back out, again and again, and a light breeze raises small waves all over. The
+swell, long and fast, is the liquid's momentum: dragging KRunner, or its dropdown opening and closing,
+sloshes it, since it lags behind as the glass speeds up and runs on as it stops. Waves reflect off the
+rim (as much as you set), cross and interfere, and die down; KWin bends what's behind the glass by them.
 
 "Liquid Glass Tuning" (`plasma-glass-tune`, in the start menu or KRunner) has a slider for each of the
-busy ripple's settings, the dark glass's and Liquid Glass Light's: wave speed, width, widening,
-damping, lifetime, the time between knocks, amplitude, colour split, ringing, edge fade and how far in
-from the rim that fade sits; the side the knocks land on, where along it and how much of it each one
-strikes; the dark glass's frost, bevel width, refraction, colour split and sharpness; and the light
+liquid's settings, the dark glass's and Liquid Glass Light's: the ripples' speed, width, how often a
+push comes, damping, how much the rim sends back, amplitude, colour split, the breeze and its gusts'
+size, jitter; how the liquid is stirred (pushing the rim in, or pressing on the surface just inside it),
+which side, where along it and how much of it pushes in as one; momentum, and the sloshing's speed and
+damping; the dark glass's frost, bevel width, refraction, colour split and sharpness; and the light
 glass's frost, the waves' refraction and diffraction beneath it, the diffraction foil's etch size and
-saturation, where the foil lights up (beneath the frost, on top of the glass, or both), and an optional
-bevel. A "More natural waves" section adds small waves across the whole glass (chop, and its
-wavelength), two more waves out of each knock (packet), crests that wander and change strength (front
-noise) and knocks that differ in place, strength, width and timing (jitter); setting all four to 0
-gives one smooth wave per knock, like clockwork. Momentum makes the liquid feel heavy: when you drag
-KRunner, and when its dropdown opens or closes, a wave comes off the wall that pushes into it, as
-strong as the change in speed, busy or not. Changes apply as you drag: KRunner takes them with its next
-knock, KWin at once. While the window is open, KRunner keeps its ripple running and stays open when you
-click elsewhere, so open KRunner (Meta+Space) beside it and tune. Each row has a button back to its
-default, and "Reset All" resets everything. It needs the patched KRunner and KWin (`kwin-fixes.patch`,
-`plasma-workspace-tweaks.patch`).
+saturation, and an optional bevel. Changes apply as you drag. While the window is open, KRunner's
+liquid is stirred all the time and KRunner stays open when you click elsewhere, so open KRunner
+(Meta+Space) beside it and tune. Each row has a button back to its default, and "Reset All" resets
+everything. It needs the patched KRunner and KWin (`kwin-fixes.patch`, `plasma-workspace-tweaks.patch`).
 
 The settings live in `~/.config/plasma-glassrc`, which you can also edit by hand (plain `key=value`
 lines; the tuning window rewrites the file as you move its sliders):
 
 | Group | Key | Default | What |
 |---|---|---|---|
-| `[Ripple]` | `speed` | 120 | px/s |
-| | `width` | 21 | px, half the width of a fresh wave |
-| | `widening` | 8 | px/s |
-| | `damping` | 36 | s for a wave to fall to about a third of its height |
-| | `lifetime` | 9.5 | s; at most 8 waves at once, so capped at 8 x `interval` |
-| | `interval` | 1.2 | s between knocks |
-| | `amplitude` | 1 | how far a fresh wave leans the glass, against the bevel at its edge |
+| `[Ripple]` | `speed` | 120 | px/s the ripples run at |
+| | `width` | 21 | px, half the width of the wave a push makes |
+| | `interval` | 1.2 | s from one push to the next |
+| | `damping` | 36 | s for a ripple to fall to about a third of its height, on its own |
+| | `reflection` | 0.3 | how much of a ripple the rim sends back (0-1; the rest soaks into it) |
+| | `amplitude` | 1 | how far a wave's steepest slope leans the glass, against the bevel at its edge |
 | | `aberration` | 3 | px the colours part each way where a wave leans fully |
-| | `ringing` | 1.7 | half-widths over which the ripples behind a crest fade by e |
-| | `edgeFade` | 3 | px; heading into the rim, a wave fades over about twice this |
-| | `standoff` | 0 | px in from the rim where that fade sits (the bevel's width: where it starts) |
+| | `chop` | 0.3 | the breeze: gusts pressing on the surface while busy, raising small waves all over (0: none) |
+| | `chopScale` | 40 | px, the gusts' size |
+| | `jitter` | 0.6 | each push a little different in place, strength, length and timing (0-1) |
+| | `stir` | push | `push`: a stretch of the rim pushes in and eases back; `press`: a press on the surface just inside it |
 | | `side` | left | `left`, `right`, `top` or `bottom` |
-| | `position` | 0.333 | how far along that side the knocks land once results show |
-| | `strike` | 1 | px of the side each knock strikes at once; wider starts a flatter front |
-| | `chop` | 0.3 | small waves across the whole glass while it ripples (0: none) |
-| | `chopScale` | 40 | px, the chop's wavelength |
-| | `packet` | 0.7 | two more waves out of each knock, a shorter one ahead and a longer one lagging (0-1) |
-| | `frontNoise` | 0.5 | crests wander and change strength along their length (0-1) |
-| | `jitter` | 0.6 | each knock a little different in place, strength, width and timing (0-1) |
-| | `momentum` | 1 | waves off the wall that pushes into the liquid when KRunner is dragged or its dropdown opens or closes (0: none) |
+| | `position` | 0.333 | how far along that side the pushes land once results show (beside the search field before) |
+| | `strike` | 1 | px of the side that pushes in as one (the rest bows in less); wider starts a flatter front |
+| | `momentum` | 1 | how much dragging KRunner, or its dropdown opening or closing, sloshes the liquid (0: none) |
+| | `sloshSpeed` | 900 | px/s the long waves run at: faster, and the liquid rocks back and forth quicker |
+| | `sloshDamping` | 1.5 | s for the sloshing to fall to about a third |
 | `[Glass]` | `frost` | 2 | blur strength 1-15, never more than KWin's Blur setting |
 | | `bevelWidth` | 24 | px |
 | | `refraction` | 9 | px |
@@ -184,8 +185,10 @@ lines; the tuning window rewrites the file as you move its sliders):
 | | `diffraction` | 1.2 | how bright the foil's colours are where the waves crest |
 | | `etch` | 32 | px, the size of the foil's shards of colour |
 | | `saturation` | 0.8 | 0-1 |
-| | `layer` | beneath | where the foil lights up: `beneath` the frost, on `top` of the glass (crisp, drawn by KRunner), or `both` |
 | | `bevelWidth`, `bevelRefraction`, `bevelDispersion`, `bevelSharpness` | 24, 0, 0, 0 | a bevel as the dark glass's (off: flat) |
+
+Keys from before the liquid was simulated (`widening`, `lifetime`, `ringing`, `edgeFade`, `standoff`,
+`packet`, `frontNoise`, `[Light] layer`) are ignored.
 
 KWin's environment still overrides the glass for experiments (`KWIN_LIQUID_GLASS_*`, below).
 
@@ -198,11 +201,10 @@ build stops at the patch step until the patch is refreshed.
 - `plasma-workspace-tweaks.patch`
   - KRunner: wider (40 grid units), 1.6x search text with a larger search icon, borderless search
     field, no pin or clear button, no scrollbars; the results area unfolds smoothly as results arrive
-    and folds away when they go (the window follows); while a search takes more than half a second, a
-    knock on the glass beside the search field sends a wave across it every 1.2 s instead of a spinner, a
-    crest with a ringing train behind, as an impulse makes on water (on dark glass, with the KWin patch,
-    the waves bend what's behind the glass and KRunner draws nothing of them; on Liquid Glass Light they
-    show as a foil sheen; with software rendering, a band of light sweeps across instead; none with
+    and folds away when they go (the window follows); while a search takes more than half a second, the
+    liquid in the glass is stirred instead of a spinner: KRunner tells KWin it's busy and where the
+    pushes land (beside the search field), and KWin, with its patch, runs the liquid (KRunner draws
+    nothing of it; with software rendering, a band of light sweeps across instead; no pushes with
     animations turned off); a
     thin line under the search field, as in Spotlight; results that don't fit run on to the glass's
     bottom edge; while the semantic search service indexes new or changed files, "Indexing…" and a
@@ -229,19 +231,20 @@ build stops at the patch step until the patch is refreshed.
     frosted lightly all over (blur strength 2 of 15, never more than your own setting), so what's
     behind shows through as soft shapes; and within 24 px of the edge a bevel that bends that view (seen
     from up to 9 px further in at the very edge), turns sharp toward the rim and splits it in colour by
-    up to 2 px each way. KRunner's busy ripple bends what's behind the glass the same way as its waves
-    run, ringing behind each crest, clear across each wave and on into the bevel at the far edge, its
-    colours parting a little more than the bevel's (KRunner tells KWin about each knock over D-Bus).
-    Liquid Glass Light gets frosted glass too (strength 5), flat by default, with KRunner's waves
-    beneath the frost: what's behind bends under them, and an etched diffraction foil lights up in
-    shards of colour where they crest, all softened by the frost. Only while one of those styles is
+    up to 2 px each way. KRunner's glass holds a liquid (it asks for one over D-Bus,
+    `org.kde.KWin.LiquidGlass.Stir`): shallow water simulated on the GPU, sloshing as the window moves
+    or grows and pushed while KRunner is busy, whose waves bend what's behind the glass the same way, the
+    glass clear where they run, their colours parting a little more than the bevel's (see
+    [Tuning](#tuning-the-glass-and-krunners-liquid-live)). Liquid Glass Light gets frosted glass too
+    (strength 5), flat by default, with the waves beneath the frost: what's behind bends under them, and
+    an etched diffraction foil lights up in shards of colour where they crest, all softened by the frost. Only while one of those styles is
     selected (it follows `plasmarc`, no relogin), on Plasma's own surfaces
     (KRunner, popups, notifications, panels with rounded corners), not on windows with title bars. In
     KWin's environment, `KWIN_LIQUID_GLASS_FROST=strength`,
     `KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness` and
     `KWIN_LIQUID_GLASS_RIPPLE=scale,dispersion` override them (2; 24,9,2,1; 1,3, scale 0 for no waves)
   - frame callbacks go out after each screen's composite, not only when KWin is about to sleep, so a
-    window on one screen doesn't wait for another screen's composite (KRunner's ripple missed frames
+    window on one screen doesn't wait for another screen's composite (KRunner's busy waves missed frames
     on the 240 Hz screen while another one animated)
   - with KWin on one GPU and a screen on another, the rendering GPU copies frames over itself when the
     screen's GPU can't, instead of the CPU (`KWIN_DRM_NO_RENDER_GPU_COPY=1` turns it off), with the CPU

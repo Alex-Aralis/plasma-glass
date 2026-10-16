@@ -1,7 +1,7 @@
 # plasma-glass: notes for development
 
 Liquid Glass Plasma Styles, semantic KRunner search (EmbeddingGemma 2 on the Intel iGPU via OpenVINO)
-and Portage patches for KRunner, notification popups, milou, KWin (frame pacing, a crash on exit, the dark style's bevel) and Qt (Wayland client, Qt Quick). Gentoo, Plasma
+and Portage patches for KRunner, notification popups, milou, KWin (frame pacing, a crash on exit, the dark style's bevel, KRunner's liquid) and Qt (Wayland client, Qt Quick). Gentoo, Plasma
 6.7.5, Qt 6.11.2, Wayland. User
 docs are in README.md; this file covers how to work on it.
 
@@ -13,7 +13,7 @@ docs are in README.md; this file covers how to work on it.
 | `search/export_model.py` | one-time PyTorch to OpenVINO export with a parity check (run by install.sh in a throwaway venv) |
 | `theme/liquid-glass/generate.py` | draws both styles (`liquid-glass`, `liquid-glass-light`) into `~/.local/share/plasma/desktoptheme/` |
 | `patches/kde-plasma/{plasma-workspace,milou,kwin}/*.patch`, `patches/dev-qt/{qtbase,qtdeclarative}/*.patch` | Portage user patches, one per package |
-| `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc), `krunner-shortcut.sh` (KRunner on Meta+Space, or back on Alt+Space), `plasma-glass-tune.qml` (Liquid Glass Tuning: the ripple and the dark glass, live) |
+| `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc), `krunner-shortcut.sh` (KRunner on Meta+Space, or back on Alt+Space), `plasma-glass-tune.qml` (Liquid Glass Tuning: the liquid and the dark glass, live) |
 | `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` and `qt` build test copies, `kwin` compiles the edited KWin files |
 | `tools/check-patches.sh` | patches apply; patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
 | `tools/screenprobe/screen.sh` | probes on the real screens (small, never focused, ask first): `fps` measures Qt Quick frame rate and animation speed per screen, `glass` shows the style's glass over a grey square (screenshot or by eye) |
@@ -43,10 +43,14 @@ docs are in README.md; this file covers how to work on it.
 - **Demos:** `tools/preview/record.sh OUT.mp4 "query"` (same `QML_IMPORT_PATH` and `KRUNNER` as above)
   records KRunner's window with the busy feedback running (`BUSY=0` for none; `SECONDS_CAPTURED`,
   default 6) at 60 fps, through KWin's `CaptureArea` on a 120 Hz virtual screen, and keeps a lossless
-  `OUT.mkv`; `QUERY2` follows `QUERY2_AT` s in, so a query of `""` records the results unfolding. For a
-  side-by-side the knocks have to line up: both recordings start 5.5 s after KRunner,
-  and two of them came out within a frame of each other in the 1.2 s cycle (check where a knock's
-  light peaks beside the query; `ffmpeg -i a.mkv -i b.mkv -filter_complex vstack`).
+  `OUT.mkv`; `QUERY2` follows `QUERY2_AT` s in, so a query of `""` records the results unfolding.
+  `INPUT=file` sends fakeinput commands as it starts recording, e.g. a Meta+drag (`key 125 down`, `move`,
+  `down`, `by 20 0` and `wait 16` steps), with `TOP` (KRunner's top, a share of the screen) and a `PAD`
+  wide enough to keep the window in view. For a side-by-side the pushes have to line up: both
+  recordings start 5.5 s after KRunner, and with the knocks two of them came out within a frame of each
+  other in the 1.2 s cycle (`ffmpeg -i a.mkv -i b.mkv -filter_complex hstack`; drawtext labels can't hold
+  a colon). To see where waves move, difference frames a few hundred ms apart; to see the liquid itself,
+  read the waves texture back (`glGetTexImage` in a scratch build) and draw its slope as colour.
 - **KWin in the preview:** after `tools/patch-dev.sh kwin`, `ninja -C ~/.cache/plasma-glass/dev/kwin/build
   kwin_wayland` links a whole KWin (2¼ min the first time on the main box, then about 12 s; effects
   like blur are built in), and `KWIN_WAYLAND=~/.cache/plasma-glass/dev/kwin/build/bin/kwin_wayland` runs
@@ -174,67 +178,61 @@ docs are in README.md; this file covers how to work on it.
   keeps the top edge in place. Found by capturing frames from the preview KWin at ~150 fps: start it
   with `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1` and call `org.kde.KWin.ScreenShot2.CaptureActiveScreen`
   in a loop (dbus-fast: the `h` argument is the index into `unix_fds`; raw BGRA, format 6).
-- **KRunner's busy feedback is a ripple shader** (`krunner/qml/busyripple.frag`, `busyRipple` in
-  RunCommand.qml, built into the QML module by `qt6_add_shaders`). While busy, every 1.2 s, a knock on
-  the left rim sends a wave across the glass: beside the query while the window shows only that, and once
-  results show `knockAlong` (a third) of the way down the glass, never above the query (2026-10-14: the
-  user asked to keep the closed spot and try a third and the middle when open; checked by logging each
-  knock's spot, 31 of 62 px closed and 115 of 346 open). A second knock near the bottom while results
-  showed was dropped, 2026-10-13: one is enough. A knock flexes its side (most at the knock,
-  none at the corners; a 1 px stretch moves at once, then the flex slows to the waves' speed over 30 px,
-  so the front is rounded, not a cone). Waves run at 120 px/s, 21 px half-width when fresh and widening
-  8 px/s (2026-10-14: the user asked to slow them to 2/3 and widen them by as much; from 180 px/s and
-  14 px, so at each point across they're now 1.5x as wide). With knocks still 1.2 s apart their crests
-  are 144 px apart, not 216, and the wider waves crowd into each other (the sheen on light glass nearly
-  merges); a knock every 1.8 s keeps them as far apart as before, recorded for the user to compare.
-  Waves fade with time, by e in 36 s, so a crest keeps 84% of itself across the 744 px glass (2026-10-14,
-  "it's fading too fast": 18 s and 70% before), and a knock's wave lasts 9.5 s, long enough for its
-  ringing to cross too, and short enough that no more than 8 live at once (as many as the shaders take);
-  heading into a rim they fade only in its last few px
-  (half is left 3 px from it), so they run on across KWin's bevel (2026-10-14: the user wanted them to
-  travel farther and the damping backed off the bevel's edges; before, by e in 5 s and gone after 4.8, a
-  crest kept a third of itself across, and the rim faded them from 15 px in, over the whole bevel). Each
-  wave is a crest with a ringing train behind
-  it (`profile()`, the same in busywaves.frag and KWin's ripple.frag): a smooth rise ahead, then ripples
-  that get shorter and fade, -0.42, +0.18, -0.09, +0.05 of the crest, a damped Airy function's tail, as
-  an impulse leaves it in a dispersive medium (2026-10-14: "trailing reverb closer to a real impulse";
-  before, a single e^-x² bump). Its slope is scaled by its steepest, 0.991 just behind the crest (the
-  front's is 0.858), and a knock's wave reaches 9 half-widths behind
-  its crest. On dark glass KRunner draws nothing of it (2026-10-14): first its side lighting went (light
-  that comes in at the rim, generate.py RIM, let out where a wave's slope faces an edge), then the
-  content's refraction and colour split (2 px x lean² uphill, 1 px x lean each way); the user wants the
-  waves to show only by what KWin bends behind the glass, and the text left alone. So busyRipple only
-  shows on Liquid Glass Light, and on dark glass only the knocks run (a FrameAnimation while `rippling`):
-  each goes to KWin over D-Bus (`View::knock`, org.kde.KWin.LiquidGlass.Knock, with the wave's speed,
-  bump, spread, damping, life and steep), born on the monotonic clock both run the ripple on
-  (`View::monotonicTime()`; the ripple's clock used to sum frame times, capped at 0.1 s, which a stall
-  would have put behind KWin's). KRunner's own GPU time while busy went from 0.78 to 0.30 ms a frame
-  (preview, UHD 770 through Mesa, 744x346 at scale 1.1). Liquid Glass Light used to get a flat foil
-  sheen of fixed-colour shards over the crests, drawn by busyRipple over the glass (no refraction:
-  colours that moved with the wave's tilt flickered; it draws the content too, over the sheen, from a
-  ShaderEffectSource of the layout hidden while it runs, without the dividers). Since 2026-10-14 the
-  waves go beneath the frost there too ("put the wave beneath the frosting"), drawn by KWin (below). The
-  sheen over the glass came back as a place for the foil, `[Light] layer` top or both (the user asked for
-  a setting to put the diffraction back on top), as bright as 0.3 x `[Light] diffraction` (1.2 gives the
-  0.35 it had), with `[Light] etch` and `saturation`, KWin's foil skipped for top; busyFoil only renders
-  its tile while the sheen is on. Its waves (busywaves.frag) follow KWin's ripple.frag, the effects
-  below included, so the shards on top lie over the waves beneath.
-  `KRUNNER_BUSY_DEMO=1` keeps it running, to look at it (also in `tools/preview/krunner.sh`, and
-  `tools/preview/record.sh` records it). dFdx/dFdy are undefined after a per-pixel early exit, so a
-  wave's direction is computed, not differentiated (the unit vector from where it left the side). Tried and
-  dropped: slowing waves near the rim (a kink where it starts; tails along the rims when it piled up),
-  shading on light glass (a white smear, then heavy relief), glitter specks, the side lighting on dark
-  glass (above). Designed in a lab copy of
-  KRunner (a `PlasmaCore.Window` with the same layout), recorded on the virtual display.
-  It's drawn in passes, because KRunner shares the iGPU with KWin: `busywaves.frag` works out the
-  waves' slope and height at half resolution (an RGBA16F ShaderEffectSource), `busyfoil.frag` draws the
-  foil's shards once into a repeating tile, and `busyripple.frag` draws the rest at full resolution.
-  All in one full-resolution shader it cost 1.85 ms of GPU per frame (a 744x640 window; the content
-  alone is 0.27 ms), and in a real session KWin then missed DP-4 refreshes (208 fps, later about 60);
-  in passes it's 0.55 ms. A process's GPU time is in `/proc/PID/fdinfo` (`drm-engine-render`, once
-  per `drm-client-id`; KWin's isn't readable as a user). Frame pacing is in a `WAYLAND_DEBUG=client`
-  log: the time from `wl_surface.frame` to its `wl_callback.done` is KWin's, from the done to the
-  next commit the client's.
+- **KRunner's busy feedback and its momentum are a simulated liquid** (2026-10-16, the user: "right now
+  the 'waves' are just some animations. is it possible to make the waves more simulation based instead of
+  animation based? it would be much less jank that way", then "we don't need to keep the 'knock' idea. it
+  could be more of a 'push' on the edge over time, or another perturbation somewhere of the fluid directly
+  in a region", and "the effect on move would be better as a 'sloshing' cause by momentum rather than a
+  reuse of the thinking pulse"). KWin runs it (`kwin-fixes.patch`: `runLiquid()` in blur.cpp,
+  `shaders/fluid.frag`, `shaders/surface.frag`) in each Liquid Glass window whose process asked for it with
+  `org.kde.KWin.LiquidGlass.Stir(busy, side, at)` (matched by the caller's PID and kept per process, since
+  KRunner's window is a new one each time it opens). It's linear shallow water on a staggered grid (a texel
+  per cell: its height, its right and bottom faces' velocities, and whether it's wet), stepped forward then
+  back on the GPU between two RGBA32F textures, in even steps of at most 0.5 cell / c up to the frame's
+  target pageflip time (`OutputFrame::targetPageflipTime()`, so the steps follow the refreshes; at most
+  0.1 s after a stall). Two layers, since on real water long waves outrun short ones: ripples (3 px cells,
+  `[Ripple] speed` 120 px/s, damped over `damping` 36 s and by a sponge along the rim, 32 px wide, that takes
+  up what `reflection` 0.3 doesn't send back) and swell (8 px cells, `sloshSpeed` 900 px/s, `sloshDamping`
+  1.5 s, all of it sent back). The window's place and size go through critically damped followers (3 Hz:
+  the pointer's 60 Hz steps against faster frames become a change of speed over about 0.15 s), and the
+  liquid is pushed against the acceleration of the glass's centre, the swell 30x and the ripples 0.15x at
+  `momentum` 1 (as if the liquid were that much deeper: a change of speed of 1000 px/s sloshes the swell
+  about as far as a push's wave leans the glass). While busy, a stretch of one side (`side`; KRunner sends
+  `at`, beside the query while closed and `position` of the way down once results show) pushes in over the
+  time a wave `width` wide takes to pass (a sine pulse's 1/e half-width is 0.38 c t) and eases back out over
+  the rest of the `interval`, as far as it came in; the side bows in most at `at` and not at all at its
+  corners (the knocks' flex, sin² warped so its peak lands there; `strike` px move as one). Its peak speed
+  makes a wave whose steepest slope is 0.8 in a straight channel (`s_pushSlope`; at 0.5 the waves moved the
+  picture a third as much as the knocks had, since they spread as real waves do). `stir=press` presses on
+  the surface just inside the rim instead, a Gaussian `width` px wide, which rings out in circles. A breeze
+  (`chop` 0.3, gusts `chopScale` 40 px across: gradient noise in space and time, since value noise showed
+  its lattice as squares) presses here and there while busy, rising over 0.5 s and dying down over 1 s
+  after; `jitter` varies each push's place, strength, length and timing as it did the knocks'. The surface
+  pass (half the background's size) samples both layers bilinearly (RGBA32F filters on desktop GL; on GLES
+  the liquid is off), each sample pulled at least a cell in from the rim so the dry cells past it don't
+  count, and writes the slope and the ripples' height (over a fresh crest's) into the waves texture the
+  bevel pass read before. It runs while busy and until the ripples have settled to about 5% after the
+  last push (damping, and what the rim takes each crossing: 11 s at 744x503 by default, at most 15) or the
+  swell after a move (3 x `sloshDamping`), fading out over its last 2 s; then it lets go of its textures
+  and KWin stops repainting. KRunner draws nothing of it: busyStir in RunCommand.qml only calls
+  `View::stir()` as it gets busy or done, as the push's place changes (after 100 ms) and as the window
+  shows, so the window gets the liquid busy or not. The busyripple, busywaves and busyfoil shaders and the
+  knocks went (up to commit 9061290 the waves were analytic: a crest with a ringing train per knock, up to
+  8 at once, worked out again per pixel in KRunner and in KWin's ripple.frag), and with them Liquid Glass
+  Light's sheen on top of the glass (`[Light] layer`), which can't follow a liquid only KWin has. Designed
+  in a numpy prototype of the same discretization first (stability, the push's and momentum's gains), then
+  in the preview. Bugs on the way: the grid has to start outside the glass (cell i's centre at (i - 0.5)
+  cells), or the left and top rims had no faces and only the corners' arcs pushed; and the dropdown first
+  moved the bottom rim as a piston, but OutQuart starts it at about 5000 px/s against the swell's 900, and
+  each row it uncovered started as a step, which tore the cups behind into jagged bands: now growing counts
+  as the centre's acceleration, and a cell the glass grows over starts at its wet neighbours' level. Cost
+  in the preview (UHD 770 through Mesa, KRunner 744x503 at scale 1 over ColorfulCups, from KWin's
+  `/proc/PID/fdinfo` `drm-engine-render`, which the installed kwin_wayland's file capability closes; main's
+  KWin ran from a dev build in a directory of its own, as a renamed copy won't start: KWin's own Qt
+  platform plugin wants the name): busy, 4.51-4.59 ms a frame against the knocks' 4.27-4.29; settling after
+  a move about 5 ms (300 ms/s at 60 Hz) against one or two knocks' 3.4, since the waves take the bevel
+  pass's per-pixel path over all of the glass. `KRUNNER_BUSY_DEMO=1` keeps KRunner busy, to look at it
+  (also in `tools/preview/krunner.sh`, and `tools/preview/record.sh` records it).
 - **KWin sent clients their messages only when its event loop was about to sleep** (`Display::flush`
   on `aboutToBlock`), so a frame callback queued at the end of one screen's composite also waited for
   any composite due next on another screen. On the main box that was long: with KWin on the NVIDIA card,
@@ -305,101 +303,80 @@ docs are in README.md; this file covers how to work on it.
   0.25-0.4 on its demo page) and its bevel bends that same blur, with 15% of the sharp background at the
   rim. Here the bevel stays sharp at the rim (the look the user approved) and the middle is frosted
   lightly enough to show shapes, so one fades into the other. `KWIN_LIQUID_GLASS_FROST=strength`
-  overrides it. KRunner's busy ripple leans the glass too: KWin keeps the knocks KRunner sends
-  (`Knock()`, matched to the window by the caller's PID), works the waves out again at half size
-  (`shaders/ripple.frag`, a copy of busywaves.frag, in window coordinates), and adds their downhill slope
-  over the steepest to the bevel's lean, so the bend and the colours' parting follow from one lean per
-  pixel; a fresh wave's steepest slope leans as far as the bevel's edge. A wave parts the colours a little
+  overrides it. The liquid in KRunner's glass (above) leans the glass too: its surface's downhill slope,
+  over a fresh wave's steepest (0.5), adds to the bevel's lean, so the bend and the colours' parting follow
+  from one lean per pixel; a fresh wave's steepest slope leans as far as the bevel's edge at `[Ripple]
+  amplitude` 1. A wave parts the colours a little
   more than the bevel, 3 px each way where it leans fully against the bevel's 2 (2026-10-14: "a tiny bit
   more aberration on the wave"): the split adds the waves' own lean, up to 1, times the difference
-  (`KWIN_LIQUID_GLASS_RIPPLE=scale[,dispersion]`, 1,3; scale 0 for no waves). How clear the glass is
+  (`[Ripple] aberration`; `KWIN_LIQUID_GLASS_RIPPLE=scale[,dispersion]` overrides both, scale 0 for no
+  waves). How clear the glass is
   follows the bevel's lean, and under a wave its lean or its height (up or down), whichever is more: by
   the lean alone the glass frosted over again at each crest, which is flat (the user didn't like it).
-  KWin keeps repainting while knocks live, whatever KRunner draws. The colours part only in the sharp
-  samples: on the frost it doesn't show, and the blur's 8 samples three times over cost twice as much
-  once the waves spread the per-pixel path over most of the window. In the preview (UHD 770 through
-  Mesa, KRunner busy at 744x346, scale 1) KWin's GPU time is 1.12-1.20 ms a frame with the bevel and
+  KWin keeps repainting while the liquid moves, whatever KRunner draws. The colours part only in the
+  sharp samples: on the frost it doesn't show, and the blur's 8 samples three times over cost twice as
+  much once the waves spread the per-pixel path over most of the window. With the knocks, in the preview
+  (UHD 770 through Mesa, KRunner busy at 744x346, scale 1) KWin's GPU time was 1.12-1.20 ms a frame with the bevel and
   frost 2 and 1.96-1.98 with the slow, wide waves, eight knocks' at once (1.78-1.80 with a knock every
   1.8 s; at 180 px/s and 14 px 1.66-1.69, six at once, and 1.56-1.59 while they lasted 4.8 s, four at
   once, all once that many lived; with single waves 1.49-1.52; at frost 3, 1.25 and 1.57-1.62; with all
   27 samples, 1.40 and 2.12-2.15); with the wallpaper scrolling and
   KRunner idle it went from 2.04 (no bevel, strength 15) to 2.25-2.28 (bevel, strength 4). Over a smooth
   wallpaper (Next) it hardly shows: tuned on ColorfulCups and a scrolling image of code.
-- **The ripple and the dark glass are tunable live** (2026-10-14, the user asked for a settings menu to
+- **The liquid and the dark glass are tunable live** (2026-10-14, the user asked for a settings menu to
   fiddle with damping, aberration, strike location, speed, amplitude and width).
-  `~/.config/plasma-glassrc` holds them: `[Ripple]` is KRunner's (`View::liquidGlass`, numbers as
-  numbers, read again on every change through KDirWatch; RunCommand.qml falls back to its defaults key
-  by key), and each knock carries its wave's settings to KWin, amplitude (`lean`), colour split
-  (`dispersion`), ringing (`ring`) with the profile's steepest slope for it (`norm`, worked out in
-  `steepest()`: 0.991 at the default 1.7) and edge fade (`edge`) included. So waves under way keep
-  theirs when a setting changes, here and in KWin, which takes the latest knock's amplitude, split and
-  edge fade for the whole glass and each knock's ringing (`shapes[i].zw`). Two more came the same day:
-  how far in from the rim the edge fade sits (`standoff`, 0; global like the edge fade) and how much of
-  the side a knock strikes at once (`strike`, 1 px; per knock in `shapes[i].y`, half of it: the stretch
-  that moves at once, so the wave leaves flat across it). The flex's exponent used to go in that slot;
-  the shaders work it out from the knock's place on its side now. `[Glass]` is KWin's (frost,
-  bevel), read again on every change too; `KWIN_LIQUID_GLASS_*` still win over the file, so the
-  preview's before/after recordings work as before. The ringing culls at 1.4 + 4.6 x its fade
-  half-widths behind the crest (9 at the default), where what's left is under 1%. The tuning window
-  (`desktop/plasma-glass-tune.qml`, `qml6 -a widget`; install.sh installs it as `plasma-glass-tune`
-  with a launcher) writes through QtCore's `Settings` (QSettings' INI, which KConfig reads, but neither
-  takes comments after a value), at most every 0.1 s with `setValue()` and `sync()`: the declared
-  properties write only 0.5 s after the last change, so a drag only arrived when it paused. A heartbeat,
-  `[Ripple] tuning` (s since the epoch, 5 s ahead, every 2 s), keeps KRunner rippling and open when it
-  loses the focus (`View::tuning`); a crash lets it run out. KRunner reads the file again before
-  closing on focus loss, in case the heartbeat has only just come. Sliders snap to their step in code:
-  Breeze draws a tick for each step. With no file, the waves measured the same as before (the right
-  third moved 2.87 against 2.88 from the reference recording). Checked live in the preview, the tuning
-  window beside KRunner and its sliders dragged with fakeinput: frost changed at once, speed, split and
-  width with the next knock. The preview copies `plasma-glassrc` into its config, like your KDE files.
+  `~/.config/plasma-glassrc` holds them: `[Ripple]` is the liquid's, which KWin reads itself
+  (`loadLiquidGlassSettings`, again on every change through KDirWatch) and takes at its next step, so a
+  change applies to the waves under way; KRunner only reads `side` and `position` (`View::liquidGlass`,
+  numbers as numbers), to say where the pushes land. (With the knocks, KRunner read them all and each knock
+  carried its wave's settings to KWin.) `[Glass]` is KWin's (frost, bevel), read again on every change
+  too; `KWIN_LIQUID_GLASS_*` still win over the file, so the preview's before/after recordings work as
+  before. The tuning window (`desktop/plasma-glass-tune.qml`, `qml6 -a widget`; install.sh installs it as
+  `plasma-glass-tune` with a launcher) writes through QtCore's `Settings` (QSettings' INI, which KConfig
+  reads, but neither takes comments after a value), at most every 0.1 s with `setValue()` and `sync()`:
+  the declared properties write only 0.5 s after the last change, so a drag only arrived when it paused.
+  A heartbeat, `[Ripple] tuning` (s since the epoch, 5 s ahead, every 2 s), keeps KRunner busy, so the
+  liquid stirred, and open when it loses the focus (`View::tuning`); a crash lets it run out. KRunner reads
+  the file again before closing on focus loss, in case the heartbeat has only just come. Sliders snap to
+  their step in code: Breeze draws a tick for each step. Checked live in the preview (2026-10-14), the
+  tuning window beside KRunner and its sliders dragged with fakeinput. The preview copies
+  `plasma-glassrc` into its config, like your KDE files; keys only the knocks used (`widening`,
+  `lifetime`, `ringing`, `edgeFade`, `standoff`, `packet`, `frontNoise`, `[Light] layer`) are ignored now.
 - **More natural waves** (2026-10-14, the user: "would look more natural with some noise / more waves
-  summed together", workshopped as four prototypes, then all four kept as settings): chop, seven small
-  plane waves across the glass at angles around the knocks' way, longer ones faster (30 px/s x
-  sqrt(wavelength / `chopScale`)), coming and going with the knocks' waves (their summed strength) and
-  kept off the rim over the bevel's width, where they added to the bevel's lean and sparkled; packet,
-  two more profiles per knock, 0.6x as wide at 1.12x the speed and 1.6x as wide at 0.9x, so crests split
-  and change as they go; front noise, value noise along the side (s) moving each crest by up to half a
-  half-width and its strength by 60%, seeded per knock (KWin packs a seed from the knock's birth into
-  `knocks[i].x` beside the side, KRunner the same); jitter, KRunner's: each knock's place (up to 20% of
-  the side either way at 1), strength (`amp`, which scales its fade), width and time to the next (up to
-  half a period). Defaults are the workshop's mix, chop 0.3, packet 0.7, front noise 0.5, jitter 0.6;
-  all 0 is the old clockwork. The latest knock's chop, packet and front noise go for the whole glass,
-  as with the edge fade. Cost in the preview: KWin 2.85-2.91 ms a frame against 2.78-2.79 with all
-  four off, in the same run (the base drifted between runs that day: 1.97, 2.20, 2.78).
+  summed together", workshopped as four prototypes, then all four kept as settings for the knocks: chop,
+  small plane waves across the glass; packet, two more profiles per knock; front noise, crests that
+  wandered along their length; jitter). The liquid has interference, reflections and spreading of its
+  own; of the four, jitter carries over to the pushes, chop became the breeze (`chop`, `chopScale`, the
+  same keys and defaults), and packet and front noise went with the knocks.
 - **The liquid has momentum** (2026-10-14, the user: "trigger waves when moving around the element and
-  it opening and closing, like the liquid inside has momentum"; `[Ripple] momentum`, 1, 0 for none).
-  `View::floatingMoved(from)` comes from `moveFloatingTo`, `floatingPosition()` says where the window is
-  on its screen (layer-shell clients can't ask the compositor), and busyRipple watches its own height
-  for the dropdown's bottom edge. While anything moves a FrameAnimation samples the speed per axis (x,
-  y, bottom edge) over the last 100 ms, and a swing detector turns changes of speed into knocks: once
-  the speed has swung 400 px/s or more from its anchor and then held for 60 ms or come back 30%, the wall
-  that pushed into the liquid knocks (speeding up rightwards the left wall, downwards the top one; the
-  bottom edge when it speeds up upwards, as the dropdown folds or stops unfolding), from 60% of its
-  length, as strong as the swing (`amp`, 1 at 1500 px/s, at most 1.3), at most once per side per 0.12 s;
-  the anchor moves to the swing's peak. Logged in the preview (a scratch scene Meta+dragging KRunner with
-  fakeinput, then folding and unfolding it), the first tries sent bursts: frame-to-frame speed flickered
-  with the pointer's 60 Hz steps against 120 Hz frames (a start made three small waves), acceleration's
-  sign flipped with that noise and split a stop's slowing into pieces too small to count (the stop sent
-  none), overshooting speed settling back sent a small opposite wave (now a rebound: back within 0.2 s
-  and under half the swing, it only moves the anchor), and over 60 ms a steady 1900 px/s drag still
-  wobbled 500 px/s (hence 100 ms and 400 px/s). Then, twice over: one wave per start and stop per axis,
-  one off the bottom per fold and per unfold's end. Momentum's knocks carry the busy knocks' side as
-  `chopSide`, which the chop runs from, so it doesn't turn with them.
+  it opening and closing, like the liquid inside has momentum"; `[Ripple] momentum`, 1, 0 for none). Since
+  2026-10-16 KWin works it out from the window's own geometry (above): the glass's centre's acceleration,
+  through the followers, pushes the liquid the other way, so dragging KRunner sloshes it (it piles up
+  against the trailing side, then rocks back and forth) and so does the dropdown unfolding or folding (the
+  centre moves). Before, KRunner sampled its own place and height (`View::floatingMoved`,
+  `floatingPosition()`) and a swing detector turned changes of speed into knocks off the wall that pushed
+  into the liquid. What it found still holds for anything that differentiates a dragged window's place:
+  frame-to-frame speed flickered with the pointer's 60 Hz steps against 120 Hz frames (a start made three
+  small waves), acceleration's sign flipped with that noise, and over 60 ms a steady 1900 px/s drag still
+  wobbled 500 px/s. The followers smooth that out, and the liquid itself doesn't care about the noise that's
+  left: a jerk that averages out moves it little.
 - **Liquid Glass Light's waves go beneath the frost** (2026-10-14: "the light version with frosted
   glass, the wave beneath the frosting", with a settings panel and the diffraction's etch size as a
   setting). KWin treats `liquid-glass-light` as Liquid Glass too: its own frost (`[Light] frost`, 5; it
   had KWin's own blur strength, 15 by default, before) and the bevel pass with `[Light]`'s bevel, off by
-  default (the light style looks flat). While KRunner's waves run, `shaders/underlay.frag` runs between
+  default (the light style looks flat). While the liquid moves, `shaders/underlay.frag` runs between
   the background's copy and the first downsample: what's behind, seen from further in where a wave leans
   (`refraction`, 16 px x lean²), plus light where the waves crest in shards of colour, the Voronoi cells
-  of a jittered grid `etch` px across (32), fixed to the window, each its own hue and sparkle, as
-  busyfoil.frag's (`diffraction` 1.2, `saturation` 0.8). The blur's passes frost that instead of the
+  of a jittered grid `etch` px across (32), fixed to the window, each its own hue and sparkle
+  (`diffraction` 1.2, `saturation` 0.8). The blur's passes frost that instead of the
   plain copy, and the waves don't lean the glass on top. Under the frost the shards' size decides what
   shows: at 12 px they blur into a near-white haze, at 32 they show as soft patches of colour, at 72 as
   big blobs. The first defaults (frost 7, refraction 12, diffraction 0.8, etch 28) were too faint
   under the light glass's 62% white tint. In the preview (UHD 770, 744x346) KWin takes 2.69-2.73 ms a
   frame on light glass with the waves, 1.26 without them; the foil costs nothing measurable (2.72 ms
-  without it), the full-size underlay pass and the heavier frost do.
+  without it), the full-size underlay pass and the heavier frost do. KRunner could also draw the foil on
+  top of the glass, crisp (`[Light] layer` top or both, which the user asked for on 2026-10-14), until the
+  liquid: KRunner can't see a liquid only KWin has.
 - **Without shaders (software rendering) the busy pulse is a gradient, not a mask.** The band of
   light that stands in for the ripple is the gradient of a rounded Rectangle over the glass (stops
   moved by a 0..1 progress), so it keeps to the corners at every size. A MultiEffect mask (the
@@ -529,19 +506,17 @@ docs are in README.md; this file covers how to work on it.
   out: `GPU_QUEUE_THROTTLE` LOW (55 to 39 ms CPU, but 55 to 76 ms wall). KRunner itself was not it:
   in the preview its CPU over a query and unfold read 870-890 ms with milou from before and after that
   day's changes (a wrapper sampling /proc/PID/stat as `KRUNNER`).
-- **On dark glass KRunner no longer renders while waves live** (2026-10-16, the user: still "lagging a
-  bit" on the laptop on battery, power-saver, CPUs near 1 GHz). The busy ripple's `FrameAnimation`
-  only times the knocks there (KWin draws the waves; busyRipple is hidden), but a running frame
-  animation keeps Qt's render loop going, so KRunner rendered the same frame at the screen's rate and KWin
-  blurred each one anew, for as long as waves lived (13.5 s with the laptop's `[Ripple] lifetime`). Now a
-  `Timer` (`knockTimer`) wakes for the next knock or the oldest wave's end on dark glass, and the frame
-  animation only runs where busyRipple draws (Light with its sheen). Typing "kernel config laptop" in
-  the preview: KRunner rendered 207 frames instead of 755 and used 830 ms of CPU instead of 1,020 (main
-  box); KWin's frames were the same. Measured with `QSG_RENDER_TIMING=1` (render-loop lines in
-  app.log), KWin's `KWIN_LOG_PERFORMANCE_DATA=1` (written to KWin's working directory), and keys typed
-  by fakeinput as `HOVER_INPUT` after `krunner.sh OUT " "` (an empty query means the default one).
-  The laptop's own `plasma-glassrc` is heavy: `[Glass] frost=15`, `bevelWidth=60`, `[Ripple]
-  lifetime=13.5`. The preview runs there too (configs copied as on the main box; no EGL override, it has
+- **KRunner doesn't render for its busy feedback** (2026-10-16, the user: still "lagging a bit" on the
+  laptop on battery, power-saver, CPUs near 1 GHz). With the knocks, the busy ripple's `FrameAnimation`
+  kept Qt's render loop going on dark glass, where KWin drew the waves, so KRunner rendered the same frame
+  at the screen's rate and KWin blurred each one anew for as long as waves lived (13.5 s with the laptop's
+  `[Ripple] lifetime`); a `Timer` that woke only for the next knock took it from 755 frames and 1,020 ms of
+  CPU to 207 and 830 ms over a typed "kernel config laptop" (main box; KWin's frames were the same). Since
+  the liquid, KRunner only calls KWin when it gets busy or done or the push's place changes. Measured with
+  `QSG_RENDER_TIMING=1` (render-loop lines in app.log), KWin's `KWIN_LOG_PERFORMANCE_DATA=1` (written to
+  KWin's working directory), and keys typed by fakeinput as `HOVER_INPUT` after `krunner.sh OUT " "` (an
+  empty query means the default one). The laptop's own `plasma-glassrc` is heavy: `[Glass] frost=15`,
+  `bevelWidth=60`. The preview runs there too (configs copied as on the main box; no EGL override, it has
   only the Intel GPU, and its render node is open to claude).
 - **KDE's Dark Mode switch put the Plasma Style back to Breeze** (2026-10-16, the user: "i used the light
   mode switch on the UI and it somehow messed up my theme on the desktop"). The tray's Brightness and
@@ -578,18 +553,13 @@ docs are in README.md; this file covers how to work on it.
 - **The dropdown's momentum waves restarted and rode down the glass** (2026-10-16, the user: "the wave
   animation seems to be somehow restarting every frame", then "the wave is translating down the element
   as the window opens"). Counted with `dbus-monitor --session "type=method_call,member=Knock"` in the real
-  session: 11 bottom-edge knocks in 6 s, most at the full 1.3, in threes 0.3-0.9 s apart. Results arrive
-  in batches, so opening unfolded, stopped and unfolded again, and each stop (the bottom edge speeding up
-  upwards) knocked; and a knock while the dropdown still grew rode down with it, since a bottom wave is
-  placed from the current bottom edge (KWin's and busywaves' window coordinates). Now the bottom edge's
-  swings only remember the strongest, and `settling` (a 150 ms Timer, restarted by every change of height)
-  sends one wave once the dropdown has stopped, at most one every 1.2 s. The preview never showed it: its
-  query arrives at once and unfolds once (2 knocks in a session). A wave can still move if the height
-  changes later in its life (the user: "if a wave is already propagating it still gets pulled down with
-  the bottom of the window as it opens"), so each knock now keeps the window's size when it struck (KWin's
-  `LiquidGlassKnock::size`, KRunner's `w0`/`h0`) and a bottom or right wave's distance travelled gets the
-  edge's move since (`knocks[i][2] = speed * age + moved`, the same in RunCommand.qml's `kv`): its crest
-  stays where it is on screen while the window grows or shrinks. KWin's half only runs after a relogin.
+  session: 11 bottom-edge knocks in 6 s, most at full strength, in threes 0.3-0.9 s apart. Results arrive
+  in batches, so opening unfolded, stopped and unfolded again, and each stop knocked; and a knock while the
+  dropdown still grew rode down with it, since a bottom wave was placed from the current bottom edge. A
+  settling timer and knocks that kept the window's size fixed it then; the liquid has neither problem: its
+  cells stay put in the glass (from its top left), and a dropdown that unfolds in batches sloshes it a
+  little at each, as it would a real one. The preview never showed it: its query arrives at once and
+  unfolds once.
 - **The dropdown reopened half unfolded, and flickered while typing** (2026-10-16, the user: "stuck between
   open and close", rare; "flickering between open and closed when quickly typing then backspacing
   repeatedly"). Caught with a KWin script logging KRunner's frameGeometry height on every change

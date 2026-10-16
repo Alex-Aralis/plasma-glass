@@ -140,7 +140,7 @@ if [ "$DO_STYLE" = 1 ]; then
     mkdir -p "$DATA/applications"
     sed "s|@BIN@|$HOME/.local/bin/plasma-glass-test-notifications|g" "$REPO/desktop/test-notifications.desktop.in" \
         > "$DATA/applications/plasma-glass-test-notifications.desktop"
-    # "Liquid Glass Tuning": KRunner's busy ripple and the dark glass, live (it writes plasma-glassrc, which
+    # "Liquid Glass Tuning": the liquid in KRunner's glass and the dark glass, live (it writes plasma-glassrc, which
     # the patched KRunner and KWin follow)
     install -D -m 644 "$REPO/desktop/plasma-glass-tune.qml" "$DATA/plasma-glass/plasma-glass-tune.qml"
     printf '#!/bin/sh\nexec qml6 -a widget "%s" "$@"\n' "$DATA/plasma-glass/plasma-glass-tune.qml" > "$HOME/.local/bin/plasma-glass-tune"

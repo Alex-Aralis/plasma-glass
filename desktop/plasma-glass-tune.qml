@@ -4,10 +4,10 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
-// Liquid Glass Tuning: KRunner's busy ripple and the dark Liquid Glass, live. Each change goes to
-// ~/.config/plasma-glassrc within a tenth of a second; plasma-glass's KRunner takes it with its next knock,
-// its KWin at once. While this is open (and "Keep rippling" is on), KRunner's ripple runs all the time and
-// KRunner stays open when you click here: open it (Meta+Space) and tune beside it.
+// Liquid Glass Tuning: the liquid in KRunner's glass and the dark Liquid Glass, live. Each change goes to
+// ~/.config/plasma-glassrc within a tenth of a second, and plasma-glass's KWin takes it at once. While this
+// is open (and "Keep stirring" is on), KRunner's liquid is stirred all the time and KRunner stays open when
+// you click here: open it (Meta+Space) and tune beside it.
 //   qml6 -a widget plasma-glass-tune.qml        (install.sh installs it as plasma-glass-tune)
 pragma ComponentBehavior: Bound
 
@@ -51,13 +51,13 @@ Kirigami.ApplicationWindow {
         onTriggered: window.write()
     }
 
-    // KRunner ripples and stays open while this heartbeat is fresh: it runs out 5 s after the last one, so a
-    // crash here doesn't leave KRunner rippling
+    // KRunner is stirred and stays open while this heartbeat is fresh: it runs out 5 s after the last one, so
+    // a crash here doesn't leave KRunner stirring
     Timer {
         interval: 2000
         repeat: true
         triggeredOnStart: true
-        running: keepRippling.checked
+        running: keepStirring.checked
         onTriggered: window.put("Ripple/tuning", Math.round(Date.now() / 1000) + 5)
         onRunningChanged: if (!running) {
             window.put("Ripple/tuning", 0);
@@ -74,7 +74,7 @@ Kirigami.ApplicationWindow {
             tuner.set(tuner.fallback);
         }
         side.set(0);
-        layer.set(0);
+        stir.set(0);
     }
 
     // one setting: a slider, its value, and a button back to its default
@@ -147,20 +147,21 @@ Kirigami.ApplicationWindow {
         header: Kirigami.InlineMessage {
             visible: true
             position: Kirigami.InlineMessage.Position.Header
-            text: "Changes apply as you move the sliders: KRunner takes them with its next knock, KWin at once. Open KRunner (Meta+Space) to see them; it stays open while you work here."
+            text: "Changes apply as you move the sliders. Open KRunner (Meta+Space) to see them; it stays open, and stirred, while you work here."
         }
 
         Kirigami.FormLayout {
             QQC2.Switch {
-                id: keepRippling
+                id: keepStirring
                 Kirigami.FormData.label: "KRunner:"
-                text: "Keep rippling while this is open"
+                text: "Keep stirring while this is open"
                 checked: true
             }
+            Hint { text: "KRunner's glass holds a liquid, simulated: while KRunner is busy a stretch of its rim pushes into it again and again, and when you move KRunner, or its dropdown opens or closes, the liquid sloshes. What's behind the glass bends under its waves." }
 
             Kirigami.Separator {
                 Kirigami.FormData.isSection: true
-                Kirigami.FormData.label: "Waves"
+                Kirigami.FormData.label: "Ripples"
             }
             Tuner {
                 Kirigami.FormData.label: "Speed:"
@@ -170,96 +171,63 @@ Kirigami.ApplicationWindow {
                 Kirigami.FormData.label: "Width:"
                 key: "Ripple/width"; fallback: 21; from: 4; to: 80; stepSize: 1; unit: "px"
             }
-            Hint { text: "Half the width of a fresh wave." }
+            Hint { text: "Half the width of the wave each push makes: wider, and the rim takes longer to push in." }
             Tuner {
-                Kirigami.FormData.label: "Widening:"
-                key: "Ripple/widening"; fallback: 8; from: 0; to: 40; stepSize: 0.5; decimals: 1; unit: "px/s"
+                Kirigami.FormData.label: "A push every:"
+                key: "Ripple/interval"; fallback: 1.2; from: 0.3; to: 5; stepSize: 0.1; decimals: 1; unit: "s"
             }
             Tuner {
                 Kirigami.FormData.label: "Damping:"
                 key: "Ripple/damping"; fallback: 36; from: 1; to: 120; stepSize: 1; unit: "s"
             }
-            Hint { text: "How long a wave takes to fall to about a third of its height." }
+            Hint { text: "How long the ripples take to fall to about a third of their height, on their own." }
             Tuner {
-                id: lifetime
-                Kirigami.FormData.label: "Lifetime:"
-                key: "Ripple/lifetime"; fallback: 9.5; from: 1; to: 20; stepSize: 0.5; decimals: 1; unit: "s"
+                Kirigami.FormData.label: "Rim reflection:"
+                key: "Ripple/reflection"; fallback: 0.3; from: 0; to: 1; stepSize: 0.05; percent: true
             }
-            Hint {
-                visible: lifetime.value > 8 * interval.value - 0.05
-                text: "KRunner keeps 8 waves at most: with a knock every %1 s, each lasts %2 s."
-                    .arg(interval.value.toFixed(1)).arg((8 * interval.value - 0.05).toFixed(1))
-            }
-            Tuner {
-                id: interval
-                Kirigami.FormData.label: "A knock every:"
-                key: "Ripple/interval"; fallback: 1.2; from: 0.3; to: 5; stepSize: 0.1; decimals: 1; unit: "s"
-            }
+            Hint { text: "How much of a ripple the rim sends back; the rest soaks into it. At 100% they bounce around the glass until they die down." }
             Tuner {
                 Kirigami.FormData.label: "Amplitude:"
                 key: "Ripple/amplitude"; fallback: 1; from: 0; to: 2; stepSize: 0.05; decimals: 2
             }
-            Hint { text: "How far a fresh wave leans the glass, against the bevel at its edge (1); also how strong Liquid Glass Light's sheen is." }
+            Hint { text: "How far a wave's steepest slope leans the glass, against the bevel at its edge (1); goes for the sloshing too." }
             Tuner {
                 Kirigami.FormData.label: "Colour split:"
                 key: "Ripple/aberration"; fallback: 3; from: 0; to: 10; stepSize: 0.5; decimals: 1; unit: "px"
             }
             Hint { text: "Each way, where a wave leans the glass fully (the bevel's is set below)." }
             Tuner {
-                Kirigami.FormData.label: "Ringing:"
-                key: "Ripple/ringing"; fallback: 1.7; from: 0.3; to: 6; stepSize: 0.1; decimals: 1
-            }
-            Hint { text: "Half-widths over which the ripples behind each crest fade to about a third." }
-            Tuner {
-                Kirigami.FormData.label: "Edge fade:"
-                key: "Ripple/edgeFade"; fallback: 3; from: 0.5; to: 20; stepSize: 0.5; decimals: 1; unit: "px"
-            }
-            Hint { text: "Heading into the rim, a wave fades out over about twice this." }
-            Tuner {
-                Kirigami.FormData.label: "Edge standoff:"
-                key: "Ripple/standoff"; fallback: 0; from: 0; to: 60; stepSize: 1; unit: "px"
-            }
-            Hint { text: "How far in from the rim that fade sits: 0 at the rim itself, the bevel's width to fade where the bevel starts." }
-
-            Kirigami.Separator {
-                Kirigami.FormData.isSection: true
-                Kirigami.FormData.label: "More natural waves"
-            }
-            Hint { text: "0 turns each off; all of them at 0 gives one smooth wave per knock, like clockwork." }
-            Tuner {
-                Kirigami.FormData.label: "Chop:"
+                Kirigami.FormData.label: "Breeze:"
                 key: "Ripple/chop"; fallback: 0.3; from: 0; to: 1.5; stepSize: 0.05; decimals: 2
             }
-            Hint { text: "Small waves running across the whole glass while it ripples, at random angles, longer ones faster, as on water. Kept off the rim." }
+            Hint { text: "While KRunner is busy, gusts press on the surface here and there, coming and going, and raise small waves all over." }
             Tuner {
-                Kirigami.FormData.label: "Chop wavelength:"
+                Kirigami.FormData.label: "Gust size:"
                 key: "Ripple/chopScale"; fallback: 40; from: 8; to: 120; stepSize: 1; unit: "px"
             }
-            Tuner {
-                Kirigami.FormData.label: "Packet:"
-                key: "Ripple/packet"; fallback: 0.7; from: 0; to: 1; stepSize: 0.05; decimals: 2
-            }
-            Hint { text: "Two more waves out of each knock, a shorter one running ahead and a longer one lagging, so each crest splits and changes as it goes." }
-            Tuner {
-                Kirigami.FormData.label: "Front noise:"
-                key: "Ripple/frontNoise"; fallback: 0.5; from: 0; to: 1; stepSize: 0.05; decimals: 2
-            }
-            Hint { text: "Each crest wanders forward and back and gets stronger and weaker along its length, slowly." }
             Tuner {
                 Kirigami.FormData.label: "Jitter:"
                 key: "Ripple/jitter"; fallback: 0.6; from: 0; to: 1; stepSize: 0.05; decimals: 2
             }
-            Hint { text: "No two knocks alike: each lands a little up or down the side, comes a little early or late, and is stronger or weaker, wider or narrower." }
-            Tuner {
-                Kirigami.FormData.label: "Momentum:"
-                key: "Ripple/momentum"; fallback: 1; from: 0; to: 2; stepSize: 0.05; decimals: 2
-            }
-            Hint { text: "As if the liquid inside had momentum: when you drag KRunner and let go, or its dropdown opens or closes, a wave comes off the wall that pushes into it, as strong as the change in speed. Works when KRunner isn't busy too." }
+            Hint { text: "No two pushes alike: each lands a little up or down the side, comes a little early or late, and pushes harder or softer, longer or shorter." }
 
             Kirigami.Separator {
                 Kirigami.FormData.isSection: true
-                Kirigami.FormData.label: "Where they start"
+                Kirigami.FormData.label: "Where the pushes land"
             }
+            QQC2.ComboBox {
+                id: stir
+                Kirigami.FormData.label: "Stir by:"
+                readonly property var keys: ["push", "press"]
+                model: ["Pushing the rim in", "Pressing on the surface"]
+                currentIndex: Math.max(0, keys.indexOf(String(store.value("Ripple/stir", "push"))))
+                function set(index: int): void {
+                    currentIndex = index;
+                    window.put("Ripple/stir", keys[index]);
+                }
+                onActivated: index => set(index)
+            }
+            Hint { text: "A stretch of the rim pushes in and eases back out; or a press on the surface just inside it, which rings out in circles." }
             QQC2.ComboBox {
                 id: side
                 Kirigami.FormData.label: "Side:"
@@ -278,10 +246,30 @@ Kirigami.ApplicationWindow {
             }
             Hint { text: "Left or right: beside the search field while the dropdown is collapsed, and this far down once results show (never above the search field). Top or bottom: this far across." }
             Tuner {
-                Kirigami.FormData.label: "Strike width:"
+                Kirigami.FormData.label: "Push width:"
                 key: "Ripple/strike"; fallback: 1; from: 1; to: 300; stepSize: 1; unit: "px"
             }
-            Hint { text: "How much of the side each knock hits at once; wider, and the wave starts as a flatter front." }
+            Hint { text: "How much of the side pushes in as one (the rest bows in less, the further along); wider, and the wave sets out as a flatter front." }
+
+            Kirigami.Separator {
+                Kirigami.FormData.isSection: true
+                Kirigami.FormData.label: "Momentum"
+            }
+            Tuner {
+                Kirigami.FormData.label: "Momentum:"
+                key: "Ripple/momentum"; fallback: 1; from: 0; to: 2; stepSize: 0.05; decimals: 2
+            }
+            Hint { text: "How much the liquid sloshes when you drag KRunner, or its dropdown opens or closes: it lags behind as the glass speeds up and runs on as it stops. Works when KRunner isn't busy too." }
+            Tuner {
+                Kirigami.FormData.label: "Slosh speed:"
+                key: "Ripple/sloshSpeed"; fallback: 900; from: 200; to: 2000; stepSize: 50; unit: "px/s"
+            }
+            Hint { text: "How fast the long waves run, as in a deeper liquid: faster, and it rocks back and forth quicker." }
+            Tuner {
+                Kirigami.FormData.label: "Slosh damping:"
+                key: "Ripple/sloshDamping"; fallback: 1.5; from: 0.3; to: 6; stepSize: 0.1; decimals: 1; unit: "s"
+            }
+            Hint { text: "How long the sloshing takes to die down to about a third." }
 
             Kirigami.Separator {
                 Kirigami.FormData.isSection: true
@@ -340,19 +328,6 @@ Kirigami.ApplicationWindow {
                 Kirigami.FormData.label: "Saturation:"
                 key: "Light/saturation"; fallback: 0.8; from: 0; to: 1; stepSize: 0.05; decimals: 2
             }
-            QQC2.ComboBox {
-                id: layer
-                Kirigami.FormData.label: "Diffraction:"
-                readonly property var keys: ["beneath", "top", "both"]
-                model: ["Beneath the frost", "On top of the glass", "Both"]
-                currentIndex: Math.max(0, keys.indexOf(String(store.value("Light/layer", "beneath"))))
-                function set(index: int): void {
-                    currentIndex = index;
-                    window.put("Light/layer", keys[index]);
-                }
-                onActivated: index => set(index)
-            }
-            Hint { text: "Where the foil lights up: beneath the frost, softened by it; on top of the glass, in crisp shards (as KRunner drew it before the waves went beneath the frost); or both. Its brightness, etch size and saturation go for either." }
             Tuner {
                 Kirigami.FormData.label: "Bevel width:"
                 key: "Light/bevelWidth"; fallback: 24; from: 4; to: 60; stepSize: 1; unit: "px"
