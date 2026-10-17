@@ -10,6 +10,7 @@ docs are in README.md; this file covers how to work on it.
 | Path | What |
 |---|---|
 | `search/embedsearch.py` | search service: indexer, KRunner D-Bus runner (`local.embedsearch`), CLI. Installed copy: `~/.local/share/embedsearch/` (service `embedsearch.service`) |
+| `search/settings_index.py` | builds `search/settings-index.json` (System Settings option labels, page, tab) from the installed packages' source tarballs; re-run after a Plasma upgrade |
 | `search/export_model.py` | one-time PyTorch to OpenVINO export with a parity check (run by install.sh in a throwaway venv) |
 | `theme/liquid-glass/generate.py` | draws both styles (`liquid-glass`, `liquid-glass-light`) into `~/.local/share/plasma/desktoptheme/` |
 | `patches/kde-plasma/{plasma-workspace,milou,kwin}/*.patch`, `patches/kde-frameworks/ksvg/*.patch`, `patches/dev-qt/{qtbase,qtdeclarative}/*.patch` | Portage user patches, one per package |

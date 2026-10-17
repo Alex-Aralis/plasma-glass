@@ -7,7 +7,9 @@ notification cruft trimmed.
   (text encoder, 270M) runs on the Intel iGPU through OpenVINO in float16. Your documents are indexed
   in the background, and results appear in KRunner (Meta+Space), about 0.2 s per query. Searching
   finds files by meaning, and every file by its name and folders, fuzzily ("pragconv" finds
-  `pragmatic-convalescence.md`, "t14 readme" `hosts/t14/README.md`).
+  `pragmatic-convalescence.md`, "t14 readme" `hosts/t14/README.md`). It also finds the options inside
+  System Settings pages, which KRunner alone only knows by page name: "focus stealing" opens Window
+  Behavior on its Focus tab, "tap to click" the Touchpad page.
 - **Liquid Glass Plasma Style.** Translucent popups over KWin's blur: 18 px corners, a light rim along
   the top, a soft shadow, glassy search fields, list highlights and scrollbars, and quiet header
   bands in applet popups. Everything else
@@ -65,7 +67,15 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
   (`/etc`) every text file's text is indexed, whatever its name; binary files, certificates and keys,
   and files only root can read are found by name. Restart with
   `systemctl --user restart embedsearch` after editing.
-- **Terminal:** `embedsearch search "query"` searches from the command line, `embedsearch status`
+- **System Settings options:** `search/settings-index.json` lists about 1300 option, group and tab
+  labels from the 63 System Settings pages shown here, with the page (and, for Window Behavior, the tab)
+  each is on. They show under KRunner's "System Settings" results: up to three, those holding every
+  word of the query first, then any close in meaning (`settings_results`, `settings_min_score` in the
+  config). Choosing one opens its page. Pages a KDE restriction hides are left out. The list is built
+  from the installed packages' sources in /var/cache/distfiles by `search/settings_index.py`; re-run it
+  after a Plasma upgrade. Only new labels are embedded again.
+- **Terminal:** `embedsearch search "query"` searches from the command line, `embedsearch settings
+  "query"` searches the System Settings options, `embedsearch status`
   shows what's indexed, and `journalctl --user -fu embedsearch` shows indexing progress.
 - **Updates:** new and changed files are picked up every 15 minutes, or right away with the "Index"
   launcher (KRunner or the app menu), which ends with a notification saying what it indexed. While
@@ -258,6 +268,9 @@ build stops at the patch step until the patch is refreshed.
     cache flushed first, which otherwise left horizontal strips missing from the cursor
   - no crash at every logout: scripts are unloaded before the workspace goes away (Remember Window
     Positions saved its state from a workspace that was already gone)
+  - Window Behavior in System Settings opens on a tab given as an argument
+    (`systemsettings kcm_kwinoptions --args focus`; also `titlebar-actions`, `window-actions`,
+    `movement`, `advanced`), also when it's already open, so settings search lands on the option's tab
 - `ksvg-stylesheet-cache.patch` (kde-frameworks/ksvg, which draws every Plasma Style's SVGs; Plasma
   processes load it as they start): after a switch from Liquid Glass to Liquid Glass Light (Dark Mode,
   `plasma-glass-mode`), a running KRunner drew the light glass in Breeze Dark's background colour, a

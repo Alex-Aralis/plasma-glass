@@ -4,6 +4,7 @@
     embedsearch index            update the index (only new/changed files are embedded)
     embedsearch search QUERY     print the best matching files
     embedsearch status           show what is indexed
+    embedsearch settings QUERY   print the best matching System Settings options
     embedsearch serve            KRunner D-Bus runner + periodic re-indexing (run by systemd)
 
 Settings live in ~/.config/embedsearch/config.toml (created with defaults on first run).
@@ -12,6 +13,7 @@ Settings live in ~/.config/embedsearch/config.toml (created with defaults on fir
 import asyncio
 import hashlib
 import html
+import json
 import mimetypes
 import os
 import re
@@ -57,6 +59,7 @@ MODEL_XML = APP_DIR / "model" / "embeddinggemma2_text.xml"
 TOKENIZER_JSON = APP_DIR / "model" / "tokenizer.json"
 OV_CACHE = APP_DIR / "ov_cache"
 DB_PATH = APP_DIR / "index.sqlite"
+SETTINGS_JSON = APP_DIR / "settings-index.json"  # from settings_index.py
 CONFIG_PATH = Path.home() / ".config" / "embedsearch" / "config.toml"
 BUS_NAME = "local.embedsearch"
 
@@ -101,6 +104,11 @@ reindex_minutes = 15
 # Results shown in KRunner, and the minimum similarity (0-1) for a result to show at all.
 max_results = 5
 min_score = 0.45
+
+# Options inside System Settings pages ("focus stealing", "tap to click"): how many to show, and the
+# minimum similarity for one found by meaning (one holding every word of the query always shows).
+settings_results = 3
+settings_min_score = 0.74
 
 # "GPU" (the Intel GPU) with "f16" is fastest here; falls back to CPU/f32 if the GPU is unavailable.
 # Other vendors' GPUs are skipped; an OpenVINO name like "GPU.1" picks a device explicitly.
@@ -312,6 +320,7 @@ def connect():
         CREATE INDEX IF NOT EXISTS chunks_hash ON chunks(hash);
         CREATE TABLE IF NOT EXISTS names(path TEXT PRIMARY KEY, vec BLOB);
         CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
+        CREATE TABLE IF NOT EXISTS settings(hash TEXT PRIMARY KEY, vec BLOB);
     """)
     return db
 
@@ -627,6 +636,107 @@ class Index:
                         if r["path"] not in shown][: max(0, max_results - len(names))]
 
 
+# ---------------------------------------------------------------------------- System Settings options
+
+
+def hidden_kcms():
+    """Pages a KDE restriction hides from System Settings ([KDE Control Module Restrictions] kcm_x=false
+    in kdeglobals; plasma-settings.sh hides KRunner's), so they're left out here too."""
+    try:
+        text = (Path.home() / ".config" / "kdeglobals").read_text()
+    except OSError:
+        return set()
+    hidden, inside = set(), False
+    for line in map(str.strip, text.splitlines()):
+        if line.startswith("["):
+            inside = line == "[KDE Control Module Restrictions]"
+        elif inside and "=" in line:
+            key, value = line.split("=", 1)
+            if value.strip().lower() == "false":
+                hidden.add(key.strip())
+    return hidden
+
+
+def settings_prompt(e):
+    return f"title: {e['text']} | text: {e['where']}" + (f". {e['detail']}" if e["detail"] else "")
+
+
+class Settings:
+    """The labels inside System Settings pages, found by meaning and by their words. Their vectors are
+    kept in the index DB by text, so only new labels are embedded (after a Plasma upgrade)."""
+
+    def __init__(self):
+        self.entries, self.words, self.vecs = [], [], np.zeros((0, DIM), np.float32)
+
+    def load(self, emb, pause=None):
+        try:
+            data = json.loads(SETTINGS_JSON.read_text())
+        except (OSError, ValueError) as e:
+            log(f"no System Settings index: {e}")
+            return
+        hidden = hidden_kcms()
+        entries = [e for e in data["entries"] if e["kcm"] not in hidden
+                   and e["text"].lower() != data["pages"][e["kcm"]]["name"].lower()]  # KRunner finds pages itself
+        texts = [settings_prompt(e) for e in entries]
+        hashes = [hashlib.sha1(t.encode()).hexdigest() for t in texts]
+        db = connect()
+        cached = dict(db.execute("SELECT hash, vec FROM settings").fetchall())
+        missing = [i for i, h in enumerate(hashes) if h not in cached]
+        if missing:
+            vecs = emb.embed([texts[i] for i in missing], pause=pause)
+            rows = [(hashes[i], v.astype(np.float16).tobytes()) for i, v in zip(missing, vecs)]
+            db.executemany("INSERT OR REPLACE INTO settings VALUES (?, ?)", rows)
+            db.commit()
+            cached.update(rows)
+        db.close()
+        words = [(set(re.findall(r"\w+", e["text"].lower())), set(re.findall(r"\w+", e["where"].lower())))
+                 for e in entries]
+        vecs = np.frombuffer(b"".join(cached[h] for h in hashes), dtype=np.float16).reshape(-1, DIM).astype(np.float32)
+        self.entries, self.words, self.vecs = entries, words, vecs  # swapped in whole, for the query thread
+        log(f"{len(entries)} System Settings options ({len(missing)} embedded now)")
+
+    def find(self, query, qvec, max_results=3, min_score=0.74):
+        """Options holding every word of the query (as word starts) first, those in the label itself
+        before those that only match with the page's name, then the closest by meaning."""
+        entries, words, vecs = self.entries, self.words, self.vecs
+        if not entries:
+            return []
+        q = re.findall(r"\w+", query.lower())
+        scores = vecs @ qvec
+
+        def has(ws, w):
+            return any(x.startswith(w) for x in ws)
+
+        hits = []
+        for i, (label, where) in enumerate(words):
+            if q and all(has(label, w) for w in q):
+                hits.append((2.0 + scores[i], i, True))
+            elif q and all(has(label, w) or has(where, w) for w in q) and any(has(label, w) for w in q):
+                hits.append((1.0 + scores[i], i, True))
+        hits.sort(reverse=True)
+        shown = {i for _, i, _ in hits[:max_results]}
+        for i in np.argsort(-scores)[: max_results * 4]:
+            if len(hits) >= max_results * 2 or scores[i] < min_score:
+                break
+            if i not in shown:
+                hits.append((float(scores[i]), int(i), False))
+        results, seen = [], set()
+        for score, i, by_words in hits:
+            e = entries[i]
+            key = (e["kcm"], e["args"], e["text"].lower())
+            if key in seen:
+                continue
+            seen.add(key)
+            results.append(dict(e, score=float(scores[i]), by_words=by_words))
+            if len(results) == max_results:
+                break
+        return results
+
+
+def open_settings(kcm, args, env=None):
+    launch(["systemsettings", kcm] + (["--args", args] if args else []), env)
+
+
 def snippet(text, n=140):
     s = " ".join(text.split())
     return s if len(s) <= n else s[: n - 1].rsplit(" ", 1)[0] + "…"
@@ -696,6 +806,7 @@ def serve():
     index = Index()
     index.refresh(force=True)
     log(f"loaded {len(index.data[0])} chunks, {len(index.names[0])} names")
+    settings = Settings()
     query_pool = ThreadPoolExecutor(max_workers=1)
 
     class Runner(ServiceInterface):
@@ -739,9 +850,11 @@ def serve():
             loop = asyncio.get_running_loop()
 
             def work():  # the index is reloaded by the indexing thread, not here, where it held up typing
-                return index.find(query, emb.embed_query(query), cfg["max_results"], cfg["min_score"])
+                qvec = emb.embed_query(query)
+                return (index.find(query, qvec, cfg["max_results"], cfg["min_score"]),
+                        settings.find(query, qvec, cfg["settings_results"], cfg["settings_min_score"]))
 
-            results = await loop.run_in_executor(query_pool, work)
+            results, options = await loop.run_in_executor(query_pool, work)
             LAST_QUERY[0] = time.monotonic()
             if mine != self.seq:
                 return []
@@ -760,6 +873,17 @@ def serve():
                     "urls": Variant("as", [p.as_uri()]),
                     "category": Variant("s", "Semantic Search"),
                 }])
+            for n, o in enumerate(options):
+                mid = f"setting:{self.seq}:{n}"
+                self.matches[mid] = o
+                # under KRunner's own "System Settings" results; one holding every word of the query ranks
+                # with a page whose name starts with it (70), one found by meaning lower (50)
+                out.append([mid, o["text"], o["icon"], 70 if o["by_words"] else 50,
+                            (0.8 if o["by_words"] else 0.5) + 0.1 * o["score"], {
+                                "subtext": Variant("s", o["where"]),
+                                "category": Variant("s", "System Settings"),
+                                "actions": Variant("as", []),
+                            }])
             return out
 
         @method()
@@ -768,8 +892,16 @@ def serve():
             if not path:
                 log(f"run {action_id or 'open'}: unknown match {match_id!r} ({len(self.matches)} known)")
                 return
-            log(f"run {action_id or 'open'}: {path}")
             env = dict(os.environ, XDG_ACTIVATION_TOKEN=self.token) if self.token else None
+            if isinstance(path, dict):
+                log(f"run setting: {path['where']} › {path['text']}")
+                try:
+                    open_settings(path["kcm"], path["args"], env)
+                except OSError as e:
+                    log(f"run setting failed: {e}")
+                self.token = ""
+                return
+            log(f"run {action_id or 'open'}: {path}")
             try:  # D-Bus would swallow the exception
                 if action_id == "folder":
                     launch(["dolphin", "--select", path], env)
@@ -830,6 +962,10 @@ def serve():
             last[0] = now
             loop.call_soon_threadsafe(indexer.set_progress, -1.0 if share is None else share)
 
+        try:  # before the files, so new options are searchable at once
+            settings.load(reindex_emb, pause=wait_while_searching)
+        except Exception as e:
+            log(f"loading System Settings options failed: {e!r}")
         while True:
             asked = index_now.is_set()  # (a request during a run gets a run of its own afterwards)
             index_now.clear()
@@ -883,6 +1019,15 @@ def main():
         for r in results:
             print(f"{r['score']:.3f}{' name' if r.get('by_name') else '     '}  {pretty(r['path'])}\n"
                   f"             {snippet(r['text'], 160)}")
+    elif cmd == "settings" and len(sys.argv) > 2:
+        cfg = load_config()
+        emb = Embedder(cfg)
+        settings = Settings()
+        settings.load(emb)
+        q = " ".join(sys.argv[2:])
+        for o in settings.find(q, emb.embed_query(q), max_results=10, min_score=0.3):
+            print(f"{o['score']:.3f}{' words' if o['by_words'] else '      '}  {o['text']}\n"
+                  f"              {o['where']}  [{o['kcm']}{' --args ' + o['args'] if o['args'] else ''}]")
     elif cmd == "status":
         db = connect()
         files, chunks = db.execute("SELECT COUNT(*), COALESCE(SUM(chunks), 0) FROM files").fetchone()

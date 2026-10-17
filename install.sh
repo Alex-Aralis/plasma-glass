@@ -82,6 +82,7 @@ if [ "$DO_SEARCH" = 1 ]; then
     "$APP_DIR/venv/bin/pip" install -q --upgrade pip
     "$APP_DIR/venv/bin/pip" install -q -r "$REPO/search/requirements.txt"
     install -m 644 "$REPO/search/embedsearch.py" "$APP_DIR/embedsearch.py"
+    install -m 644 "$REPO/search/settings-index.json" "$APP_DIR/settings-index.json"
 
     if [ "$REEXPORT" = 1 ] || [ ! -f "$APP_DIR/model/embeddinggemma2_text.xml" ]; then
         say "Exporting EmbeddingGemma 2 to OpenVINO (one-time: ~1.5 GB model download + PyTorch)"
