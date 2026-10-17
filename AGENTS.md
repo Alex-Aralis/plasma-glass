@@ -1,9 +1,17 @@
 # plasma-glass: notes for development
 
 Liquid Glass Plasma Styles, semantic KRunner search (EmbeddingGemma 2 on the Intel iGPU via OpenVINO)
-and Portage patches for KRunner, notification popups, milou, KWin (frame pacing, a crash on exit, the dark style's bevel, KRunner's liquid, activation tokens), KSvg (colours after a style switch) and Qt (Wayland client, Qt Quick). Gentoo, Plasma
-6.7.5, KDE Frameworks 6.30, Qt 6.11.2, Wayland. User
-docs are in README.md; this file covers how to work on it.
+and Portage patches for KRunner, notification popups, milou and KWin (the glass's bevel and frost,
+KRunner's liquid, Window Behavior's tabs). Gentoo, Plasma 6.7.5, KDE Frameworks 6.30, Qt 6.11.2,
+Wayland. User docs are in README.md; this file covers how to work on it.
+
+The fixes for KDE and Qt bugs found along the way (KWin's frame pacing, render GPU copy, crash at logout
+and activation tokens; KSvg's colours after a style switch; Qt's resize glitches and 60 fps animations;
+the notification body's cursor; KRunner's background.slice) were split out into kde-fixes on
+2026-10-17 (`~/Projects/kde-fixes`, https://github.com/Alex-Aralis/kde-fixes), one patch per fix, with
+their notes in its AGENTS.md. A fix for a bug stock KDE or Qt has goes there; a change plasma-glass's
+look or search needs stays here. Both repos' patches sit side by side in /etc/portage/patches (they
+change different files), and each repo's check applies the other's installed patches with its own.
 
 ## Layout
 
@@ -13,10 +21,10 @@ docs are in README.md; this file covers how to work on it.
 | `search/settings_index.py` | builds `search/settings-index.json` (System Settings option labels, page, tab) from the installed packages' source tarballs; re-run after a Plasma upgrade |
 | `search/export_model.py` | one-time PyTorch to OpenVINO export with a parity check (run by install.sh in a throwaway venv) |
 | `theme/liquid-glass/generate.py` | draws both styles (`liquid-glass`, `liquid-glass-light`) into `~/.local/share/plasma/desktoptheme/` |
-| `patches/kde-plasma/{plasma-workspace,milou,kwin}/*.patch`, `patches/kde-frameworks/ksvg/*.patch`, `patches/dev-qt/{qtbase,qtdeclarative}/*.patch` | Portage user patches, one per package |
+| `patches/kde-plasma/{plasma-workspace,milou,kwin}/*.patch` | Portage user patches, one per package (`plasma-workspace-tweaks.patch`, `milou-section-headers.patch`, `kwin-liquid-glass.patch`; the KWin one was `kwin-fixes.patch` until 2026-10-17) |
 | `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc), `krunner-shortcut.sh` (KRunner on Meta+Space, or back on Alt+Space), `plasma-glass-tune.qml` (Liquid Glass Tuning: the liquid and the dark glass, live) |
-| `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` and `qt` build test copies, `kwin` compiles the edited KWin files |
-| `tools/check-patches.sh` | patches apply; patched QML loads under qml6 with stubs; patched KRunner, KSvg and Qt C++ syntax-checks |
+| `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` builds a test copy, `kwin` compiles the edited KWin files (with kde-fixes' installed KWin patches in the tree) |
+| `tools/check-patches.sh` | patches apply, alone and with the other user patches installed for the package (kde-fixes'); patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
 | `tools/screenprobe/screen.sh` | probes on the real screens (small, never focused, ask first): `fps` measures Qt Quick frame rate and animation speed per screen, `glass` shows the style's glass over a grey square (screenshot or by eye) |
 | `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh` (`SWITCH`: across a global theme switch), `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`); `record.sh` records KRunner into a video (demos); `fakeinput.c` for pointer input |
 | `desktop/test-notifications.sh` | sample popups (clickable, long and scrolling, image, critical); installed as `plasma-glass-test-notifications` with a "Test Notifications" launcher |
@@ -33,9 +41,12 @@ docs are in README.md; this file covers how to work on it.
   `journalctl --user -u plasma-plasmashell.service` for QML errors. The real popups only appear in
   plasmashell, so the user looks at them; `tools/preview/dialog.sh` only approximates them.
   milou rebuilds in about 2 min, plasma-workspace in about 25 min on the laptop (about 6 min on the
-  main box), qtbase in about 3 min, kwin in about 3½ min and ksvg in about 15 s on the main box. After a
-  Qt or KSvg rebuild, running apps keep the old libraries until they restart (a relogin restarts them
-  all); a new KWin runs from the next login. `tools/patch-dev.sh kwin` compiles the edited KWin files first (20 s the first time).
+  main box) and kwin in about 3½ min on the main box. A new KWin runs from the next login.
+  `tools/patch-dev.sh kwin` compiles the edited KWin files first (20 s the first time). The dev trees
+  hold plasma-glass's changes only: kde-fixes has its own (a git repo per package, its
+  `tools/patch-dev.sh`). Trees set up before 2026-10-17 still hold the fixes in `b/kwin` and
+  `b/plasma-workspace` (Body.qml), and a `refresh` from them would put them back here: `FORCE=1
+  tools/patch-dev.sh setup` first.
 - **KRunner C++/QML without an emerge:** `tools/patch-dev.sh krunner` builds just KRunner from the
   edited tree (about 20 s the first time, then seconds) and refreshes a milou QML overlay. Preview:
   `QML_IMPORT_PATH=~/.cache/plasma-glass/dev/qml KRUNNER=$(tools/patch-dev.sh krunner) tools/preview/krunner.sh /tmp/k.png "q"`.
@@ -59,39 +70,21 @@ docs are in README.md; this file covers how to work on it.
   only redraws what changes, so to see or measure the blur behind KRunner over time, scroll the
   wallpaper: `WALLPAPER_PAN=40` (px/s; with record.sh, since screenshots crop to what changed). A still
   scene made KWin's GPU time read 0.05 ms a frame instead of 2.
-- **Qt without an emerge:** `tools/patch-dev.sh setup qtbase qtdeclarative`, edit under
-  `~/.cache/plasma-glass/dev/b/qtbase/src/plugins/platforms/wayland/` or
-  `.../b/qtdeclarative/src/quick/scenegraph/`, then `tools/patch-dev.sh qt` (about 2 min each the
-  first time, then seconds) builds libQt6WaylandClient with the wayland platform and EGL plugins
-  (from a qtbase tree) and libQt6Quick (qtdeclarative built as a module against the installed
-  qtbase), and prints the environment that loads them into one app:
-  `KRUNNER_ENV="$(tools/patch-dev.sh qt)" tools/preview/unfold.sh`. Each build is configured from
-  the installed package's USE flags like its ebuild, with Gentoo's own patches, and the tool refuses
-  to stage it unless its generated feature headers match the installed ones (one mismatch, AT-SPI
-  on, gave `undefined symbol: QSpiAccessibleBridge` at startup). Only the changed libraries are
-  swapped in, with the build tree's RUNPATH removed so the installed QtCore and QtGui are used. To
-  see which ones a process loaded: `LD_DEBUG=files LD_DEBUG_OUTPUT=/some/prefix` in `KRUNNER_ENV`.
+- **Qt without an emerge:** kde-fixes' `tools/patch-dev.sh qt` builds its patched Qt libraries and
+  prints the environment that loads them into one app: `KRUNNER_ENV="$(~/Projects/kde-fixes/tools/patch-dev.sh
+  qt)" tools/preview/unfold.sh`. Its AGENTS.md has the details.
 - **Resize glitches:** `tools/preview/unfold.sh` captures ~150 fps while KRunner's results unfold
   and fold and prints `top edge misplaced in N` (old frame shifted) and `N distinct text layouts`
   (old frame stretched; 1 = clean). `KRUNNER=`, `KRUNNER_ENV=` and `KWIN_ENV=` pick the build and
-  environment. The stretch comes and goes, so compare several runs. Main box (KWin on NVIDIA),
-  2026-10-12: GPU rendering on NVIDIA 22-29 misplaced, 14-16 layouts (the shifts count as layouts
-  too) with stock Qt Quick, 0 and 1 in 4 of 4 with the qtdeclarative patch; software rendering
-  with stock qtbase 0 misplaced, 1-9 layouts (stretched in 5 of 6 runs), with the qtbase patch 1
-  layout in 10 of 10; Mesa GPU rendering
-  (`__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json`, threaded loop) 1-2
-  misplaced and 5 layouts with stock Qt, 1 layout with the qtbase patch. To see which buffer a
-  glitched frame came from, run with `KRUNNER_ENV=WAYLAND_DEBUG=client` (the log is the preview's
-  `app.log`, times in UTC) and line it up with the frames (`meta.json` has the capture's start
-  time, `t0_wall`).
+  environment. The stretch comes and goes, so compare several runs. To see which buffer a glitched
+  frame came from, run with `KRUNNER_ENV=WAYLAND_DEBUG=client` (the log is the preview's `app.log`,
+  times in UTC) and line it up with the frames (`meta.json` has the capture's start time, `t0_wall`).
+  The glitches it found were Qt's (kde-fixes' AGENTS.md has the measurements).
 - **Frame rates:** the virtual display runs at 60 Hz, so check refresh-rate behaviour on the real
   screens with `tools/screenprobe/screen.sh fps X,Y [X,Y...]` (positions from `kscreen-doctor -o`;
-  `ENV="$(tools/patch-dev.sh qt)"` for a patched Qt, `QSG_RENDER_LOOP=basic` for the GUI-thread
-  loop). Main box with KWin on the iGPU, 2026-10-12: stock Qt Quick 62.5 fps on DP-4 (240 Hz) and
-  DP-1 (165 Hz); with the qtdeclarative patch 235-239 on DP-4, 165 on DP-1, 60 on HDMI-A-1
-  (threaded loop) and 183-194 on DP-4 with the GUI-thread loop; installed, in a full session,
-  219-224 on DP-4. The probe's speed figure reads 1.04 for stock and patched Qt alike, so it's
-  the probe's own error (not chased). Always say before putting windows on the user's screens.
+  `ENV=...` for a patched Qt, `QSG_RENDER_LOOP=basic` for the GUI-thread loop). Qt Quick ran at 60 fps
+  on the faster screens until kde-fixes' qtdeclarative fix; its AGENTS.md has the numbers. Always say
+  before putting windows on the user's screens.
 - **Search:** edit `search/embedsearch.py`, copy it to `~/.local/share/embedsearch/`, then
   `systemctl --user restart embedsearch`. Use `embedsearch search "q"` to test.
 
@@ -134,57 +127,18 @@ docs are in README.md; this file covers how to work on it.
 - **Layer-shell margins only apply on a commit.** layer-shell-qt's `setMargins` just sends
   `set_margin`; `requestUpdate()` doesn't render an unchanged scene, so nothing commits. Use
   `QQuickWindow::update()`.
-- **Qt Quick's GUI-thread render loop drew the frame after a resize at the old size** (fixed by
-  `qtdeclarative-quick.patch`): `QSGGuiThreadRenderLoop::renderWindow` took the surface size before
-  `polishItems()`, but a window sized to its content (KRunner, Plasma dialogs) resizes during
-  polish, when layouts compute implicit sizes, and on Wayland the EGL surface takes the new size at
-  once. The old-size frame landed in the new-size buffer bottom-aligned (GL's origin is
-  bottom-left): on each step of KRunner's unfold its old frame showed pushed down by the growth, or
-  up and clipped when shrinking. Qt uses that loop whenever the EGL vendor is NVIDIA on a desktop
-  (`QWaylandEglClientBufferIntegration`, QTBUG-95817; `QSG_INFO=1` prints the loop), so it showed
-  with NVIDIA client rendering only, and looked like a KWin bug: the first commit at each new size
-  carried the shifted content (WAYLAND_DEBUG), so KWin showed what it got. Mesa clients get the
-  threaded loop, which polishes before it takes the size (1-2 glitches remain there: a resize on
-  the GUI thread after the sync). Not egl-wayland: v1 and v2 behaved the same.
-- **Qt Quick's threaded loop also drew an old frame into a new buffer, at high refresh rates** (fixed in
-  `qtbase-wayland.patch`): the main thread polishes the next frame, and resizes the window then
-  (`QWaylandEglWindow::ensureSize`, `wl_egl_window_resize`), while the render thread is still drawing
-  the previous one; Mesa allocates that frame's buffer lazily, so it could get the new size and the
-  frame showed pushed down for one frame. The user saw it typing "fff" then Backspace while KRunner
-  was still unfolding, on the 240 Hz screen; at 60 Hz it hardly happens. Now a resize that comes
-  while a frame is in flight (between `QWaylandGLContext::beginFrame` and `endFrame`) waits for that
-  frame's swap. Reproduce with `REFRESH=240000` (the preview KWin gets a 240 Hz custom mode through
-  kscreen-doctor), `KWIN_ENV`/`KRUNNER_ENV` pointing EGL at Mesa, and `KEYS="33 33 33 14"` (typed
-  with fakeinput) in `unfold.sh`: installed Qt 7 shifted frames in 4 of 10 runs, the fix 0 in 10.
-  Installed on the main box 2026-10-12.
-  Left over: forcing `QSG_RENDER_LOOP=basic` on Mesa gives one frame shifted up about 6 px in most
-  such runs (the buffer was allocated before polish resized the window); stock and patched alike,
-  and no real setup uses that pairing (Mesa gets the threaded loop, NVIDIA the GUI-thread one).
-- **Qt Quick animated at 60 fps on faster screens** (fixed by `qtdeclarative-quick.patch` too). The
-  threaded loop's animation driver steps one frame of the *primary screen* per frame, and Qt's
-  primary on Wayland is simply the first output (HDMI-A-1, 60 Hz; QtWayland ignores KDE's output
-  order). On DP-4 frames came every 4-5 ms, "less than half" the expected 16.7, so Qt decided vsync
-  was broken and animated from a 16 ms timer (`QSG_INFO=1`: "determined to have broken vsync
-  throttling"). The GUI-thread loop (NVIDIA clients) uses QtCore's animation timer, 16 ms by
-  default. The patch makes each window track its screen's refresh rate: the threaded loop's driver
-  and fallback timer follow the fastest screen with an exposed window, its render-thread animator
-  drivers their window's screen, and the GUI-thread loop sets QtCore's timer interval the same way
-  (back to the defaults when nothing is shown). `QSG_USE_SIMPLE_ANIMATION_DRIVER=1` was the stopgap.
-- **CPU rendering (`QT_QUICK_BACKEND=software`) avoided that but stretched the old frame** in 3 of 4
-  runs (text flicker), until the qtbase patch (below); also setting
-  `QT_WAYLAND_DISABLED_INTERFACES=wp_viewporter,wp_fractional_scale_manager_v1` was clean (fractional
-  scales would render at the next whole scale). install.sh puts these in a `plasma-krunner.service`
-  drop-in when KWin's GL vendor is NVIDIA and the Qt patches aren't installed (software only once the
-  qtbase one is; none with both). Check animations by text positions too, not just edges: a stretch
-  keeps the top edge in place. Found by capturing frames from the preview KWin at ~150 fps: start it
-  with `KWIN_SCREENSHOT_NO_PERMISSION_CHECKS=1` and call `org.kde.KWin.ScreenShot2.CaptureActiveScreen`
-  in a loop (dbus-fast: the `h` argument is the index into `unix_fds`; raw BGRA, format 6).
+- **Resizing glitches, 60 fps animations and frame pacing were Qt's and KWin's bugs**, not KRunner's:
+  Qt Quick drew the frame after a resize at the old size (NVIDIA's GUI-thread loop; Mesa's threaded loop
+  at high refresh rates), Qt sent the viewport size before the buffer drawn for it, Qt Quick animated at
+  the primary screen's rate, and KWin held frame callbacks until it slept and copied the iGPU screens'
+  frames through the CPU. All fixed in kde-fixes, whose AGENTS.md has how each was found and measured.
+  When something looks like KRunner jumping or stuttering, measure it there before blaming the QML.
 - **KRunner's busy feedback and its momentum are a simulated liquid** (2026-10-16, the user: "right now
   the 'waves' are just some animations. is it possible to make the waves more simulation based instead of
   animation based? it would be much less jank that way", then "we don't need to keep the 'knock' idea. it
   could be more of a 'push' on the edge over time, or another perturbation somewhere of the fluid directly
   in a region", and "the effect on move would be better as a 'sloshing' cause by momentum rather than a
-  reuse of the thinking pulse"). KWin runs it (`kwin-fixes.patch`: `runLiquid()` in blur.cpp,
+  reuse of the thinking pulse"). KWin runs it (`kwin-liquid-glass.patch`: `runLiquid()` in blur.cpp,
   `shaders/fluid.frag`, `shaders/surface.frag`) in each Liquid Glass window whose process asked for it with
   `org.kde.KWin.LiquidGlass.Stir(busy, side, at)` (matched by the caller's PID and kept per process, since
   KRunner's window is a new one each time it opens). It's linear shallow water on a staggered grid (a texel
@@ -255,53 +209,10 @@ docs are in README.md; this file covers how to work on it.
   a move about 5 ms (300 ms/s at 60 Hz) against one or two knocks' 3.4, since the waves take the bevel
   pass's per-pixel path over all of the glass. `KRUNNER_BUSY_DEMO=1` keeps KRunner busy, to look at it
   (also in `tools/preview/krunner.sh`, and `tools/preview/record.sh` records it).
-- **KWin sent clients their messages only when its event loop was about to sleep** (`Display::flush`
-  on `aboutToBlock`), so a frame callback queued at the end of one screen's composite also waited for
-  any composite due next on another screen. On the main box that was long: with KWin on the NVIDIA card,
-  every frame for the iGPU's screens was copied there through the CPU (`EglGbmLayerSurface::importWithCpu`,
-  a whole-frame `glReadnPixels` on the main thread; "chose cpu import" in the journal with
-  `QT_LOGGING_RULES=kwin_wayland_drm.debug=true` on KWin's unit), 2.6 ms per DP-1 frame. KRunner's
-  ripple on DP-4 got its callbacks that much later, and 20.6% of its frames missed DP-4's next composite
-  while DP-1 animated (1.6% with DP-1 idle). `kwin-fixes.patch` flushes clients at the end of each
-  composite (4.0% then), and lets the render GPU make those copies when the display GPU can't (a
-  `RenderGpuCopy` import mode, tried after the display GPU's copy and before the CPU's; "chose render gpu
-  copy" in the journal, `KWIN_DRM_NO_RENDER_GPU_COPY=1` turns it off). KWin's Vulkan copy
-  (`MultiGpuSwapchain::copyWithVulkan`: changed areas only, fences, no CPU wait) only ever ran on the
-  screen's own GPU, and the iGPU can't read NVIDIA's buffers. NVIDIA's OpenGL (driver 615) takes linear
-  dma-bufs as "external only" (sampling, no framebuffer), but its Vulkan imports a linear buffer the
-  iGPU allocated and writes into it: a test program on KWin's exact path (an NVIDIA-tiled source,
-  KWin's barriers and blit, the render's sync fd imported as a semaphore) got 60 of 60 copies right,
-  3.7 ms of GPU time per 2560x1440 frame. The card doesn't snoop the CPU cache, though: the kernel
-  zeroes a new buffer's pages through it, the card's writes went around those lines, and once those
-  were written back (at the latest when i915 flushes the buffer to show it) the zeros covered the copy.
-  The cursor on DP-1 then showed with horizontal strips missing, all of it with the machine idle (the
-  cache kept the lines), and right again after a shape change (a copy into an older buffer). So new
-  copy targets are clflushed through their dma-buf before the card writes (`flushCpuCache` in
-  vulkan_swapchain.cpp); i915's set-domain and set-caching ioctls don't flush them on this LLC
-  platform. Off screen: allocate the iGPU buffer after creating the NVIDIA Vulkan device and read it
-  back through a write-combined mapping, and nearly every row is lost; allocated before (the device
-  setup evicts the lines), or flushed, none. Measured 2026-10-13 with DP-1 animating: KRunner 236.5 fps
-  with 1.0% late (228 and 10% before), 0.8% missed, a new DP-4 frame at every refresh; with DP-1 and
-  HDMI-A-1 both animating, DP-4 went from 1.4-8.7% of refreshes without a frame to 0.0-0.1%. To
-  measure: `KWIN_LOG_PERFORMANCE_DATA=1` on KWin's unit makes it write `~/kwin perf statistics
-  <output>.csv` per screen (truncated when KWin starts), on the monotonic clock of the clients' frame
-  callbacks, so a client's `WAYLAND_DEBUG` log lines up with KWin's frames.
-- **KWin crashed at every logout and shutdown** (SIGSEGV, 47 core dumps by 2026-10-13, preview KWins
-  included), in a QML script's `Component.onDestruction`: Remember Window Positions 7.0.0 (rxappdev, in
-  `~/.local/share/kwin/scripts`) saves the stacking order there. `Workspace::~Workspace()` resets
-  `_self` and only then deletes its children, Scripting among them, whose QML engine destroys the
-  scripts' objects; the script's `Workspace.stackingOrder` then went to `workspace()->stackingOrder()`
-  on a null `workspace()` (`WorkspaceWrapper::stackingOrder`, workspace_wrapper.cpp:340). So the
-  script's final save never ran either. `kwin-fixes.patch` unloads the scripts at the top of
-  `~Workspace()` (`Scripting::unloadScripts()`), while the workspace still works; Scripting itself
-  still goes last, since the window switcher, the outline, the OSD and effects share its QML engine.
-  Reproduce without logging out: a virtual KWin (`--virtual`, its own socket, private bus and
-  `XDG_CONFIG_HOME` with a copy of kwinrc, `~/.local/share` in `XDG_DATA_DIRS` for the script) under
-  gdb, two qml6 windows opened and closed, then SIGTERM, as at logout. Stock, it crashed every time;
-  fixed, it exits with 15 and the script logs its final save (`debugLogs=true` in its kwinrc group).
-  KWin's cores are root-only (kwin_wayland has a file capability), so use a debug build of the dev
-  tree (`ninja -C ~/.cache/plasma-glass/dev/kwin/build kwin_wayland`, RelWithDebInfo) for symbols.
-- **The dark Liquid Glass bevel is drawn by KWin's blur** (`kwin-fixes.patch`: the bevel pass in
+- **KWin crashed at every logout** (Remember Window Positions' final save from a workspace already
+  gone) until kde-fixes' `kwin-unload-scripts-before-workspace.patch`; preview KWins crashed the same way
+  at their end.
+- **The dark Liquid Glass bevel is drawn by KWin's blur** (`kwin-liquid-glass.patch`: the bevel pass in
   `plugins/blur/blur.cpp`, `shaders/onscreen_bevel.frag`), since only KWin has what's behind the glass;
   KRunner's shaders only see its own content. The glass is the blur region's bounding box, with a 26 px
   radius (generate.py R) at each corner the frame's mask leaves out of the region; a shape with no
@@ -567,38 +478,17 @@ docs are in README.md; this file covers how to work on it.
   (`env -i` with scratch `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CONFIG_DIRS=<scratch>/kdedefaults`,
   `QT_QPA_PLATFORM=offscreen`, `dbus-run-session`): both listed, each applies style, colours, icons and
   package, and an explicit `plasmarc` entry gives way.
-- **Liquid Glass Light came out dark after a switch from dark** (2026-10-16, the user: "a very dark tint
-  that wasn't there before ... didn't seem like any of the settings knobs effected it"). Only in a KRunner
-  that ran through the switch; a fresh one was fine. The dark style has no `colors` file, so each
-  `FrameSvgItem`/`SvgItem` puts the Kirigami theme's colours on its Svg as overrides. On the switch each
-  Svg re-renders on `ImageSet::imageSetChanged` (its own connection comes first) before its item's handler
-  drops them (the light style has its own colours). `ImageSetPrivate::svgStyleSheet` skipped its cache for
-  Svgs with overrides but still stored their stylesheet as the one for every Svg of that colour set, so
-  KRunner's light frame (Light's 62% fill) came out in Breeze Dark's #202326. `ksvg-stylesheet-cache.patch`
-  stores only stylesheets without overrides; KSvg's master still has the bug (2026-10). Reproduce with
-  `SWITCH="plasma-glass.liquid-glass plasma-glass.liquid-glass-light" tools/preview/krunner.sh OUT.png "a"`
-  (`OUT-before.png`, then `OUT.png`). Ruled out on the way: the frame does switch SVGs (PlasmaWindow's
-  DialogBackground re-resolves its own; re-setting KRunner's background hints changed nothing), KWin's
-  glass follows plasmarc, the contrast effect, and the `plasma_theme_*.kcache` a process maps (after a
-  switch it keeps the old style's file, cleared, and caches the new style's renders in it). To see what an
-  app draws without KWin's blur, grab its window in the app (`QQuickWindow::grabWindow()`). To trace
-  KSvg, build it from `$DISTDIR/ksvg-*.tar.xz` with qWarning()s and run the app with
-  `LD_LIBRARY_PATH=<build>/bin QML_IMPORT_PATH=<build>/bin` (its QML plugin is built there too).
-- **KRunner ran in background.slice** (2026-10-16, the user: the dropdown "at about 20fps" on the laptop,
-  worse in power-saver, with "a 300ms lag after first key press"). Plasma's `plasma-krunner.service` has
-  `Slice=background.slice`, CPU weight 30 against app.slice's 100, and Claude Desktop ran at nice -8 beside
-  Firefox playing media; in power-saver (CPUs near 1 GHz) KRunner lost the CPU exactly while drawing. The
-  preview never showed it (no load there): KRunner's frames were even there in power-saver, and its rows
-  cost the same with the morning's milou, the day's, and `reuseItems` (150 ms of polish over a typed
-  query), so the timer change and the row changes weren't it. Measured in the real session with a
-  temporary drop-in (`Environment=QSG_RENDER_TIMING=1 "QT_MESSAGE_PATTERN=%{time boot} %{message}"`,
-  the user typing three queries): before, 34 fps, 40 gaps over 50 ms, polish up to 112 ms, swaps up to
-  44 ms; with install.sh's `plasma-glass-priority.conf` drop-in (`Slice=session.slice`, and `Nice=-5`
-  where `ulimit -e` allows it, or Nice= fails the service), 50 fps, 9 gaps, polish up to 50 ms, no swap
-  over 20 ms. `perf` is on the laptop now (`dev-util/perf -gtk` in package.use); a system-wide record
-  (`perf record -a -F 199`) is what showed KRunner at 0.8% of the CPU beside the apps. Profiling the
-  preview at 150 fps capture (unfold.sh) misleads here: the capture itself is the biggest load, and its
-  stalls were its own.
+- **Liquid Glass Light came out dark after a switch from dark** (2026-10-16): a KSvg bug, its
+  stylesheet cache, fixed in kde-fixes (`ksvg-stylesheet-cache.patch`, notes in its AGENTS.md).
+  `SWITCH="FROM TO" tools/preview/krunner.sh OUT.png "q"` switches global themes mid-run to reproduce
+  such things (`OUT-before.png`, then `OUT.png`). To see what an app draws without KWin's blur, grab its
+  window in the app (`QQuickWindow::grabWindow()`).
+- **KRunner ran in background.slice** (2026-10-16, the dropdown at about 20 fps on the laptop in
+  power-saver): Plasma's `plasma-krunner.service` puts it at a third of the apps' CPU weight. kde-fixes'
+  install-user.sh moves it to session.slice (it was plasma-glass's `plasma-glass-priority.conf` drop-in
+  until 2026-10-17). The preview never shows such things (no load there), and profiling the preview at
+  150 fps capture (unfold.sh) misleads: the capture itself is the biggest load, and its stalls were its
+  own. The laptop's own `plasma-glassrc` is heavy: `[Glass] frost=15`, `bevelWidth=60`.
 - **The dropdown's momentum waves restarted and rode down the glass** (2026-10-16, the user: "the wave
   animation seems to be somehow restarting every frame", then "the wave is translating down the element
   as the window opens"). Counted with `dbus-monitor --session "type=method_call,member=Knock"` in the real
@@ -634,26 +524,9 @@ docs are in README.md; this file covers how to work on it.
   be recorded that way).
   `tools/preview/krunner.sh` takes `HOLD` (s before HOVER_INPUT and the screenshot, default 8), used to
   script open/close cycles over the preview's bus as a `KRUNNER` wrapper.
-- **A System Settings result in KRunner only made the open System Settings demand attention** (2026-10-17,
-  laptop): it didn't come to the front. KRunner got a real token (D-Bus: `XDG_ACTIVATION_TOKEN=kwin-302` in
-  the launch's StartTransientUnit) and System Settings activated with it, yet `mayActivate` said no. The
-  preview never showed it; the real session did, with read-only uprobes on the installed libkwin (stripped
-  of `.symtab`, so tracefs probes at `.dynsym` addresses; text vaddr == file offset; struct offsets read
-  from the disassembly of `mayActivate`, `setActivationToken` and `setDesktopFileName`; QString's UTF-16
-  read as `x16[N]` arrays). The trace: Enter (serial 45611), KRunner asks for `kwin-302` with serial 45611
-  for `systemsettings`; KRunner hides, KWin activates the window before it, the Claude desktop app; 5 ms
-  later that app (Electron) asks for `kwin-303` for its own surface with its old serial 45597, granted
-  because it's the active window, and `Workspace::setActivationToken` keeps only the last token, so
-  `kwin-302` is gone; 70 ms later System Settings activates with `kwin-302`: not the stored token, and
-  the app-id fallback fails too (stored app id "", serial 45597 < 45611), so `demandAttention`. Any window
-  that asks for a token as it gets the focus back does this, which is why the preview (no such window)
-  never failed. `kwin-fixes.patch` (`XdgActivationV1Integration::requestToken`) only stores a token whose
-  serial isn't older than `lastInteractionSerial()`: one that is can never pass `mayActivate` (that
-  serial only grows), so nothing is lost. Privileged tokens (plasmashell, kglobalaccel) take
-  `lastInteractionSerial()` as their serial and are always stored. One root script added the probes,
-  waited for the reproduction, saved the trace and removed every probe on exit; `activateWindow` itself
-  calls `demandAttention(false)`, so a stop condition has to look for `set=1`. KRunner's own window has an
-  empty desktopFileName.
+- **A System Settings result in KRunner only made the open System Settings demand attention**
+  (2026-10-17): KWin's activation tokens, fixed in kde-fixes (`kwin-activation-token-serial.patch`). The
+  preview never showed it (no other window there asks for a token as it gets the focus back).
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and
   transformers 5.19 or later. Installing `sentence-transformers[image,audio]` downgraded
   transformers once.
@@ -666,15 +539,6 @@ docs are in README.md; this file covers how to work on it.
   spawned process unless `~/intel/openvino_telemetry` contains `0` (install.sh writes it).
 - **KRunner sends Teardown before Run** when a result is clicked (it ends the session as the
   window hides), so a D-Bus runner must keep its matches until the next session's Match.
-- **Qt sent the `wp_viewporter` destination as soon as a window resized** (`setGeometry_helper`),
-  but it only applies with a commit, and the next commit can still carry the old buffer (a frame
-  rendered before the resize) or none at all (an ack or a blur-region update), so the compositor
-  stretched the old frame to the new size. `qtbase-wayland.patch` sends it with each buffer instead:
-  from the buffer's size in `attach()` (shm), and in `QWaylandGLContext::swapBuffers` from
-  `eglQuerySurface(EGL_WIDTH/HEIGHT)` (the driver applies `wl_egl_window_resize` between frames, so
-  that size can lag the geometry; Mesa, egl-wayland and egl-wayland2 all report the back buffer's
-  size). Vulkan windows still send it on resize (the driver presents). Qt only creates a viewport
-  when the compositor has fractional scaling, which KWin does.
 - **Global shortcuts belong to kglobalaccel while a session runs** (inside KWin since Plasma 6, no
   D-Bus activation): it rewrites `kglobalshortcutsrc` from memory, so set keys over D-Bus
   (`setForeignShortcut`, Qt key codes) and only edit the file when it isn't on the bus.
@@ -723,8 +587,8 @@ docs are in README.md; this file covers how to work on it.
   edges). It was gone with blur unloaded, on the iGPU monitors, and everywhere once KWin composited
   on NVIDIA, so it only hits iGPU-rendered frames shown on the NVIDIA card. The preview can't
   reproduce it (one GPU). The 2080 Ti's link runs at PCIe 3.0 x8 (it can do x16), which bounds any
-  copy between the GPUs at about 7 GB/s. Both Qt patches are installed here (2026-10-12), so KRunner
-  renders on the GPU with no drop-in. KWin got no real-time priority until 2026-10-13 ("Failed to gain
+  copy between the GPUs at about 7 GB/s. kde-fixes' Qt fixes are installed here (since 2026-10-12, as
+  plasma-glass's Qt patches then), so KRunner renders on the GPU with no drop-in. KWin got no real-time priority until 2026-10-13 ("Failed to gain
   real time thread priority" at every start, all threads SCHED_OTHER, though `kwin_wayland` has
   `cap_sys_nice=ep`): the kernel (gentoo-dist) has `CONFIG_RT_GROUP_SCHED=y`, which refuses SCHED_RR to
   tasks outside the root cgroup until their group gets RT runtime, and cgroup v2 can't give it. GRUB
@@ -749,28 +613,12 @@ docs are in README.md; this file covers how to work on it.
   relogin fixed it. The user saw the same during earlier desktop dev, so suspect the preview
   sessions (virtual KWin, private bus). Cause unknown; if it recurs, check whether
   `globalShortcutPressed` signals reach `/component/kwin` (dbus-monitor) before relogging.
-- **Root-cause fixes for the resize glitches (the KRunner drop-in is the workaround until they're installed):**
-  1. Qt (stretch): fixed by `patches/dev-qt/qtbase/qtbase-wayland.patch` (see the rules above),
-     measured clean on the virtual display (software, Mesa GL, scale 1 and 1.25). Qt's dev branch
-     still sends the destination early (checked 2026-10-12); no upstream report found. Once the
-     patched qtbase is installed (emerged 2026-10-12), install.sh drops the viewporter part of
-     KRunner's drop-in.
-  2. NVIDIA offset: Qt Quick, not KWin; fixed by `patches/dev-qt/qtdeclarative/qtdeclarative-quick.patch`
-     (see the rules above), measured clean on the virtual display. Installed 2026-10-12 (qtdeclarative
-     emerge about 10 min); install.sh then removed KRunner's drop-in, and the installed Qt measured
-     0 misplaced and 1 layout in 3 of 3 with GPU rendering. Upstream qtdeclarative still takes
-     the size before polishing (6.11.2; check dev before reporting). The KWin bug report draft for
-     this was wrong (KWin showed what it got); the user was told not to file it.
-  3. Cross-GPU blur darkening: not reproducible on 2026-10-12 after a reboot, with KWin back on the
-     iGPU: a probe (now `tools/screenprobe/screen.sh glass`: a 190 grey square with an empty
-     `PlasmaCore.Window` on it, the style's glass and blur, placed by a KWin script) measured the glass at
-     129 (dark) and 225 (light) on DP-4 and DP-1 alike, the same as with KWin on NVIDIA, and the
-     user saw no darker glass or corner fringe on DP-4. It was first seen in a KWin session up since
-     10-09 (relogged 10-12 18:27), so it may build up over a long session or follow a monitor
-     event (DPMS, hotplug), or it depended on something changed since (the style's corner glow was
-     redrawn during that investigation). Screenshots are re-rendered by KWin, so a darkening in the
-     copy to the NVIDIA card would only show to the eye. A KWin bug report draft was written for the
-     user earlier (not filed; kept outside the repo); don't file it unless this comes back. KWin
-     composites on the NVIDIA card again since 2026-10-13, so this watch has ended.
+- **Cross-GPU blur darkening** (main box, 2026-10-12): with KWin on the iGPU, its blur darkened what's
+  behind a window on DP-4 (the NVIDIA card's screen); not reproducible after a reboot, and KWin
+  composites on the NVIDIA card since 2026-10-13, so the watch has ended. `tools/screenprobe/screen.sh
+  glass` (a 190 grey square with an empty `PlasmaCore.Window` on it, the style's glass and blur, placed
+  by a KWin script) measured the glass at 129 (dark) and 225 (light) on DP-4 and DP-1 alike. A KWin bug
+  report draft was written (not filed; kept outside the repo); don't file it unless this comes back. The
+  resize glitches' root causes, once open items here, were Qt's and are fixed in kde-fixes.
 - **Remember password:** the laptop's ksshaskpass passphrase wasn't saved to KWallet yet (tick it
   at login).

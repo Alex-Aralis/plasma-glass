@@ -10,40 +10,30 @@
 #                                print its path; also puts the edited milou QML in ~/.cache/plasma-glass/dev/qml.
 #                                Preview with: QML_IMPORT_PATH=~/.cache/plasma-glass/dev/qml \
 #                                    KRUNNER=$(tools/patch-dev.sh krunner) tools/preview/krunner.sh OUT.png
-#   tools/patch-dev.sh qt        build the patched Qt libraries from the edited trees that are set up, each
-#                                configured like its installed package: from qtbase, Qt's Wayland client
-#                                (libQt6WaylandClient, the wayland platform plugin and its EGL plugin); from
-#                                qtdeclarative, libQt6Quick. A few minutes the first time, then seconds.
-#                                Prints the environment that runs an app on them instead of the installed ones:
-#                                    KRUNNER_ENV="$(tools/patch-dev.sh qt)" tools/preview/unfold.sh
 #   tools/patch-dev.sh kwin      compile the edited KWin files in a KWin tree configured like its ebuild, with
-#                                Gentoo's patchset, to check them before the emerge (a few minutes the first
-#                                time, then seconds). The patched KWin only runs after the emerge and a relogin.
+#                                Gentoo's patchset and the other user patches in /etc/portage/patches
+#                                (kde-fixes'), to check them before the emerge (a few minutes the first time,
+#                                then seconds). The patched KWin only runs after the emerge and a relogin.
 #   tools/patch-dev.sh install [PKG...]  (root) put the patches in /etc/portage/patches and rebuild the
 #                                packages whose patch changed or that weren't rebuilt since (or the PKGs named)
 #
-# Packages: plasma-workspace, milou, kwin (kde-plasma), ksvg (kde-frameworks), qtbase and qtdeclarative (dev-qt). Each has a single patch file; setup
-# extracts whole directories (DIRS below), so any file in them can be edited and refresh picks it up. To
-# touch another directory, add it to DIRS and re-run setup.
+# Packages: plasma-workspace, milou and kwin (kde-plasma). Each has a single patch file; setup extracts
+# whole directories (DIRS below), so any file in them can be edited and refresh picks it up. To touch
+# another directory, add it to DIRS and re-run setup. The fixes for KDE and Qt bugs that aren't
+# plasma-glass's own (KSvg, Qt, KWin's frame pacing and crash fixes) are in kde-fixes
+# (~/Projects/kde-fixes), whose tools/patch-dev.sh also builds patched Qt libraries for the preview.
 set -eu
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 DEV="${XDG_CACHE_HOME:-$HOME/.cache}/plasma-glass/dev"
 DISTDIR=$(portageq envvar DISTDIR 2>/dev/null || echo /var/cache/distfiles)
-PKGS="plasma-workspace milou kwin ksvg qtbase qtdeclarative"
-CAT_plasma_workspace=kde-plasma CAT_milou=kde-plasma CAT_kwin=kde-plasma CAT_ksvg=kde-frameworks CAT_qtbase=dev-qt CAT_qtdeclarative=dev-qt
+PKGS="plasma-workspace milou kwin"
+CAT_plasma_workspace=kde-plasma CAT_milou=kde-plasma CAT_kwin=kde-plasma
 DIRS_plasma_workspace="krunner applets/notifications"
 DIRS_milou="lib"
 DIRS_kwin="src"
-DIRS_ksvg="src/ksvg"
-DIRS_qtbase="src/plugins/platforms/wayland"
-DIRS_qtdeclarative="src/quick/scenegraph"
 PATCH_plasma_workspace=plasma-workspace-tweaks.patch
 PATCH_milou=milou-section-headers.patch
-PATCH_kwin=kwin-fixes.patch
-PATCH_ksvg=ksvg-stylesheet-cache.patch
-PATCH_qtbase=qtbase-wayland.patch
-PATCH_qtdeclarative=qtdeclarative-quick.patch
-RUN="$DEV/qt-run"  # the libraries `qt` builds, where its environment points
+PATCH_kwin=kwin-liquid-glass.patch
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 var() { eval "echo \"\$${1}_$(echo "$2" | tr - _)\""; }
@@ -53,7 +43,7 @@ version() {
     cat=$(var CAT "$1")
     portageq best_version / "$cat/$1" 2>/dev/null | sed -E "s|^$cat/$1-||; s|-r[0-9]+$||"
 }
-srcdir() { case "$(var CAT "$1")" in dev-qt) echo "$1-everywhere-src-$2" ;; *) echo "$1-$2" ;; esac; }  # tarball's top dir
+srcdir() { echo "$1-$2"; }  # tarball's top dir
 patchfile() { echo "$REPO/patches/$(var CAT "$1")/$1/$(var PATCH "$1")"; }
 
 setup() {
@@ -119,112 +109,10 @@ build_krunner() {
     echo "$bld/bin/krunner"
 }
 
-# The Qt builds below stand in for installed libraries, which only works if every feature matches, so
-# each build's generated feature headers are compared with the installed ones.
-use_of() { echo " $(cat /var/db/pkg/dev-qt/"$1"-"$(version "$1")"*/USE) "; }
-f() { flag=$1; shift; for feat; do case "$use" in *" $flag "*) echo "-DQT_FEATURE_$feat=ON" ;; *) echo "-DQT_FEATURE_$feat=OFF" ;; esac; done; }
-check_features() {  # check_features BUILD_DIR HEADER... (paths under BUILD_DIR/src)
-    inc=$(qtpaths6 --query QT_INSTALL_HEADERS 2>/dev/null || echo /usr/include/qt6) b=$1
-    shift
-    for h; do
-        grep '#define' "$(find "$inc" -name "${h##*/}" | head -1)" | sort > "$b/installed.h"
-        grep '#define' "$b/src/$h" | sort > "$b/built.h"
-        cmp -s "$b/installed.h" "$b/built.h" || { diff "$b/installed.h" "$b/built.h" >&2; die "${h##*/} differs from the installed Qt's"; }
-    done
-}
-stage() {  # stage FILE DIR [NAME]: copy into the run dir, without the build tree's runpath (it would load
-           # the build's own QtCore and QtGui next to the installed ones)
-    mkdir -p "$RUN/$2" && cp "$1" "$RUN/$2/${3:-$(basename "$1")}" && patchelf --remove-rpath "$RUN/$2/${3:-$(basename "$1")}"
-}
-# fresh_tree PKG DIR: the package's source with Gentoo's own patches (the ebuild's PATCHES) and the edited dirs
-fresh_tree() {
-    rm -rf "${2:?}" && mkdir -p "$2/src"
-    tar -xJf "$DISTDIR/$(srcdir "$1" "$ver").tar.xz" -C "$2/src" --strip-components=1
-    files="$(portageq get_repo_path / gentoo)/dev-qt/$1/files"
-    for p in $(sed -n '/^PATCHES=(/,/^)/p' /var/db/pkg/dev-qt/"$1"-"$ver"*/"$1"-*.ebuild \
-               | sed -n 's|.*"\${FILESDIR}"/\${PN}\(-.*\.patch\).*|\1|p'); do
-        patch -s -p1 -d "$2/src" < "$files/$1$p" || die "Gentoo's $1$p does not apply"
-    done
-    cp -a "$DEV/b/$1/." "$2/src/"
-}
-
-# Qt's Wayland client alone, from a full qtbase tree, configured from the installed qtbase's USE flags
-# the way its ebuild does.
-build_qtbase() {
-    ver=$(version qtbase) q="$DEV/qt"
-    src="$q/src" bld="$q/build"
-    if [ "$(cat "$q/version" 2>/dev/null)" != "$ver" ]; then
-        fresh_tree qtbase "$q"
-        use=$(use_of qtbase)
-        gl=no; case "$use" in *" opengl "*) case "$use" in *" gles2-only "*) gl=es2 ;; *) gl=desktop ;; esac ;; esac
-        # shellcheck disable=SC2046
-        cmake -S "$src" -B "$bld" -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DINSTALL_LIBDIR=lib64 \
-            -DINSTALL_PLUGINSDIR=lib64/qt6/plugins -DBUILD_WITH_PCH=OFF -DQT_UNITY_BUILD=ON \
-            -DQT_FEATURE_force_system_libs=ON -DQT_FEATURE_relocatable=OFF -DQT_FEATURE_jemalloc=OFF \
-            -DQT_FEATURE_androiddeployqt=OFF -DQT_FEATURE_testlib=ON -DQT_FEATURE_glibc_fortify_source=OFF \
-            -DQT_FEATURE_intelcet=OFF -DQT_FEATURE_libcpp_hardening=OFF -DQT_FEATURE_libstdcpp_assertions=OFF \
-            -DQT_FEATURE_relro_now_linker=OFF -DQT_FEATURE_stack_clash_protection=OFF -DQT_FEATURE_stack_protector=OFF \
-            -DQT_FEATURE_trivial_auto_var_init_pattern=OFF -DQT_INTERNAL_AVOID_OVERRIDING_SYNCQT_CONFIG=ON \
-            -DQT_FEATURE_sql_db2=OFF -DQT_FEATURE_sql_ibase=OFF -DQT_FEATURE_sql_mimer=OFF -DINPUT_opengl=$gl \
-            $(f ssl openssl openssl_linked) $(f udev libudev) $(f zstd zstd) $(f icu icu) $(f io-uring liburing) \
-            $(f journald journald) $(f syslog syslog) $(f concurrent concurrent) $(f dbus dbus) $(f gui gui) \
-            $(f network network) $(f sql sql) $(f xml xml) $(f X xcb system_xcb_xinput xkbcommon_x11) \
-            $(f accessibility accessibility_atspi_bridge) $(f eglfs eglfs) $(f evdev evdev mtdev) \
-            $(f libinput libinput) $(f renderdoc graphicsframecapture) $(f tslib tslib) $(f vulkan vulkan) \
-            $(f wayland wayland) $(f widgets widgets) $(f cups cups) $(f gtk gtk3) $(f brotli brotli) \
-            $(f gssapi gssapi) $(f libproxy libproxy) $(f sctp sctp) $(f mysql sql_mysql) $(f oci8 sql_oci) \
-            $(f odbc sql_odbc) $(f postgres sql_psql) $(f sqlite sql_sqlite system_sqlite) \
-            >"$q/configure.log" 2>&1 || die "cmake failed, see $q/configure.log"
-        echo "$ver" > "$q/version"
-    fi
-    cp -a "$DEV/b/qtbase/." "$src/"
-    ninja -C "$bld" WaylandClient QWaylandIntegrationPlugin QWaylandEglClientBufferPlugin >"$q/build.log" 2>&1 \
-        || { grep -m5 -A3 error "$q/build.log" >&2; die "build failed, see $q/build.log"; }
-    check_features "$bld" corelib/qtcore-config.h corelib/qtcore-config_p.h gui/qtgui-config.h gui/qtgui-config_p.h \
-        plugins/platforms/wayland/qtwaylandclient-config.h plugins/platforms/wayland/qtwaylandclient-config_p.h
-    stage "$bld/lib64/libQt6WaylandClient.so.$ver" lib libQt6WaylandClient.so.6
-    stage "$bld/lib64/qt6/plugins/platforms/libqwayland.so" plugins/platforms
-    stage "$bld/lib64/qt6/plugins/wayland-graphics-integration-client/libqt-plugin-wayland-egl.so" \
-        plugins/wayland-graphics-integration-client
-    echo "QT_QPA_PLATFORM_PLUGIN_PATH=$RUN/plugins/platforms QT_PLUGIN_PATH=$RUN/plugins" > "$RUN/qtbase.env"
-}
-
-# libQt6Quick alone, from qtdeclarative built as a module against the installed qtbase, like its ebuild
-build_qtdeclarative() {
-    ver=$(version qtdeclarative) q="$DEV/qtdeclarative"
-    src="$q/src" bld="$q/build"
-    if [ "$(cat "$q/version" 2>/dev/null)" != "$ver" ]; then
-        fresh_tree qtdeclarative "$q"
-        use=$(use_of qtdeclarative)
-        qmlls=ON; case "$use" in *" qmlls "*) qmlls=OFF ;; esac
-        # shellcheck disable=SC2046
-        cmake -S "$src" -B "$bld" -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_WITH_PCH=OFF -DQT_UNITY_BUILD=ON \
-            -DCMAKE_DISABLE_FIND_PACKAGE_Qt6LanguageServerPrivate=$qmlls \
-            $(f jit qml_jit) $(f network qml_network) $(f ssl qml_ssl) \
-            >"$q/configure.log" 2>&1 || die "cmake failed, see $q/configure.log"
-        echo "$ver" > "$q/version"
-    fi
-    cp -a "$DEV/b/qtdeclarative/." "$src/"
-    ninja -C "$bld" Quick >"$q/build.log" 2>&1 || { grep -m5 -A3 error "$q/build.log" >&2; die "build failed, see $q/build.log"; }
-    check_features "$bld" quick/qtquick-config.h quick/qtquick-config_p.h qml/qtqml-config.h qml/qtqml-config_p.h
-    stage "$bld/lib64/libQt6Quick.so.$ver" lib libQt6Quick.so.6
-}
-
-build_qt() {
-    command -v patchelf >/dev/null || die "needs patchelf (dev-util/patchelf)"
-    rm -rf "${RUN:?}" && mkdir -p "$RUN/lib"
-    built=""
-    for pkg in qtbase qtdeclarative; do
-        [ -d "$DEV/b/$pkg" ] || continue
-        "build_$pkg" && built="$built $pkg"
-    done
-    [ -n "$built" ] || die "nothing to build: tools/patch-dev.sh setup qtbase (or qtdeclarative) first"
-    echo "LD_LIBRARY_PATH=$RUN/lib $(cat "$RUN/qtbase.env" 2>/dev/null)"
-}
-
-# The edited KWin files compiled in the release's tree with Gentoo's patchset (the ebuild's PATCHSET) and
-# its CMakeLists edits, configured from the installed kwin's USE flags. Only files that differ from the
-# release are copied in, so the rest keep Gentoo's patches; files no longer edited go back to those.
+# The edited KWin files compiled in the release's tree with Gentoo's patchset (the ebuild's PATCHSET), its
+# CMakeLists edits and the other user patches Portage applies with ours (kde-fixes'), configured from the
+# installed kwin's USE flags. Only files that differ from the release are copied in, so the rest keep
+# those patches; files no longer edited go back to them.
 build_kwin() {
     [ -d "$DEV/b/kwin" ] || die "run setup kwin first"
     ver=$(version kwin) k="$DEV/kwin"
@@ -238,6 +126,11 @@ build_kwin() {
             tar -xJf "$DISTDIR/$ps.tar.xz" -C "$k" || die "$ps.tar.xz missing (emerge --fetchonly kde-plasma/kwin)"
             for p in "$k/$ps"/*.patch; do patch -s -p1 -d "$src" < "$p" || die "Gentoo's $(basename "$p") does not apply"; done
         fi
+        for p in /etc/portage/patches/kde-plasma/kwin/*.patch; do
+            case "$(basename "$p")" in "$PATCH_kwin"|kwin-fixes.patch) continue ;; esac  # ours, and its old name
+            [ -f "$p" ] || continue
+            patch -s -p1 -d "$src" < "$p" || die "$p does not apply"
+        done
         use=" $(cat /var/db/pkg/kde-plasma/kwin-"$ver"*/USE) "
         for x in gamepad:libevdev screencast:PipeWire systemd:libsystemd; do  # the ebuild's src_prepare
             case "$use" in *" ${x%%:*} "*) ;; *) sed -i "s/^pkg_check_modules.*${x#*:}/#&/" "$src/CMakeLists.txt" ;; esac
@@ -276,6 +169,8 @@ install_patches() {
     for pkg in ${*:-$PKGS}; do
         cat=$(var CAT "$pkg") dest="/etc/portage/patches/$(var CAT "$pkg")/$pkg"
         mkdir -p "$dest"
+        # its name until 2026-10-17, when it also held the fixes now in kde-fixes
+        [ "$pkg" != kwin ] || rm -f "$dest/kwin-fixes.patch"
         cmp -s "$(patchfile "$pkg")" "$dest/$(var PATCH "$pkg")" || install -m 644 "$(patchfile "$pkg")" "$dest/"
         built=$(cat /var/db/pkg/"$cat"/"$pkg"-[0-9]*/BUILD_TIME 2>/dev/null | head -1)
         if [ $# -gt 0 ] || [ "$(stat -c %Y "$dest/$(var PATCH "$pkg")")" -gt "${built:-0}" ]; then
@@ -287,7 +182,6 @@ install_patches() {
     emerge --oneshot --verbose $todo
     echo "As your user: systemctl --user restart plasma-plasmashell.service; kquitapp6 krunner"
     case "$todo" in *kwin*) echo "The new KWin runs from the next login." ;; esac
-    case "$todo" in *qtbase*) echo "Running Qt apps keep the old Qt until they restart (log out and in to restart them all)." ;; esac
 }
 
 case "${1:-}" in
@@ -295,8 +189,8 @@ case "${1:-}" in
     refresh) refresh ;;
     check) exec sh "$REPO/tools/check-patches.sh" ;;
     krunner) build_krunner ;;
-    qt) build_qt ;;
+    qt) die "the Qt patches moved to kde-fixes: ~/Projects/kde-fixes/tools/patch-dev.sh qt" ;;
     kwin) build_kwin ;;
     install) shift; install_patches "$@" ;;
-    *) sed -n '2,27p' "$0"; exit 2 ;;
+    *) sed -n '2,24p' "$0"; exit 2 ;;
 esac

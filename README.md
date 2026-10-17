@@ -38,6 +38,13 @@ sudo ./install-system.sh    # as root: Intel GPU runtime, Portage patches, rebui
 systemctl --user restart plasma-plasmashell.service embedsearch; kquitapp6 krunner
 ```
 
+Install [kde-fixes](https://github.com/Alex-Aralis/kde-fixes) too: fixes for bugs in KWin, Plasma, KSvg
+and Qt that plasma-glass carried until 2026-10-17 (KWin's crash at every logout, frame pacing with several
+screens, apps launched from KRunner that only flashed in the task manager, colours after a Dark Mode
+switch, Qt's resize glitches and 60 fps animations on faster screens, KRunner's low priority). They
+aren't plasma-glass's, so they have a repo of their own; with an older plasma-glass installed, run this
+`install-system.sh` before kde-fixes' `install.sh`.
+
 `install.sh` exports the model once. It builds a temporary PyTorch environment, downloads the model
 (about 1.5 GB), converts it, checks the result against PyTorch and then deletes the PyTorch
 environment. That takes a few minutes. After that, the service only needs OpenVINO (about 300 MB of
@@ -52,9 +59,9 @@ Python packages plus a 540 MB model).
 
 Override with `--runtime=legacy|current|skip`. A discrete NVIDIA GPU is fine: OpenVINO lists it
 as a GPU too (through NVIDIA's OpenCL driver), but the search service picks the Intel one, and falls
-back to the CPU if the GPU can't run the model. Rebuilding plasma-workspace, kwin, qtbase and qtdeclarative
-takes a while (only packages whose patch is new or changed are rebuilt). Use `--no-rebuild` to only install the
-patches and let them land with your next update, or `--no-qt` to leave Qt alone.
+back to the CPU if the GPU can't run the model. Rebuilding plasma-workspace and kwin takes a while (only
+packages whose patch is new or changed are rebuilt). Use `--no-rebuild` to only install the patches and
+let them land with your next update.
 
 Both scripts are safe to re-run. `./install.sh --help` lists options for skipping parts.
 
@@ -104,8 +111,7 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 | `~/.local/bin/plasma-glass-mode`, `~/.local/share/applications/plasma-glass-mode.desktop` | Toggle Dark/Light Mode (below) |
 | `~/.local/share/plasma/look-and-feel/plasma-glass.liquid-glass{,-light}/`, `kdeglobals` `[KDE] DefaultDarkLookAndFeel`, `DefaultLightLookAndFeel` | the Liquid Glass global themes, and KDE's default dark and light ones |
 | `krunnerrc`, `kdeglobals`, `kglobalshortcutsrc` | settings from [`desktop/plasma-settings.sh`](desktop/plasma-settings.sh) |
-| `~/.config/systemd/user/plasma-krunner.service.d/plasma-glass-software-render.conf` | only when KWin composites on an NVIDIA GPU and the Qt patches aren't installed: KRunner renders in software (otherwise a resizing KRunner shows its old frame shifted for a frame, so the results' unfold jumps); without the qtbase patch, Qt also skips viewporter/fractional scaling |
-| `/etc/portage/patches/kde-plasma/{plasma-workspace,milou,kwin}/`, `/etc/portage/patches/dev-qt/{qtbase,qtdeclarative}/` | the patches (root) |
+| `/etc/portage/patches/kde-plasma/{plasma-workspace,milou,kwin}/` | the patches (root): `plasma-workspace-tweaks.patch`, `milou-section-headers.patch`, `kwin-liquid-glass.patch`, beside kde-fixes' |
 
 `plasma-settings.sh` sets a KDE restriction to hide KRunner's settings button. As a side effect,
 that also hides the KRunner page in System Settings. Delete `kcm_krunnersettings` from
@@ -166,7 +172,7 @@ glass's frost, the waves' refraction and diffraction beneath it, the diffraction
 saturation, and an optional bevel. Changes apply as you drag. While the window is open, KRunner's
 liquid is stirred all the time and KRunner stays open when you click elsewhere, so open KRunner
 (Meta+Space) beside it and tune. Each row has a button back to its default, and "Reset All" resets
-everything. It needs the patched KRunner and KWin (`kwin-fixes.patch`, `plasma-workspace-tweaks.patch`).
+everything. It needs the patched KRunner and KWin (`kwin-liquid-glass.patch`, `plasma-workspace-tweaks.patch`).
 
 The settings live in `~/.config/plasma-glassrc`, which you can also edit by hand (plain `key=value`
 lines; the tuning window rewrites the file as you move its sliders):
@@ -213,9 +219,10 @@ KWin's environment still overrides the glass for experiments (`KWIN_LIQUID_GLASS
 
 ## Patches
 
-The patches were made against Plasma 6.7.5, KDE Frameworks 6.30 and Qt 6.11.2. Portage re-applies them whenever
-plasma-workspace, milou, kwin, ksvg, qtbase or qtdeclarative is rebuilt. If a future version changes the patched lines, that
-build stops at the patch step until the patch is refreshed.
+The patches were made against Plasma 6.7.5. Portage re-applies them whenever plasma-workspace, milou or
+kwin is rebuilt, together with kde-fixes' patches for the same packages (they change other files). If a
+future version changes the patched lines, that build stops at the patch step until the patch is
+refreshed.
 
 - `plasma-workspace-tweaks.patch`
   - KRunner: wider (40 grid units), 1.6x search text with a larger search icon, borderless search
@@ -241,11 +248,11 @@ build stops at the patch step until the patch is refreshed.
   - notification popups: more padding, wider gaps between icons and text, summary and body text
     about 1.2x larger, the app name on the glass (no header band), no settings or close buttons (the
     history keeps them), no coloured stripe on critical ones, header padding fixed, pointer cursor
-    when the popup is clickable. Popups still close on click, timeout,
-    middle-click or swipe
+    over the whole popup when it's clickable (over its text it takes kde-fixes' fix). Popups still
+    close on click, timeout, middle-click or swipe
 - `milou-section-headers.patch`: KRunner result categories become small headers above each group
   instead of a 10-grid-unit column beside every row; result text 1.2x
-- `kwin-fixes.patch` (kde-plasma/kwin; a new KWin runs from the next login)
+- `kwin-liquid-glass.patch` (kde-plasma/kwin; a new KWin runs from the next login)
   - the dark Liquid Glass style's glass, as in [liquidglass](https://github.com/ybouane/liquidglass):
     frosted lightly all over (blur strength 2 of 15, never more than your own setting), so what's
     behind shows through as soft shapes; and within 24 px of the edge a bevel that bends that view (seen
@@ -262,55 +269,21 @@ build stops at the patch step until the patch is refreshed.
     KWin's environment, `KWIN_LIQUID_GLASS_FROST=strength`,
     `KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness` and
     `KWIN_LIQUID_GLASS_RIPPLE=scale,dispersion` override them (2; 24,9,2,1; 1,3, scale 0 for no waves)
-  - frame callbacks go out after each screen's composite, not only when KWin is about to sleep, so a
-    window on one screen doesn't wait for another screen's composite (KRunner's busy waves missed frames
-    on the 240 Hz screen while another one animated)
-  - with KWin on one GPU and a screen on another, the rendering GPU copies frames over itself when the
-    screen's GPU can't, instead of the CPU (`KWIN_DRM_NO_RENDER_GPU_COPY=1` turns it off), with the CPU
-    cache flushed first, which otherwise left horizontal strips missing from the cursor
-  - no crash at every logout: scripts are unloaded before the workspace goes away (Remember Window
-    Positions saved its state from a workspace that was already gone)
   - Window Behavior in System Settings opens on a tab given as an argument
     (`systemsettings kcm_kwinoptions --args focus`; also `titlebar-actions`, `window-actions`,
     `movement`, `advanced`), also when it's already open, so settings search lands on the option's tab
-  - an app launched from KRunner that's already open comes to the front instead of only flashing in
-    the task manager: KWin keeps only the last activation token, and the window KRunner gave the focus
-    back to (the Claude desktop app) asked for one with an old serial before the app could use KRunner's,
-    a token that could never activate anything. Such tokens no longer replace the pending one. Not fixed
-    upstream as of KWin's master branch (2026-10)
-- `ksvg-stylesheet-cache.patch` (kde-frameworks/ksvg, which draws every Plasma Style's SVGs; Plasma
-  processes load it as they start): after a switch from Liquid Glass to Liquid Glass Light (Dark Mode,
-  `plasma-glass-mode`), a running KRunner drew the light glass in Breeze Dark's background colour, a
-  heavy dark tint under dark text, until it restarted. The dark style's SVGs take the colour scheme's
-  colours, and on the switch one re-rendered with them just before dropping them; KSvg cached that
-  stylesheet for every SVG in the process (any Plasma process running through a switch has the same
-  cache). Not fixed upstream as of KSvg's master branch (2026-10)
-- `qtbase-wayland.patch` (dev-qt/qtbase, every Qt app): Qt's Wayland client sends a window's new
-  viewport size (`wp_viewporter`, used with fractional scaling) together with the buffer drawn for it.
-  It sent it as soon as the window resized, so the compositor showed the previous frame stretched to
-  the new size for a frame (KRunner's text flickered while its results unfolded). Not fixed upstream
-  as of Qt's dev branch (2026-10). Also, a window resized while a frame is being drawn on Qt Quick's
-  render thread takes the new size once that frame is done: at high refresh rates the frame in flight
-  sometimes got a buffer of the new size and showed shifted (KRunner's search box jumping down for a
-  frame while typing during the unfold)
-- `qtdeclarative-quick.patch` (dev-qt/qtdeclarative, every Qt Quick app):
-  - the GUI-thread render loop, which Qt uses whenever the GPU is NVIDIA, takes the window's size
-    after polishing instead of before. A window sized to its content resizes while polishing, so the
-    frame after each resize was drawn at the old size into the new, larger or smaller buffer and
-    showed shifted (KRunner jumped and left ghosts while its results unfolded)
-  - animations follow the refresh rate of the screen a window is on. Qt Quick took the primary
-    screen's (on Wayland the first output Qt sees, here a 60 Hz one), then took a 240 Hz screen's
-    faster frames for broken vsync and animated from a 16 ms timer: KRunner, Plasma's popups and every
-    Qt Quick app animated at 60 fps on 165 and 240 Hz monitors
+
+The bug fixes these patches held until 2026-10-17 (KWin's frame pacing across screens, the render GPU's
+copy for another GPU's screens, the crash at every logout, activation tokens; KSvg's colours after a style
+switch; Qt's resize glitches and 60 fps animations; the notification body's cursor) are in
+[kde-fixes](https://github.com/Alex-Aralis/kde-fixes), one patch per fix.
 
 To change a patch, use `tools/patch-dev.sh`. `setup` unpacks clean and patched copies of the sources
 for your installed versions. Edit the files, then `refresh` writes the patch files, `check` validates
-them and `sudo tools/patch-dev.sh install` rebuilds what changed. `tools/patch-dev.sh qt` builds
-just the patched Qt libraries (Wayland client, Qt Quick) and prints the environment that runs an
-app on them.
-Before any rebuild, run `tools/check-patches.sh`
-(10-30 s). It applies the patches to the
-source of your installed versions and loads the patched QML under Qt, with stubs for KRunner's and
+them and `sudo tools/patch-dev.sh install` rebuilds what changed.
+Before any rebuild, run `tools/check-patches.sh` (about 10 s). It applies the patches to the source of
+your installed versions, alone and with the other user patches you have for the same packages
+(kde-fixes'), and loads the patched QML under Qt, with stubs for KRunner's and
 the notification applet's internal modules. That catches errors which only show when KRunner or
 plasmashell starts, such as assigning to a grouped property. It also syntax-checks the patched
 C++. `install-system.sh` runs it before installing anything.

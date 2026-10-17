@@ -58,13 +58,6 @@ command -v kwriteconfig6 >/dev/null || die "kwriteconfig6 not found: this needs 
 "$PYTHON" -c 'import sys; sys.exit(sys.version_info < (3, 11))' 2>/dev/null \
     || die "need Python 3.11+ (set PYTHON=/path/to/python3 to pick one)"
 
-# patched CATEGORY/PKG PATCH: install-system.sh's Portage patch is in place and the package was rebuilt since
-patched() {
-    p=/etc/portage/patches/$1/$2
-    built=$(cat /var/db/pkg/"$1"-[0-9]*/BUILD_TIME 2>/dev/null | head -1)
-    [ -f "$p" ] && [ "$(stat -c %Y "$p")" -le "${built:-0}" ]
-}
-
 fill() {  # fill TEMPLATE DEST: substitute @APP_DIR@
     mkdir -p "$(dirname "$2")"
     sed "s|@APP_DIR@|$APP_DIR|g" "$1" > "$2"
@@ -158,36 +151,13 @@ fi
 if [ "$DO_SETTINGS" = 1 ]; then
     say "KRunner / Plasma settings"
     sh "$REPO/desktop/plasma-settings.sh"
-    # When KWin composites on an NVIDIA GPU, Qt renders Qt Quick on the GUI thread (its threaded loop
-    # froze on resize there, QTBUG-95817), and that loop drew the first frame after each resize at the
-    # old size into the new-size buffer: on each step of KRunner's unfold its old frame showed shifted.
-    # CPU (software) rendering avoids that but stretched the old frame instead, since Qt sent the new
-    # viewport size before the matching buffer. install-system.sh's qtdeclarative and qtbase patches
-    # fix both; until they're installed, KRunner renders in software and, without the qtbase one, Qt
-    # ignores viewporter/fractional scaling (fractional output scales then render KRunner at the next
-    # whole scale and downscale it).
-    dropin="$CONF/systemd/user/plasma-krunner.service.d/plasma-glass-software-render.conf"
-    if qdbus6 org.kde.KWin /KWin org.kde.KWin.supportInformation 2>/dev/null | grep -q '^OpenGL vendor string: NVIDIA' \
-            && ! { patched dev-qt/qtbase qtbase-wayland.patch && patched dev-qt/qtdeclarative qtdeclarative-quick.patch; }; then
-        mkdir -p "$(dirname "$dropin")"
-        if patched dev-qt/qtbase qtbase-wayland.patch; then
-            printf '[Service]\nEnvironment=QT_QUICK_BACKEND=software\n' > "$dropin"
-        else
-            printf '[Service]\nEnvironment=QT_QUICK_BACKEND=software\nEnvironment=QT_WAYLAND_DISABLED_INTERFACES=wp_viewporter,wp_fractional_scale_manager_v1\n' > "$dropin"
-        fi
-        echo "KWin composites on NVIDIA and Qt isn't patched yet: KRunner uses software rendering ($dropin)"
-    else
-        rm -f "$dropin"
+    # KRunner's drop-ins (session.slice instead of background.slice, and software rendering on NVIDIA
+    # until the Qt fixes are built) were plasma-glass's until 2026-10-17 and are kde-fixes' now, which
+    # replaces plasma-glass-priority.conf and plasma-glass-software-render.conf with its own
+    dropins="$CONF/systemd/user/plasma-krunner.service.d"
+    if [ ! -e "$dropins/kde-fixes-priority.conf" ] && [ ! -e "$dropins/plasma-glass-priority.conf" ]; then
+        warn "KRunner's priority drop-in is kde-fixes' now: run its install-user.sh (KRunner otherwise runs in background.slice and lags when apps are busy)"
     fi
-    # KRunner is interactive, but Plasma runs it in background.slice (CPU weight 30 against apps' 100):
-    # when apps were busy, in power-saver especially, it got a third of their share and its dropdown fell
-    # to ~20 fps. It runs with the session's own services instead, and a little ahead of apps where the
-    # session may raise priorities (Nice= fails the service where RLIMIT_NICE doesn't allow it).
-    dropin="$CONF/systemd/user/plasma-krunner.service.d/plasma-glass-priority.conf"
-    mkdir -p "$(dirname "$dropin")"
-    printf '# Installed by plasma-glass (install.sh)\n[Service]\nSlice=session.slice\n' > "$dropin"
-    [ "$(ulimit -e 2>/dev/null || echo 0)" -ge 25 ] && printf 'Nice=-5\n' >> "$dropin"
-    systemctl --user daemon-reload
 fi
 
 kquitapp6 krunner >/dev/null 2>&1 || true  # KRunner picks everything up on its next start
@@ -206,4 +176,6 @@ cat <<EOF
 
 Done. If you haven't yet, run the system part for the GPU runtime and the KRunner/notification patches:
     sudo ./install-system.sh
+and kde-fixes for the KDE and Qt bug fixes (https://github.com/Alex-Aralis/kde-fixes):
+    sudo ./install.sh; ./install-user.sh
 EOF

@@ -8,7 +8,7 @@
 #       a 200 px animated window per position, all from one process (several windows in one app use
 #       Qt Quick's shared animation timer, like plasmashell); prints frames per second and animation
 #       speed (1.00 = right) per window after 6 s. ENV="VAR=value ..." sets the probe's environment,
-#       e.g. ENV="$(tools/patch-dev.sh qt)" for a patched Qt, QSG_RENDER_LOOP=basic for Qt Quick's GUI
+#       e.g. ENV="$(~/Projects/kde-fixes/tools/patch-dev.sh qt)" for a dev Qt, QSG_RENDER_LOOP=basic for Qt Quick's GUI
 #       thread loop (what NVIDIA clients get), QSG_INFO=1 for Qt's notes (in the log).
 #   screen.sh glass [--light] [--shot OUT.png] X,Y [X,Y...]
 #       a 700 px grey square (GRAY, default 190) per position with the Plasma Style's glass on top,

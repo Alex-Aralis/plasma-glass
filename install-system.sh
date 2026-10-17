@@ -6,22 +6,22 @@
 #
 # 1. Intel GPU compute runtime (OpenCL/Level Zero) so OpenVINO can run the search model on the iGPU.
 # 2. Portage user patches for kde-plasma/plasma-workspace (KRunner + notification popups),
-#    kde-plasma/milou (KRunner result rows), kde-plasma/kwin (the dark style's glass, frame pacing, a
-#    crash at logout), kde-frameworks/ksvg (Liquid Glass Light kept the dark colours after a switch from
-#    dark), dev-qt/qtbase and dev-qt/qtdeclarative (Qt fixes: a resizing window no longer
-#    shows its old frame stretched to the new size, or, with NVIDIA, shifted), then rebuilds the
-#    packages whose patch is new or changed. Portage re-applies the patches on every future update of
-#    those packages.
+#    kde-plasma/milou (KRunner result rows) and kde-plasma/kwin (the Liquid Glass styles' glass and
+#    KRunner's liquid; Window Behavior opening on a tab), then rebuilds the packages whose patch is new
+#    or changed. Portage re-applies the patches on every future update of those packages.
+#
+# The fixes for bugs in KDE and Qt that plasma-glass carried until 2026-10-17 (KWin's frame pacing, its
+# crash at logout and activation tokens, KSvg's colours after a style switch, Qt's resize glitches and
+# 60 fps animations) are in their own repo, kde-fixes: install it too (its install.sh).
 set -eu
 
 REPO=$(cd "$(dirname "$0")" && pwd)
-RUNTIME=auto REBUILD=1 CHECKS=1 QT=1
+RUNTIME=auto REBUILD=1 CHECKS=1
 for arg in "$@"; do
     case "$arg" in
         --runtime=*) RUNTIME=${arg#--runtime=} ;;
         --no-rebuild) REBUILD=0 ;;
         --skip-checks) CHECKS=0 ;;
-        --no-qt) QT=0 ;;
         -h|--help)
             cat <<EOF
 usage: sudo ./install-system.sh [options]
@@ -31,8 +31,6 @@ usage: sudo ./install-system.sh [options]
         current dev-libs/intel-compute-runtime         (Meteor Lake / Core Ultra, Arc and newer)
   --no-rebuild
         install the Portage patches but don't rebuild the patched packages now
-  --no-qt
-        leave Qt alone (no qtbase/qtdeclarative patches, no Qt rebuilds)
   --skip-checks
         don't run tools/check-patches.sh (patches apply, QML loads, C++ compiles) first
 EOF
@@ -86,28 +84,28 @@ fi
 
 # --- 2. Portage user patches ---------------------------------------------------------------------
 if [ "$CHECKS" = 1 ]; then
-    say "Checking the patches against your installed Plasma and Qt (about 10-30 s)"
+    say "Checking the patches against your installed Plasma (about 10 s)"
     sh "$REPO/tools/check-patches.sh" || die "patch checks failed; nothing was installed (override with --skip-checks)"
 fi
 say "Installing Portage user patches"
-pkgs="kde-plasma/plasma-workspace kde-plasma/milou kde-plasma/kwin kde-frameworks/ksvg"
-if [ "$QT" = 1 ]; then pkgs="$pkgs dev-qt/qtbase dev-qt/qtdeclarative"; fi
+pkgs="kde-plasma/plasma-workspace kde-plasma/milou kde-plasma/kwin"
 rebuild=""
 for atom in $pkgs; do
     dest=/etc/portage/patches/$atom
     mkdir -p "$dest"
-    # names used by earlier versions of these patches
-    rm -f "$dest/krunner-hide-pin.patch" "$dest/krunner-tweaks.patch"
+    # names used by earlier versions of these patches (kwin-fixes.patch until 2026-10-17, with the fixes
+    # that are kde-fixes' now)
+    rm -f "$dest/krunner-hide-pin.patch" "$dest/krunner-tweaks.patch" "$dest/kwin-fixes.patch"
     for p in "$REPO"/patches/$atom/*.patch; do
         cmp -s "$p" "$dest/$(basename "$p")" || install -m 644 "$p" "$dest/"
         # rebuild if the patch is newer than the installed build (new, changed, or an earlier emerge failed)
         built=$(cat /var/db/pkg/"$atom"-[0-9]*/BUILD_TIME 2>/dev/null | head -1)
         if [ "$(stat -c %Y "$dest/$(basename "$p")")" -gt "${built:-0}" ]; then rebuild="$rebuild $atom"; fi
     done
-    echo "  $dest: $(cd "$dest" && ls)"
+    echo "  $dest: $(cd "$dest" && ls | tr '\n' ' ')"
 done
 for atom in $pkgs; do
-    case "$atom" in dev-qt/*) want=6.11.2 ;; kde-frameworks/*) want=6.30.0 ;; *) want=6.7.5 ;; esac
+    want=6.7.5
     have=$(portageq best_version / "$atom" 2>/dev/null || true)
     case "$have" in
         *-"$want"*) ;;
@@ -116,8 +114,17 @@ for atom in $pkgs; do
     esac
 done
 
+# the fixes plasma-glass's patches held until 2026-10-17 (kwin-fixes.patch, and the notification body's
+# cursor in plasma-workspace-tweaks.patch): without kde-fixes, the next build of those packages goes
+# without them
+if [ ! -e /etc/portage/patches/kde-plasma/kwin/kwin-activation-token-serial.patch ]; then
+    warn "kde-fixes isn't installed: KWin's and Qt's bug fixes moved there (frame pacing, the crash at logout,
+  activation tokens, KSvg's colours, Qt's resize glitches). Install them with its install.sh:
+  git clone git@github.com:Alex-Aralis/kde-fixes.git && sudo kde-fixes/install.sh"
+fi
+
 if [ "$REBUILD" = 1 ] && [ -n "$rebuild" ]; then
-    say "Rebuilding$rebuild (plasma-workspace, kwin, qtbase and qtdeclarative take a while)"
+    say "Rebuilding$rebuild (plasma-workspace and kwin take a while)"
     # shellcheck disable=SC2086
     emerge --oneshot --verbose $rebuild
 elif [ "$REBUILD" = 1 ]; then
@@ -129,10 +136,9 @@ render=$(ls -l /dev/dri/renderD128 2>/dev/null || true)
 cat <<EOF
 
 Done. As your normal user:
-  - restart Plasma's shell and KRunner to load the patched builds (after a Qt or KWin rebuild, log
-    out and back in instead, so every running Qt app picks it up and the new KWin runs):
+  - restart Plasma's shell and KRunner to load the patched builds (after a KWin rebuild, log out and
+    back in instead, so the new KWin runs):
         systemctl --user restart plasma-plasmashell.service; kquitapp6 krunner
-  - re-run ./install.sh --no-search --no-style, which drops KRunner's NVIDIA workaround once Qt is patched
   - restart the search service so it picks up the GPU:
         systemctl --user restart embedsearch
 EOF

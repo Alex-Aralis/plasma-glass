@@ -1,13 +1,13 @@
 #!/bin/sh
-# Checks the Portage patches before a long rebuild (about 15 s, no compiling, nothing on screen):
-#   1. each patch applies to the source of the installed package version
+# Checks the Portage patches before a long rebuild (about 10 s, no compiling, nothing on screen):
+#   1. each patch applies to the source of the installed package version, alone and together with the
+#      other user patches in /etc/portage/patches for that package (kde-fixes'), in Portage's order
 #   2. the patched QML loads under Qt, with stubs for modules that only exist inside krunner or
 #      plasmashell (this catches errors that only show at runtime, like assigning to a grouped property)
-#   3. patched KRunner, KSvg and Qt C++ passes a compiler syntax check (KWin's needs its build tree's
-#      generated headers: `tools/patch-dev.sh kwin` compiles it)
+#   3. patched KRunner C++ passes a compiler syntax check (KWin's needs its build tree's generated
+#      headers: `tools/patch-dev.sh kwin` compiles it)
 # Needs the source tarballs in Portage's DISTDIR (kept after a build; otherwise `emerge --fetchonly
-# kde-plasma/plasma-workspace kde-plasma/milou kde-plasma/kwin kde-frameworks/ksvg dev-qt/qtbase dev-qt/qtdeclarative`).
-# Exit status 1 on any failure.
+# kde-plasma/plasma-workspace kde-plasma/milou kde-plasma/kwin`). Exit status 1 on any failure.
 set -eu
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 WORK=$(mktemp -d)
@@ -19,18 +19,35 @@ ok() { printf '  \033[32mok\033[0m    %s\n' "$*"; }
 bad() { printf '  \033[31mFAIL\033[0m  %s\n' "$*"; FAILED=1; }
 note() { printf '  --    %s\n' "$*"; }
 
+# apply DIR PATCH: as Portage's eapply_user does
+apply() { patch -p1 -f -s -g0 --no-backup-if-mismatch -d "$1" < "$2" >"$WORK/patch.log" 2>&1; }
+
+# others CATEGORY/PKG: the other user patches Portage applies to PKG with ours (kde-fixes'), from its
+# directory in /etc/portage/patches, without our own names (and kwin-fixes.patch, our kwin patch's name
+# until 2026-10-17)
+others() {
+    for f in /etc/portage/patches/$1/*; do
+        case "$(basename "$f")" in kwin-fixes.patch) continue ;; esac
+        [ -e "$REPO/patches/$1/$(basename "$f")" ] && continue
+        case "$f" in *.patch|*.diff) if [ -f "$f" ]; then echo "$f"; fi ;; esac
+    done
+}
+
 # prepare CATEGORY/PKG : extract the parts of the installed version's source the patches touch, apply
-# them. Writes the source dir to $WORK/PKG.dir, or nothing if that failed.
+# ours, then everything Portage will apply (ours and the others, by file name) in a copy. Writes the
+# patched source dir to $WORK/PKG.dir, or nothing if ours don't apply.
 prepare() {
     cat=${1%/*} pkg=${1#*/}
     patches=$(ls "$REPO/patches/$cat/$pkg/"*.patch 2>/dev/null) || return 0
     ver=$(portageq best_version / "$cat/$pkg" 2>/dev/null | sed -E "s|^$cat/$pkg-||; s|-r[0-9]+$||")
     [ -n "$ver" ] || { bad "$pkg is not installed"; return 0; }
-    case "$cat" in dev-qt) top=$pkg-everywhere-src-$ver ;; *) top=$pkg-$ver ;; esac
+    top=$pkg-$ver
     tarball="$DISTDIR/$top.tar.xz"
     [ -f "$tarball" ] || { bad "$top source not in $DISTDIR (emerge --fetchonly $cat/$pkg)"; return 0; }
+    other=$(others "$1")
     # whole directories around the patched files, since QML resolves sibling files and C++ includes them
-    dirs=$(cat $patches | sed -n 's|^+++ b/||p' | awk -F/ '{
+    # shellcheck disable=SC2086
+    dirs=$(cat $patches $other | sed -n 's|^+++ b/||p' | awk -F/ '{
         if ($1 == "applets" && NF > 2) print $1 "/" $2
         else if ($1 == "src") { n = (NF - 1 < 4) ? NF - 1 : 4; d = $1; for (i = 2; i <= n; i++) d = d "/" $i; print d }
         else print $1 }' | sort -u \
@@ -39,8 +56,9 @@ prepare() {
     # one pass over the tarball (xz has to be decompressed in full each time)
     # shellcheck disable=SC2046
     tar -xJf "$tarball" -C "$WORK" $(for d in $dirs; do echo "$top/$d"; done)
+    [ -z "$other" ] || cp -a "$WORK/$top" "$WORK/$pkg.all"
     for p in $patches; do
-        if patch -s -p1 -d "$WORK/$top" < "$p" >"$WORK/patch.log" 2>&1; then
+        if apply "$WORK/$top" "$p"; then
             ok "$(basename "$p") applies to $pkg $ver"
         else
             bad "$(basename "$p") does not apply to $pkg $ver: $(head -3 "$WORK/patch.log" | tr '\n' ' ')"
@@ -48,6 +66,18 @@ prepare() {
         fi
     done
     echo "$WORK/$top" > "$WORK/$pkg.dir"
+    [ -n "$other" ] || return 0
+    names=$(for p in $other; do basename "$p"; done | tr '\n' ' ' | sed 's/ $//') applied=""
+    # shellcheck disable=SC2086
+    for p in $(for p in $patches $other; do printf '%s\t%s\n' "$(basename "$p")" "$p"; done | LC_ALL=C sort | cut -f2); do
+        if ! apply "$WORK/$pkg.all" "$p"; then
+            bad "with the other patches in /etc/portage/patches/$cat/$pkg ($names): $(basename "$p") does not apply after ${applied% }"
+            return 0
+        fi
+        applied="$applied$(basename "$p") "
+    done
+    ok "together with $names (in Portage's order: ${applied% })"
+    echo "$WORK/$pkg.all" > "$WORK/$pkg.dir"
 }
 
 # Stub QML modules standing in for C++ types that krunner/plasmashell register at runtime.
@@ -146,16 +176,12 @@ echo "Patches"
 prepare kde-plasma/plasma-workspace
 prepare kde-plasma/milou
 prepare kde-plasma/kwin
-prepare kde-frameworks/ksvg
-prepare dev-qt/qtbase
-prepare dev-qt/qtdeclarative
 PW=$(cat "$WORK/plasma-workspace.dir" 2>/dev/null || true)
 MI=$(cat "$WORK/milou.dir" 2>/dev/null || true)
 
 echo "QML"
 if [ -n "$PW" ]; then
     load_qml "KRunner RunCommand.qml" "$PW/krunner/qml/RunCommand.qml" krunner
-    load_qml "notifications Body.qml" "$PW/applets/notifications/components/Body.qml"
     # needs a real notification model to instantiate, so compile only
     load_qml "notifications HeadingButtons.qml" "$PW/applets/notifications/components/HeadingButtons.qml" compile
     # the popup window (with DraggableDelegate and the popup delegate) needs plasmashell to run; compile it
@@ -188,61 +214,6 @@ if [ -n "$PW" ] && [ -f "$PW/krunner/view.cpp" ]; then
         bad "KRunner view.cpp: $(grep -m3 'error' "$WORK/cxx.log" | tr '\n' ' ')"
     fi
 fi
-
-# KSvg: syntax-check the .cpp files its patch changes, against the installed KSvg's public headers (the
-# patched private ones are beside them); its logging category and moc output are stubbed.
-KS=$(cat "$WORK/ksvg.dir" 2>/dev/null || true)
-if [ -n "$KS" ]; then
-    stub="$WORK/ksvgstub"
-    mkdir -p "$stub"
-    printf '#pragma once\n#include <QLoggingCategory>\nQ_DECLARE_LOGGING_CATEGORY(LOG_KSVG)\n' > "$stub/debug_p.h"
-    kf=$(ls -d /usr/include/KF6/* 2>/dev/null | sed 's/^/-I/' | tr '\n' ' ')
-    for f in $(sed -n 's|^+++ b/\(.*\.cpp\)$|\1|p' "$REPO"/patches/kde-frameworks/ksvg/*.patch); do
-        for m in $(sed -n 's/^#include "\(moc_[^"]*\)"$/\1/p' "$KS/$f"); do : > "$stub/$m"; done
-        # shellcheck disable=SC2086
-        if (cd "$(dirname "$KS/$f")" && g++ -std=c++20 -fsyntax-only -fPIC -I. -I"$stub" -I/usr/include/KF6/KSvg/ksvg $kf \
-                $(pkg-config --cflags Qt6Gui Qt6Svg 2>/dev/null) "$(basename "$f")") >"$WORK/cxx.log" 2>&1; then
-            ok "KSvg $(basename "$f") compiles (syntax check)"
-        else
-            bad "KSvg $(basename "$f"): $(grep -m3 'error' "$WORK/cxx.log" | tr '\n' ' ')"
-        fi
-    done
-fi
-
-# qt_check PKG MODULE "QT MODULES" "PKG-CONFIG NAMES" DEFINE: syntax-check the .cpp files PKG's patch
-# changes, against the installed Qt's headers. The extracted (patched) private headers of MODULE shadow
-# the installed ones, which sources include as <MODULE/private/...>; moc output is stubbed.
-qt_check() {
-    src=$(cat "$WORK/$1.dir" 2>/dev/null) || return 0
-    qv=$(portageq best_version / "dev-qt/$1" | sed -E "s|^dev-qt/$1-||; s|-r[0-9]+$||")
-    inc=$(qtpaths6 --query QT_INSTALL_HEADERS 2>/dev/null || echo /usr/include/qt6)
-    sh="$WORK/qtinc-$1"
-    mkdir -p "$sh/$2/private"
-    for h in $(find "$src" -name '*_p.h'); do ln -sf "$h" "$sh/$2/private/"; done
-    # the private dirs themselves too: generated protocol headers and siblings are included as "x_p.h"
-    flags="-I$sh -I$sh/$2/private -I$inc/$2/$qv/$2/private"
-    for m in $3; do flags="$flags -I$inc/$m/$qv -I$inc/$m/$qv/$m"; done
-    # shellcheck disable=SC2086
-    flags="$flags $(pkg-config --cflags $4 2>/dev/null) -D$5"
-    for f in $(sed -n 's|^+++ b/\(.*\.cpp\)$|\1|p' "$REPO"/patches/dev-qt/"$1"/*.patch); do
-        for m in $(sed -n 's/^#include "\(moc_[^"]*\|[^"]*\.moc\)"$/\1/p' "$src/$f"); do : > "$sh/$m"; done
-        # tracepoint headers are generated too; with tracing off they only include qtrace_p.h
-        for t in $(sed -n 's/^#include <\([a-z]*_tracepoints_p\.h\)>$/\1/p' "$src/$f"); do
-            echo '#include <private/qtrace_p.h>' > "$sh/$t"
-        done
-        # shellcheck disable=SC2086
-        if (cd "$(dirname "$src/$f")" && g++ -std=c++20 -fsyntax-only -fPIC -I. $flags "$(basename "$f")") \
-                >"$WORK/cxx.log" 2>&1; then
-            ok "Qt $(basename "$f") compiles (syntax check)"
-        else
-            bad "Qt $(basename "$f"): $(grep -m3 'error' "$WORK/cxx.log" | tr '\n' ' ')"
-        fi
-    done
-}
-qt_check qtbase QtWaylandClient "QtCore QtGui QtOpenGL QtWaylandClient QtWaylandGlobal" \
-    "Qt6WaylandClient Qt6OpenGL wayland-client wayland-egl egl" QT_BUILD_WAYLANDCLIENT_LIB
-qt_check qtdeclarative QtQuick "QtCore QtGui QtOpenGL QtQml QtQmlModels QtQmlMeta QtQuick" \
-    "Qt6Quick Qt6OpenGL" QT_BUILD_QUICK_LIB
 
 echo
 if [ "$FAILED" = 0 ]; then echo "All checks passed."; else echo "Some checks failed; fix the patches before rebuilding."; exit 1; fi

@@ -66,22 +66,6 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
  
                      // When notification is updated, restart hide timer
                      onTimeChanged: {
-diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/Body.qml b/applets/notifications/components/Body.qml
---- a/applets/notifications/components/Body.qml
-+++ b/applets/notifications/components/Body.qml
-@@ -38,9 +38,7 @@
- 
-     onClicked: modelInterface.bodyClicked()
- 
--    Binding {
--        target: bodyLabel.modelInterface
--        property: "bodyCursorShape"
--        value: bodyLabel.cursorShape
--    }
-+    // Use the cursor the popup asks for (pointing hand when clicking opens something);
-+    // otherwise SelectableLabel's default I-beam
-+    cursorShape: modelInterface && modelInterface.bodyCursorShape ? modelInterface.bodyCursorShape : undefined
- }
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/HeadingButtons.qml b/applets/notifications/components/HeadingButtons.qml
 --- a/applets/notifications/components/HeadingButtons.qml
 +++ b/applets/notifications/components/HeadingButtons.qml

@@ -7,6 +7,7 @@ KEEP_INDEX=0
 [ "${1:-}" = --keep-index ] && KEEP_INDEX=1
 
 systemctl --user disable --now embedsearch.service 2>/dev/null || true
+# KRunner's drop-ins from before 2026-10-17 (kde-fixes' now, which has its own uninstall.sh)
 rm -f "$CONF/systemd/user/plasma-krunner.service.d/plasma-glass-software-render.conf" \
       "$CONF/systemd/user/plasma-krunner.service.d/plasma-glass-priority.conf"
 rm -f "$CONF/systemd/user/embedsearch.service" "$DATA/dbus-1/services/local.embedsearch.service" \
@@ -52,12 +53,11 @@ kquitapp6 krunner >/dev/null 2>&1 || true
 
 cat <<'EOF'
 User part removed. To undo the system part (as root):
-    rm -r /etc/portage/patches/kde-plasma/plasma-workspace /etc/portage/patches/kde-plasma/milou \
-          /etc/portage/patches/kde-plasma/kwin/kwin-fixes.patch \
-          /etc/portage/patches/kde-frameworks/ksvg/ksvg-stylesheet-cache.patch \
-          /etc/portage/patches/dev-qt/qtbase/qtbase-wayland.patch \
-          /etc/portage/patches/dev-qt/qtdeclarative/qtdeclarative-quick.patch
-    emerge --oneshot kde-plasma/milou kde-plasma/plasma-workspace kde-plasma/kwin kde-frameworks/ksvg dev-qt/qtbase dev-qt/qtdeclarative
+    rm -f /etc/portage/patches/kde-plasma/plasma-workspace/plasma-workspace-tweaks.patch \
+          /etc/portage/patches/kde-plasma/milou/milou-section-headers.patch \
+          /etc/portage/patches/kde-plasma/kwin/kwin-liquid-glass.patch
+    emerge --oneshot kde-plasma/milou kde-plasma/plasma-workspace kde-plasma/kwin
+(kde-fixes' patches for the same packages stay; its uninstall.sh removes them)
 and, if nothing else needs it, the GPU runtime:
     emerge --ask --depclean dev-libs/intel-compute-runtime virtual/opencl dev-libs/opencl-icd-loader
 EOF
