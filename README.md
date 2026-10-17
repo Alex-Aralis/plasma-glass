@@ -273,6 +273,11 @@ build stops at the patch step until the patch is refreshed.
   - Window Behavior in System Settings opens on a tab given as an argument
     (`systemsettings kcm_kwinoptions --args focus`; also `titlebar-actions`, `window-actions`,
     `movement`, `advanced`), also when it's already open, so settings search lands on the option's tab
+  - an app launched from KRunner that's already open comes to the front instead of only flashing in
+    the task manager: KWin keeps only the last activation token, and the window KRunner gave the focus
+    back to (the Claude desktop app) asked for one with an old serial before the app could use KRunner's,
+    a token that could never activate anything. Such tokens no longer replace the pending one. Not fixed
+    upstream as of KWin's master branch (2026-10)
 - `ksvg-stylesheet-cache.patch` (kde-frameworks/ksvg, which draws every Plasma Style's SVGs; Plasma
   processes load it as they start): after a switch from Liquid Glass to Liquid Glass Light (Dark Mode,
   `plasma-glass-mode`), a running KRunner drew the light glass in Breeze Dark's background colour, a

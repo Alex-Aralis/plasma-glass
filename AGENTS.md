@@ -1,7 +1,7 @@
 # plasma-glass: notes for development
 
 Liquid Glass Plasma Styles, semantic KRunner search (EmbeddingGemma 2 on the Intel iGPU via OpenVINO)
-and Portage patches for KRunner, notification popups, milou, KWin (frame pacing, a crash on exit, the dark style's bevel, KRunner's liquid), KSvg (colours after a style switch) and Qt (Wayland client, Qt Quick). Gentoo, Plasma
+and Portage patches for KRunner, notification popups, milou, KWin (frame pacing, a crash on exit, the dark style's bevel, KRunner's liquid, activation tokens), KSvg (colours after a style switch) and Qt (Wayland client, Qt Quick). Gentoo, Plasma
 6.7.5, KDE Frameworks 6.30, Qt 6.11.2, Wayland. User
 docs are in README.md; this file covers how to work on it.
 
@@ -634,6 +634,26 @@ docs are in README.md; this file covers how to work on it.
   be recorded that way).
   `tools/preview/krunner.sh` takes `HOLD` (s before HOVER_INPUT and the screenshot, default 8), used to
   script open/close cycles over the preview's bus as a `KRUNNER` wrapper.
+- **A System Settings result in KRunner only made the open System Settings demand attention** (2026-10-17,
+  laptop): it didn't come to the front. KRunner got a real token (D-Bus: `XDG_ACTIVATION_TOKEN=kwin-302` in
+  the launch's StartTransientUnit) and System Settings activated with it, yet `mayActivate` said no. The
+  preview never showed it; the real session did, with read-only uprobes on the installed libkwin (stripped
+  of `.symtab`, so tracefs probes at `.dynsym` addresses; text vaddr == file offset; struct offsets read
+  from the disassembly of `mayActivate`, `setActivationToken` and `setDesktopFileName`; QString's UTF-16
+  read as `x16[N]` arrays). The trace: Enter (serial 45611), KRunner asks for `kwin-302` with serial 45611
+  for `systemsettings`; KRunner hides, KWin activates the window before it, the Claude desktop app; 5 ms
+  later that app (Electron) asks for `kwin-303` for its own surface with its old serial 45597, granted
+  because it's the active window, and `Workspace::setActivationToken` keeps only the last token, so
+  `kwin-302` is gone; 70 ms later System Settings activates with `kwin-302`: not the stored token, and
+  the app-id fallback fails too (stored app id "", serial 45597 < 45611), so `demandAttention`. Any window
+  that asks for a token as it gets the focus back does this, which is why the preview (no such window)
+  never failed. `kwin-fixes.patch` (`XdgActivationV1Integration::requestToken`) only stores a token whose
+  serial isn't older than `lastInteractionSerial()`: one that is can never pass `mayActivate` (that
+  serial only grows), so nothing is lost. Privileged tokens (plasmashell, kglobalaccel) take
+  `lastInteractionSerial()` as their serial and are always stored. One root script added the probes,
+  waited for the reproduction, saved the trace and removed every probe on exit; `activateWindow` itself
+  calls `demandAttention(false)`, so a stop condition has to look for `set=1`. KRunner's own window has an
+  empty desktopFileName.
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and
   transformers 5.19 or later. Installing `sentence-transformers[image,audio]` downgraded
   transformers once.

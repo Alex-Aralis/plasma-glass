@@ -2101,3 +2101,20 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/workspace.cpp b/src/workspa
      blockStackingUpdates(true);
  
  #if KWIN_BUILD_X11
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/xdgactivationv1.cpp b/src/xdgactivationv1.cpp
+--- a/src/xdgactivationv1.cpp
++++ b/src/xdgactivationv1.cpp
+@@ -94,7 +94,12 @@
+         // more properly
+         serial = input()->lastInteractionSerial();
+     }
+-    workspace()->setActivationToken(newToken, serial, appId);
++    // A token older than the last user interaction can never pass mayActivate(), so it mustn't
++    // replace the pending one: when KRunner launches an app and hides, the window that gets the
++    // focus back may ask for a token for itself with its old serial before the new app activates.
++    if (input()->lastInteractionSerial() <= serial) {
++        workspace()->setActivationToken(newToken, serial, appId);
++    }
+     if (showNotify) {
+         Q_EMIT effects->startupAdded(newToken, icon);
+     }
