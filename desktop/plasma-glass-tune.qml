@@ -259,7 +259,7 @@ Kirigami.ApplicationWindow {
                 Kirigami.FormData.label: "Momentum:"
                 key: "Ripple/momentum"; fallback: 1; from: 0; to: 2; stepSize: 0.05; decimals: 2
             }
-            Hint { text: "How much the liquid sloshes when you drag KRunner, or its dropdown opens or closes: it lags behind as the glass speeds up and runs on as it stops. Works when KRunner isn't busy too." }
+            Hint { text: "How much the liquid sloshes when you drag KRunner, or its dropdown opens or closes: it lags behind as the glass speeds up and runs on as it stops. Works when KRunner isn't busy too. The ripples it stirs are as wide as the pushes' (Width)." }
             Tuner {
                 Kirigami.FormData.label: "Slosh speed:"
                 key: "Ripple/sloshSpeed"; fallback: 900; from: 200; to: 2000; stepSize: 50; unit: "px/s"
@@ -270,6 +270,29 @@ Kirigami.ApplicationWindow {
                 key: "Ripple/sloshDamping"; fallback: 1.5; from: 0.3; to: 6; stepSize: 0.1; decimals: 1; unit: "s"
             }
             Hint { text: "How long the sloshing takes to die down to about a third." }
+
+            Kirigami.Separator {
+                Kirigami.FormData.isSection: true
+                Kirigami.FormData.label: "Shore and floor"
+            }
+            Tuner {
+                Kirigami.FormData.label: "Shore bends:"
+                key: "Ripple/shore"; fallback: 8; from: 0; to: 30; stepSize: 1; unit: "px"
+            }
+            Hint { text: "How far the liquid's edge wanders, a little in from the rim, so the waves it sends off and sends back aren't straight. 0 follows the rim." }
+            Tuner {
+                Kirigami.FormData.label: "Shore bend length:"
+                key: "Ripple/shoreScale"; fallback: 120; from: 30; to: 400; stepSize: 5; unit: "px"
+            }
+            Tuner {
+                Kirigami.FormData.label: "Uneven floor:"
+                key: "Ripple/floor"; fallback: 0.35; from: 0; to: 0.8; stepSize: 0.05; percent: true
+            }
+            Hint { text: "How much deeper and shallower the liquid gets. Waves run faster where it's deeper, so their fronts bend as they cross. 0 is a flat floor." }
+            Tuner {
+                Kirigami.FormData.label: "Floor swell length:"
+                key: "Ripple/floorScale"; fallback: 220; from: 50; to: 800; stepSize: 10; unit: "px"
+            }
 
             Kirigami.Separator {
                 Kirigami.FormData.isSection: true

@@ -225,7 +225,28 @@ docs are in README.md; this file covers how to work on it.
   cells), or the left and top rims had no faces and only the corners' arcs pushed; and the dropdown first
   moved the bottom rim as a piston, but OutQuart starts it at about 5000 px/s against the swell's 900, and
   each row it uncovered started as a step, which tore the cups behind into jagged bands: now growing counts
-  as the centre's acceleration, and a cell the glass grows over starts at its wet neighbours' level. Cost
+  as the centre's acceleration, and a cell the glass grows over starts at its wet neighbours' level. Then,
+  the same evening (the user, after trying it installed: "when opening and closing the dropdown the liquid
+  exhibits a very strong short wavelength vibration-like effect that i don't like or at least should match
+  the wave width setting"; reproduced in the preview by typing and deleting with fakeinput while recording,
+  the cups behind torn into jagged bands): the glass can grow by many cells in a frame (OutQuart's start,
+  results arriving in batches), and only the first new row had a wet neighbour, so the rest started at 0
+  next to liquid the momentum had heaped up, a step every frame; a new cell now takes the level of the
+  nearest liquid above it or to its left (up to 32 cells). And the followers pass a window's quick wiggles
+  on as acceleration (a critically damped follower's acceleration doesn't fall off above its frequency), so
+  each layer now feels it smoothed again: the ripples over the push's time to push in (a jolt makes waves
+  as wide as `width`), the swell over at least 0.15 s. Straight momentum waves (the user: "add some kind of
+  slightly off the edge of the border wavy surface that generates the momentum waves, and maybe the
+  reflections as well"): the liquid's edge, the shore, runs `shore` px in from the rim and wanders by up to
+  that much either way (`shoreScale` px bends), and its floor is uneven (`floor` 0.35: c² times 1 +- 0.35
+  in `floorScale` 220 px swells, waves faster where it's deeper, the steps sqrt(1.35) shorter for it), both
+  as three plane waves at odd angles (sines: cheap, and no lattice). The shore alone barely bent the broad
+  swell (slope maps with and without looked alike, and a 20 px shore left a dead band): broad waves
+  straighten out a short way from any bumpy wall; the floor keeps bending them as they cross. The surface
+  pass reads only wet cells (the filtered height over the filtered wetness, since dry cells hold 0 and say
+  so in w) and fades the lean out over the last cell before the shore; pulling samples in from past the
+  shore left speckles where it switched. Compared by dumping the waves texture from KWin every 0.1 s
+  (`glGetTexImage` in a scratch build) and drawing the slope as colour, over a Meta+drag. Cost
   in the preview (UHD 770 through Mesa, KRunner 744x503 at scale 1 over ColorfulCups, from KWin's
   `/proc/PID/fdinfo` `drm-engine-render`, which the installed kwin_wayland's file capability closes; main's
   KWin ran from a dev build in a directory of its own, as a renamed copy won't start: KWin's own Qt
