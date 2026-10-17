@@ -1,0 +1,28 @@
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/ksvg/private/imageset_p.cpp b/src/ksvg/private/imageset_p.cpp
+--- a/src/ksvg/private/imageset_p.cpp
++++ b/src/ksvg/private/imageset_p.cpp
+@@ -592,12 +592,18 @@
+             stylesheet += skel.arg(QString::fromUtf8(metaEnum.valueToKey(colorName)), svg->color(colorName).name());
+         }
+ 
+-        if (status == Svg::Status::Selected) {
+-            cachedSelectedSvgStyleSheets.insert(colorSet, stylesheet);
+-        } else if (status == Svg::Status::Inactive) {
+-            cachedInactiveSvgStyleSheets.insert(colorSet, stylesheet);
+-        } else {
+-            cachedSvgStyleSheets.insert(colorSet, stylesheet);
++        // Only for Svgs without colour overrides, like the lookup above: a stylesheet in an Svg's own colours
++        // is that Svg's alone. Cached, it coloured every other Svg: after a switch to a Plasma Style with its
++        // own colours, an item re-rendered with the old colour scheme's overrides just before it dropped
++        // them, and KRunner's Liquid Glass Light came out in Breeze Dark's background colour.
++        if (useCache) {
++            if (status == Svg::Status::Selected) {
++                cachedSelectedSvgStyleSheets.insert(colorSet, stylesheet);
++            } else if (status == Svg::Status::Inactive) {
++                cachedInactiveSvgStyleSheets.insert(colorSet, stylesheet);
++            } else {
++                cachedSvgStyleSheets.insert(colorSet, stylesheet);
++            }
+         }
+     }
+ 

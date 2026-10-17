@@ -1,8 +1,8 @@
 # plasma-glass: notes for development
 
 Liquid Glass Plasma Styles, semantic KRunner search (EmbeddingGemma 2 on the Intel iGPU via OpenVINO)
-and Portage patches for KRunner, notification popups, milou, KWin (frame pacing, a crash on exit, the dark style's bevel, KRunner's liquid) and Qt (Wayland client, Qt Quick). Gentoo, Plasma
-6.7.5, Qt 6.11.2, Wayland. User
+and Portage patches for KRunner, notification popups, milou, KWin (frame pacing, a crash on exit, the dark style's bevel, KRunner's liquid), KSvg (colours after a style switch) and Qt (Wayland client, Qt Quick). Gentoo, Plasma
+6.7.5, KDE Frameworks 6.30, Qt 6.11.2, Wayland. User
 docs are in README.md; this file covers how to work on it.
 
 ## Layout
@@ -12,12 +12,12 @@ docs are in README.md; this file covers how to work on it.
 | `search/embedsearch.py` | search service: indexer, KRunner D-Bus runner (`local.embedsearch`), CLI. Installed copy: `~/.local/share/embedsearch/` (service `embedsearch.service`) |
 | `search/export_model.py` | one-time PyTorch to OpenVINO export with a parity check (run by install.sh in a throwaway venv) |
 | `theme/liquid-glass/generate.py` | draws both styles (`liquid-glass`, `liquid-glass-light`) into `~/.local/share/plasma/desktoptheme/` |
-| `patches/kde-plasma/{plasma-workspace,milou,kwin}/*.patch`, `patches/dev-qt/{qtbase,qtdeclarative}/*.patch` | Portage user patches, one per package |
+| `patches/kde-plasma/{plasma-workspace,milou,kwin}/*.patch`, `patches/kde-frameworks/ksvg/*.patch`, `patches/dev-qt/{qtbase,qtdeclarative}/*.patch` | Portage user patches, one per package |
 | `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc), `krunner-shortcut.sh` (KRunner on Meta+Space, or back on Alt+Space), `plasma-glass-tune.qml` (Liquid Glass Tuning: the liquid and the dark glass, live) |
 | `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` and `qt` build test copies, `kwin` compiles the edited KWin files |
-| `tools/check-patches.sh` | patches apply; patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
+| `tools/check-patches.sh` | patches apply; patched QML loads under qml6 with stubs; patched KRunner, KSvg and Qt C++ syntax-checks |
 | `tools/screenprobe/screen.sh` | probes on the real screens (small, never focused, ask first): `fps` measures Qt Quick frame rate and animation speed per screen, `glass` shows the style's glass over a grey square (screenshot or by eye) |
-| `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh`, `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`); `record.sh` records KRunner into a video (demos); `fakeinput.c` for pointer input |
+| `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh` (`SWITCH`: across a global theme switch), `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`); `record.sh` records KRunner into a video (demos); `fakeinput.c` for pointer input |
 | `desktop/test-notifications.sh` | sample popups (clickable, long and scrolling, image, critical); installed as `plasma-glass-test-notifications` with a "Test Notifications" launcher |
 
 ## Dev loops
@@ -32,9 +32,9 @@ docs are in README.md; this file covers how to work on it.
   `journalctl --user -u plasma-plasmashell.service` for QML errors. The real popups only appear in
   plasmashell, so the user looks at them; `tools/preview/dialog.sh` only approximates them.
   milou rebuilds in about 2 min, plasma-workspace in about 25 min on the laptop (about 6 min on the
-  main box), qtbase in about 3 min and kwin in about 3½ min on the main box. After a Qt rebuild, running
-  apps keep the old libraries until they restart (a relogin restarts them all); a new KWin runs from
-  the next login. `tools/patch-dev.sh kwin` compiles the edited KWin files first (20 s the first time).
+  main box), qtbase in about 3 min, kwin in about 3½ min and ksvg in about 15 s on the main box. After a
+  Qt or KSvg rebuild, running apps keep the old libraries until they restart (a relogin restarts them
+  all); a new KWin runs from the next login. `tools/patch-dev.sh kwin` compiles the edited KWin files first (20 s the first time).
 - **KRunner C++/QML without an emerge:** `tools/patch-dev.sh krunner` builds just KRunner from the
   edited tree (about 20 s the first time, then seconds) and refreshes a milou QML overlay. Preview:
   `QML_IMPORT_PATH=~/.cache/plasma-glass/dev/qml KRUNNER=$(tools/patch-dev.sh krunner) tools/preview/krunner.sh /tmp/k.png "q"`.
@@ -556,6 +556,23 @@ docs are in README.md; this file covers how to work on it.
   (`env -i` with scratch `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CONFIG_DIRS=<scratch>/kdedefaults`,
   `QT_QPA_PLATFORM=offscreen`, `dbus-run-session`): both listed, each applies style, colours, icons and
   package, and an explicit `plasmarc` entry gives way.
+- **Liquid Glass Light came out dark after a switch from dark** (2026-10-16, the user: "a very dark tint
+  that wasn't there before ... didn't seem like any of the settings knobs effected it"). Only in a KRunner
+  that ran through the switch; a fresh one was fine. The dark style has no `colors` file, so each
+  `FrameSvgItem`/`SvgItem` puts the Kirigami theme's colours on its Svg as overrides. On the switch each
+  Svg re-renders on `ImageSet::imageSetChanged` (its own connection comes first) before its item's handler
+  drops them (the light style has its own colours). `ImageSetPrivate::svgStyleSheet` skipped its cache for
+  Svgs with overrides but still stored their stylesheet as the one for every Svg of that colour set, so
+  KRunner's light frame (Light's 62% fill) came out in Breeze Dark's #202326. `ksvg-stylesheet-cache.patch`
+  stores only stylesheets without overrides; KSvg's master still has the bug (2026-10). Reproduce with
+  `SWITCH="plasma-glass.liquid-glass plasma-glass.liquid-glass-light" tools/preview/krunner.sh OUT.png "a"`
+  (`OUT-before.png`, then `OUT.png`). Ruled out on the way: the frame does switch SVGs (PlasmaWindow's
+  DialogBackground re-resolves its own; re-setting KRunner's background hints changed nothing), KWin's
+  glass follows plasmarc, the contrast effect, and the `plasma_theme_*.kcache` a process maps (after a
+  switch it keeps the old style's file, cleared, and caches the new style's renders in it). To see what an
+  app draws without KWin's blur, grab its window in the app (`QQuickWindow::grabWindow()`). To trace
+  KSvg, build it from `$DISTDIR/ksvg-*.tar.xz` with qWarning()s and run the app with
+  `LD_LIBRARY_PATH=<build>/bin QML_IMPORT_PATH=<build>/bin` (its QML plugin is built there too).
 - **KRunner ran in background.slice** (2026-10-16, the user: the dropdown "at about 20fps" on the laptop,
   worse in power-saver, with "a 300ms lag after first key press"). Plasma's `plasma-krunner.service` has
   `Slice=background.slice`, CPU weight 30 against app.slice's 100, and Claude Desktop ran at nice -8 beside

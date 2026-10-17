@@ -201,8 +201,8 @@ KWin's environment still overrides the glass for experiments (`KWIN_LIQUID_GLASS
 
 ## Patches
 
-The patches were made against Plasma 6.7.5 and Qt 6.11.2. Portage re-applies them whenever
-plasma-workspace, milou, kwin, qtbase or qtdeclarative is rebuilt. If a future version changes the patched lines, that
+The patches were made against Plasma 6.7.5, KDE Frameworks 6.30 and Qt 6.11.2. Portage re-applies them whenever
+plasma-workspace, milou, kwin, ksvg, qtbase or qtdeclarative is rebuilt. If a future version changes the patched lines, that
 build stops at the patch step until the patch is refreshed.
 
 - `plasma-workspace-tweaks.patch`
@@ -258,6 +258,13 @@ build stops at the patch step until the patch is refreshed.
     cache flushed first, which otherwise left horizontal strips missing from the cursor
   - no crash at every logout: scripts are unloaded before the workspace goes away (Remember Window
     Positions saved its state from a workspace that was already gone)
+- `ksvg-stylesheet-cache.patch` (kde-frameworks/ksvg, which draws every Plasma Style's SVGs; Plasma
+  processes load it as they start): after a switch from Liquid Glass to Liquid Glass Light (Dark Mode,
+  `plasma-glass-mode`), a running KRunner drew the light glass in Breeze Dark's background colour, a
+  heavy dark tint under dark text, until it restarted. The dark style's SVGs take the colour scheme's
+  colours, and on the switch one re-rendered with them just before dropping them; KSvg cached that
+  stylesheet for every SVG in the process (any Plasma process running through a switch has the same
+  cache). Not fixed upstream as of KSvg's master branch (2026-10)
 - `qtbase-wayland.patch` (dev-qt/qtbase, every Qt app): Qt's Wayland client sends a window's new
   viewport size (`wp_viewporter`, used with fractional scaling) together with the buffer drawn for it.
   It sent it as soon as the window resized, so the compositor showed the previous frame stretched to

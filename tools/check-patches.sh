@@ -3,10 +3,11 @@
 #   1. each patch applies to the source of the installed package version
 #   2. the patched QML loads under Qt, with stubs for modules that only exist inside krunner or
 #      plasmashell (this catches errors that only show at runtime, like assigning to a grouped property)
-#   3. patched KRunner and Qt C++ passes a compiler syntax check (KWin's needs its build tree's generated
-#      headers: `tools/patch-dev.sh kwin` compiles it)
+#   3. patched KRunner, KSvg and Qt C++ passes a compiler syntax check (KWin's needs its build tree's
+#      generated headers: `tools/patch-dev.sh kwin` compiles it)
 # Needs the source tarballs in Portage's DISTDIR (kept after a build; otherwise `emerge --fetchonly
-# kde-plasma/plasma-workspace kde-plasma/milou kde-plasma/kwin dev-qt/qtbase dev-qt/qtdeclarative`). Exit status 1 on any failure.
+# kde-plasma/plasma-workspace kde-plasma/milou kde-plasma/kwin kde-frameworks/ksvg dev-qt/qtbase dev-qt/qtdeclarative`).
+# Exit status 1 on any failure.
 set -eu
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 WORK=$(mktemp -d)
@@ -145,6 +146,7 @@ echo "Patches"
 prepare kde-plasma/plasma-workspace
 prepare kde-plasma/milou
 prepare kde-plasma/kwin
+prepare kde-frameworks/ksvg
 prepare dev-qt/qtbase
 prepare dev-qt/qtdeclarative
 PW=$(cat "$WORK/plasma-workspace.dir" 2>/dev/null || true)
@@ -185,6 +187,26 @@ if [ -n "$PW" ] && [ -f "$PW/krunner/view.cpp" ]; then
     else
         bad "KRunner view.cpp: $(grep -m3 'error' "$WORK/cxx.log" | tr '\n' ' ')"
     fi
+fi
+
+# KSvg: syntax-check the .cpp files its patch changes, against the installed KSvg's public headers (the
+# patched private ones are beside them); its logging category and moc output are stubbed.
+KS=$(cat "$WORK/ksvg.dir" 2>/dev/null || true)
+if [ -n "$KS" ]; then
+    stub="$WORK/ksvgstub"
+    mkdir -p "$stub"
+    printf '#pragma once\n#include <QLoggingCategory>\nQ_DECLARE_LOGGING_CATEGORY(LOG_KSVG)\n' > "$stub/debug_p.h"
+    kf=$(ls -d /usr/include/KF6/* 2>/dev/null | sed 's/^/-I/' | tr '\n' ' ')
+    for f in $(sed -n 's|^+++ b/\(.*\.cpp\)$|\1|p' "$REPO"/patches/kde-frameworks/ksvg/*.patch); do
+        for m in $(sed -n 's/^#include "\(moc_[^"]*\)"$/\1/p' "$KS/$f"); do : > "$stub/$m"; done
+        # shellcheck disable=SC2086
+        if (cd "$(dirname "$KS/$f")" && g++ -std=c++20 -fsyntax-only -fPIC -I. -I"$stub" -I/usr/include/KF6/KSvg/ksvg $kf \
+                $(pkg-config --cflags Qt6Gui Qt6Svg 2>/dev/null) "$(basename "$f")") >"$WORK/cxx.log" 2>&1; then
+            ok "KSvg $(basename "$f") compiles (syntax check)"
+        else
+            bad "KSvg $(basename "$f"): $(grep -m3 'error' "$WORK/cxx.log" | tr '\n' ' ')"
+        fi
+    done
 fi
 
 # qt_check PKG MODULE "QT MODULES" "PKG-CONFIG NAMES" DEFINE: syntax-check the .cpp files PKG's patch

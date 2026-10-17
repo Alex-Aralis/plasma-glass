@@ -11,6 +11,9 @@
 #   WALLPAPER_PAN=px/s the wallpaper scrolls up and down at this speed (record.sh: content moving behind
 #                      the glass)
 #   KWIN_WAYLAND=path  a dev build of KWin as the preview's compositor (KWIN_ENV: its environment)
+#   SWITCH="FROM TO"   global themes (krunner.sh): KRunner starts on FROM, then TO is applied with its
+#                      results showing, as KDE's Dark Mode switch does; OUT-before.png is just before,
+#                      e.g. SWITCH="plasma-glass.liquid-glass plasma-glass.liquid-glass-light"
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/../.." && pwd)
@@ -62,6 +65,9 @@ prepare() {
             name=liquid-glass; [ "$STYLE" = repo-light ] && name=liquid-glass-light ;;
     esac
     kwriteconfig6 --file "$WORK/cfg/plasmarc" --group Theme --key name "$name"
+    if [ -n "${SWITCH:-}" ]; then  # the Liquid Glass global themes, installed or not
+        mkdir -p "$WORK/data/plasma/look-and-feel" && cp -r "$REPO/theme/look-and-feel/." "$WORK/data/plasma/look-and-feel/"
+    fi
     export WALLPAPER_FILE
     WALLPAPER_FILE=$(pick_wallpaper)
 }
@@ -95,9 +101,10 @@ fakeinput() {
     echo "$WORK/fakeinput"
 }
 
-# crop_to_changes OUT : crop the app screenshot to what differs from the wallpaper-only screenshot
+# crop_to_changes OUT [SHOT OUT2]... : crop the app screenshot to what differs from the wallpaper-only
+# screenshot, and each further SHOT the same way into its OUT2
 crop_to_changes() {
-    "$(pil_python)" -I - "$WORK/shots/bg.png" "$WORK/shots/app.png" "$1" <<'PY'
+    "$(pil_python)" -I - "$WORK/shots/bg.png" "$WORK/shots/app.png" "$@" <<'PY'
 import sys
 from PIL import Image, ImageChops
 bg, app = (Image.open(p).convert("RGB") for p in sys.argv[1:3])
@@ -105,7 +112,11 @@ box = ImageChops.difference(bg, app).convert("L").point(lambda v: 255 if v > 6 e
 if not box:
     sys.exit("nothing appeared on the preview screen (see ~/.cache/plasma-glass/preview/*.log)")
 pad = 48
-app.crop((max(0, box[0] - pad), max(0, box[1] - pad), min(app.width, box[2] + pad), min(app.height, box[3] + pad))).save(sys.argv[3])
+crop = (max(0, box[0] - pad), max(0, box[1] - pad), min(app.width, box[2] + pad), min(app.height, box[3] + pad))
+app.crop(crop).save(sys.argv[3])
 print(sys.argv[3])
+for shot, out in zip(sys.argv[4::2], sys.argv[5::2]):
+    Image.open(shot).convert("RGB").crop(crop).save(out)
+    print(out)
 PY
 }

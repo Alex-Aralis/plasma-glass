@@ -54,9 +54,10 @@ cat <<'EOF'
 User part removed. To undo the system part (as root):
     rm -r /etc/portage/patches/kde-plasma/plasma-workspace /etc/portage/patches/kde-plasma/milou \
           /etc/portage/patches/kde-plasma/kwin/kwin-fixes.patch \
+          /etc/portage/patches/kde-frameworks/ksvg/ksvg-stylesheet-cache.patch \
           /etc/portage/patches/dev-qt/qtbase/qtbase-wayland.patch \
           /etc/portage/patches/dev-qt/qtdeclarative/qtdeclarative-quick.patch
-    emerge --oneshot kde-plasma/milou kde-plasma/plasma-workspace kde-plasma/kwin dev-qt/qtbase dev-qt/qtdeclarative
+    emerge --oneshot kde-plasma/milou kde-plasma/plasma-workspace kde-plasma/kwin kde-frameworks/ksvg dev-qt/qtbase dev-qt/qtdeclarative
 and, if nothing else needs it, the GPU runtime:
     emerge --ask --depclean dev-libs/intel-compute-runtime virtual/opencl dev-libs/opencl-icd-loader
 EOF

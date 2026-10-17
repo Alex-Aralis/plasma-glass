@@ -14,6 +14,8 @@
 MODE="$1"; shift
 SOCK="$PREVIEW_SOCK"  # chosen by run_session, which also points the bus's services at it
 export XDG_CONFIG_HOME="$WORK/cfg"
+# SWITCH: global themes write their settings as defaults, where a Plasma session reads them
+[ -z "${SWITCH:-}" ] || export XDG_CONFIG_DIRS="$WORK/cfg/kdedefaults:${XDG_CONFIG_DIRS:-/etc/xdg}"
 
 # Global shortcuts stay off except for plasmashell, whose applet shortcuts open the popups. Permission
 # checks are off so tools/preview/fakeinput.c may send pointer input; this KWin only serves the preview.
@@ -52,12 +54,19 @@ fi
 
 case "$MODE" in
     krunner)
+        # SWITCH="FROM TO": KRunner starts on global theme FROM, and TO is applied once the results are in
+        [ -z "${SWITCH:-}" ] || plasma-apply-lookandfeel --apply "${SWITCH% *}" >"$WORK/switch.log" 2>&1
         "${KRUNNER:-krunner}" >"$WORK/app.log" 2>&1 &  # KRUNNER: a dev build (tools/patch-dev.sh krunner)
         sleep 2
         qdbus6 org.kde.krunner /App org.kde.krunner.App.query "$1"
         sleep "${HOLD:-8}"  # let results arrive (the semantic search service can be slow while the CPU is busy)
         if [ -n "${HOVER_INPUT:-}" ]; then  # then the pointer over a row, long enough for its tooltip
             "$FAKEINPUT" <"$HOVER_INPUT"; sleep 2
+        fi
+        if [ -n "${SWITCH:-}" ]; then
+            spectacle -b -n -f -o "$WORK/shots/before.png" >/dev/null 2>&1
+            plasma-apply-lookandfeel --apply "${SWITCH#* }" >>"$WORK/switch.log" 2>&1
+            sleep 4  # the style follows 0.1 s after the config change, the colours later
         fi
         ;;
     dialog)

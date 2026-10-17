@@ -7,7 +7,8 @@
 # 1. Intel GPU compute runtime (OpenCL/Level Zero) so OpenVINO can run the search model on the iGPU.
 # 2. Portage user patches for kde-plasma/plasma-workspace (KRunner + notification popups),
 #    kde-plasma/milou (KRunner result rows), kde-plasma/kwin (the dark style's glass, frame pacing, a
-#    crash at logout), dev-qt/qtbase and dev-qt/qtdeclarative (Qt fixes: a resizing window no longer
+#    crash at logout), kde-frameworks/ksvg (Liquid Glass Light kept the dark colours after a switch from
+#    dark), dev-qt/qtbase and dev-qt/qtdeclarative (Qt fixes: a resizing window no longer
 #    shows its old frame stretched to the new size, or, with NVIDIA, shifted), then rebuilds the
 #    packages whose patch is new or changed. Portage re-applies the patches on every future update of
 #    those packages.
@@ -89,7 +90,7 @@ if [ "$CHECKS" = 1 ]; then
     sh "$REPO/tools/check-patches.sh" || die "patch checks failed; nothing was installed (override with --skip-checks)"
 fi
 say "Installing Portage user patches"
-pkgs="kde-plasma/plasma-workspace kde-plasma/milou kde-plasma/kwin"
+pkgs="kde-plasma/plasma-workspace kde-plasma/milou kde-plasma/kwin kde-frameworks/ksvg"
 if [ "$QT" = 1 ]; then pkgs="$pkgs dev-qt/qtbase dev-qt/qtdeclarative"; fi
 rebuild=""
 for atom in $pkgs; do
@@ -106,7 +107,7 @@ for atom in $pkgs; do
     echo "  $dest: $(cd "$dest" && ls)"
 done
 for atom in $pkgs; do
-    case "$atom" in dev-qt/*) want=6.11.2 ;; *) want=6.7.5 ;; esac
+    case "$atom" in dev-qt/*) want=6.11.2 ;; kde-frameworks/*) want=6.30.0 ;; *) want=6.7.5 ;; esac
     have=$(portageq best_version / "$atom" 2>/dev/null || true)
     case "$have" in
         *-"$want"*) ;;

@@ -13,4 +13,4 @@ if [ -n "${HOVER:-}" ]; then
 fi
 prepare
 run_session krunner "$QUERY"
-crop_to_changes "$OUT"
+crop_to_changes "$OUT" ${SWITCH:+"$WORK/shots/before.png" "${OUT%.png}-before.png"}

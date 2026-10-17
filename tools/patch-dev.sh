@@ -22,23 +22,25 @@
 #   tools/patch-dev.sh install [PKG...]  (root) put the patches in /etc/portage/patches and rebuild the
 #                                packages whose patch changed or that weren't rebuilt since (or the PKGs named)
 #
-# Packages: plasma-workspace, milou, kwin (kde-plasma), qtbase and qtdeclarative (dev-qt). Each has a single patch file; setup
+# Packages: plasma-workspace, milou, kwin (kde-plasma), ksvg (kde-frameworks), qtbase and qtdeclarative (dev-qt). Each has a single patch file; setup
 # extracts whole directories (DIRS below), so any file in them can be edited and refresh picks it up. To
 # touch another directory, add it to DIRS and re-run setup.
 set -eu
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 DEV="${XDG_CACHE_HOME:-$HOME/.cache}/plasma-glass/dev"
 DISTDIR=$(portageq envvar DISTDIR 2>/dev/null || echo /var/cache/distfiles)
-PKGS="plasma-workspace milou kwin qtbase qtdeclarative"
-CAT_plasma_workspace=kde-plasma CAT_milou=kde-plasma CAT_kwin=kde-plasma CAT_qtbase=dev-qt CAT_qtdeclarative=dev-qt
+PKGS="plasma-workspace milou kwin ksvg qtbase qtdeclarative"
+CAT_plasma_workspace=kde-plasma CAT_milou=kde-plasma CAT_kwin=kde-plasma CAT_ksvg=kde-frameworks CAT_qtbase=dev-qt CAT_qtdeclarative=dev-qt
 DIRS_plasma_workspace="krunner applets/notifications"
 DIRS_milou="lib"
 DIRS_kwin="src"
+DIRS_ksvg="src/ksvg"
 DIRS_qtbase="src/plugins/platforms/wayland"
 DIRS_qtdeclarative="src/quick/scenegraph"
 PATCH_plasma_workspace=plasma-workspace-tweaks.patch
 PATCH_milou=milou-section-headers.patch
 PATCH_kwin=kwin-fixes.patch
+PATCH_ksvg=ksvg-stylesheet-cache.patch
 PATCH_qtbase=qtbase-wayland.patch
 PATCH_qtdeclarative=qtdeclarative-quick.patch
 RUN="$DEV/qt-run"  # the libraries `qt` builds, where its environment points
