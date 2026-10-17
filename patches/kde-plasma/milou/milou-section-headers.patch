@@ -239,13 +239,17 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultsView.qml b/lib/Resul
  import org.kde.milou as Milou
  
  ListView {
-@@ -39,6 +41,19 @@
+@@ -39,6 +41,23 @@
      section {
          criteria: ViewSection.FullString
          property: "category"
-+        // Category names as small headers above each group, instead of a wide column beside every row
++        // Category names as small headers above each group, instead of a wide column beside every row.
++        // "section" is the context property ListView sets, not a required property: ListView only
++        // updates a reused header's required property when no "section" is found up the context chain,
++        // and here it finds this ListView's own section group, so headers kept their first category
++        // when the results changed under them (other runners' categories over the late Semantic
++        // Search results, or the last query's).
 +        delegate: PlasmaComponents3.Label {
-+            required property string section
 +            width: listView.width
 +            text: section
 +            font: Kirigami.Theme.smallFont
