@@ -523,7 +523,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
      effects->prePaintScreen(data);
  }
-@@ -547,6 +835,340 @@
+@@ -547,6 +835,343 @@
      return m_noisePass.noiseTexture.get();
  }
  
@@ -840,9 +840,13 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +    m_surfacePass.shader->setUniform(m_surfacePass.swellCellLocation, float(s_swellCell));
 +    m_surfacePass.shader->setUniform(m_surfacePass.originLocation, QVector2D(background.x() - glass.x(), background.y() - glass.y()));
 +    m_surfacePass.shader->setUniform(m_surfacePass.areaLocation, QVector2D(background.width(), background.height()));
-+    // a fresh wave's crest is about this high (the push's speed over the waves' speed, in a straight channel)
++    // a fresh wave's crest is about this high (the push's speed over the waves' speed, in a straight channel);
++    // and, for Liquid Glass Light's foil, a slosh's from rim to rim of a glass this size (either way) whose
++    // slope just leans the glass fully (lean x slope = s_liquidSteep), so the foil lights up as the moves'
++    // waves show
 +    const double crest = s_pushSlope * m_liquid.width / (0.38 * M_PI);
-+    m_surfacePass.shader->setUniform(m_surfacePass.gainLocation, QVector3D(1, swell ? 1 : 0, crest));
++    const double sloshCrest = s_liquidSteep / std::max(m_rippleLean.value_or(m_liquid.amplitude), 0.05) * std::sqrt(glass.width() * glass.height()) / M_PI;
++    m_surfacePass.shader->setUniform(m_surfacePass.gainLocation, QVector4D(1, swell ? 1 : 0, crest, sloshCrest));
 +    glActiveTexture(GL_TEXTURE1);
 +    (swell ? swell : ripples)->bind();
 +    glActiveTexture(GL_TEXTURE0);
@@ -856,7 +860,6 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +    ripples->unbind();
 +    ShaderManager::instance()->popShader();
 +
-+
 +    // over its last 2 s it fades out, so nothing is left standing when it stops
 +    return smoothStep(0, 2, f.liveUntil - now);
 +}
@@ -864,7 +867,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &viewport, EffectWindow *w, int mask, const Region &deviceRegion, WindowPaintData &data)
  {
      auto it = m_windows.find(w);
-@@ -571,6 +1193,21 @@
+@@ -571,6 +1196,21 @@
  
      blurShape.translate(w->pos());
  
@@ -886,7 +889,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      const Rect backgroundRect = blurShape.boundingRect().rounded();
      const Rect scaledBackgroundRect = backgroundRect.scaled(viewport.scale()).rounded();
      const Rect deviceBackgroundRect = viewport.mapToDeviceCoordinates(backgroundRect).rounded();
-@@ -605,12 +1242,12 @@
+@@ -605,12 +1245,12 @@
          textureFormat = renderTarget.texture()->internalFormat();
      }
  
@@ -901,7 +904,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
              auto texture = GLTexture::allocate(textureFormat, backgroundRect.size() / (1 << i));
              if (!texture) {
                  qCWarning(KWIN_BLUR) << "Failed to allocate an offscreen texture";
-@@ -742,6 +1379,81 @@
+@@ -742,6 +1382,81 @@
  
      vbo->bindArrays();
  
@@ -983,7 +986,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      // The downsample pass of the dual Kawase algorithm: the background will be scaled down 50% every iteration.
      {
          ShaderManager::instance()->pushShader(m_downsamplePass.shader.get());
-@@ -750,7 +1462,7 @@
+@@ -750,7 +1465,7 @@
          projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
  
          m_downsamplePass.shader->setUniform(m_downsamplePass.mvpMatrixLocation, projectionMatrix);
@@ -992,7 +995,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
          for (size_t i = 1; i < renderInfo.framebuffers.size(); ++i) {
              const auto &read = renderInfo.framebuffers[i - 1];
-@@ -760,7 +1472,7 @@
+@@ -760,7 +1475,7 @@
                                        0.5 / read->colorAttachment()->height());
              m_downsamplePass.shader->setUniform(m_downsamplePass.halfpixelLocation, halfpixel);
  
@@ -1001,7 +1004,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
              GLFramebuffer::pushFramebuffer(draw.get());
              vbo->draw(GL_TRIANGLES, 0, 6);
-@@ -777,7 +1489,7 @@
+@@ -777,7 +1492,7 @@
          projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
  
          m_upsamplePass.shader->setUniform(m_upsamplePass.mvpMatrixLocation, projectionMatrix);
@@ -1010,7 +1013,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
          for (size_t i = renderInfo.framebuffers.size() - 1; i > 1; --i) {
              GLFramebuffer::popFramebuffer();
-@@ -824,7 +1536,7 @@
+@@ -824,7 +1539,7 @@
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.mvpMatrixLocation, projectionMatrix);
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.colorMatrixLocation, m_colorMatrix);
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.halfpixelLocation, halfpixel);
@@ -1019,7 +1022,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.boxLocation, QVector4D(nativeBox.horizontalCenter(), nativeBox.verticalCenter(), nativeBox.width() * 0.5, nativeBox.height() * 0.5));
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.cornerRadiusLocation, nativeCornerRadius.toVector());
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.opacityLocation, modulation);
-@@ -839,6 +1551,61 @@
+@@ -839,6 +1554,61 @@
          glDisable(GL_BLEND);
  
          ShaderManager::instance()->popShader();
@@ -1081,7 +1084,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      } else {
          ShaderManager::instance()->pushShader(m_onscreenPass.shader.get());
  
-@@ -854,7 +1621,7 @@
+@@ -854,7 +1624,7 @@
          m_onscreenPass.shader->setUniform(m_onscreenPass.mvpMatrixLocation, projectionMatrix);
          m_onscreenPass.shader->setUniform(m_onscreenPass.colorMatrixLocation, m_colorMatrix);
          m_onscreenPass.shader->setUniform(m_onscreenPass.halfpixelLocation, halfpixel);
@@ -1704,14 +1707,14 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/onscre
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/surface.frag b/src/plugins/blur/shaders/surface.frag
 --- a/src/plugins/blur/shaders/surface.frag
 +++ b/src/plugins/blur/shaders/surface.frag
-@@ -0,0 +1,53 @@
+@@ -0,0 +1,57 @@
 +#version 140
 +
 +// plasma-glass: the liquid's surface over the background behind a Liquid Glass window, for the bevel pass
-+// (and Liquid Glass Light's underlay) to bend what's behind by: its slope (x, y) and the ripples' height,
-+// at half size. The liquid runs in two layers of its own (fluid.frag), which add up: ripples, the short
-+// waves (on cells of ripplesCell px), and swell, the long ones that slosh (swellCell px). Past the liquid's
-+// wavy edge, a little in from the rim, there are none.
++// (and Liquid Glass Light's underlay) to bend what's behind by: its slope (x, y), the ripples' height and
++// the swell's, at half size. The liquid runs in two layers of its own (fluid.frag), which add up:
++// ripples, the short waves (on cells of ripplesCell px), and swell, the long ones that slosh (swellCell
++// px). Past the liquid's wavy edge, a little in from the rim, there are none.
 +
 +uniform sampler2D ripples;
 +uniform sampler2D swell;
@@ -1719,8 +1722,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/surfac
 +uniform float swellCell;
 +uniform vec2 origin;  // the background's top left in the glass
 +uniform vec2 area;    // its size, logical px
-+uniform vec3 gain;    // what the ripples' and the swell's slopes are multiplied by; the ripples' height
-+                      // is divided by the last (a fresh wave's crest comes out as 1)
++uniform vec4 gain;    // what the ripples' and the swell's slopes are multiplied by; what their heights
++                      // are divided by (a fresh wave's crest, and a slosh's that leans the glass fully,
++                      // come out as 1)
 +
 +in vec2 uv;
 +
@@ -1753,25 +1757,28 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/surfac
 +    vec2 p = origin + vec2(uv.x, 1.0 - uv.y) * area;
 +    vec3 ripple = surface(ripples, ripplesCell, p);
 +    vec2 s = gain.x * ripple.xy;
++    float swellHeight = 0.0;
 +    if (gain.y != 0.0) {
-+        s += gain.y * surface(swell, swellCell, p).xy;
++        vec3 sloshed = surface(swell, swellCell, p);
++        s += gain.y * sloshed.xy;
++        swellHeight = sloshed.z / gain.w;
 +    }
-+    fragColor = vec4(s, ripple.z / gain.z, 1.0);
++    fragColor = vec4(s, ripple.z / gain.z, swellHeight);
 +}
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/underlay.frag b/src/plugins/blur/shaders/underlay.frag
 --- a/src/plugins/blur/shaders/underlay.frag
 +++ b/src/plugins/blur/shaders/underlay.frag
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,85 @@
 +#version 140
 +
 +// The liquid in KRunner's glass on Liquid Glass Light (plasma-glass), beneath the frost: what's behind the
 +// glass, bent by the waves (seen from further in where a wave leans, as through a lens) and lit in shards
 +// of colour where they crest, as off an etched diffraction foil. The blur's passes then frost this, so the
 +// waves show through the frosting, softened. In: the background as it is, and the liquid's slope and
-+// height (surface.frag) at half size. Out: the background to frost.
++// heights (surface.frag: the ripples' and the swell's) at half size. Out: the background to frost.
 +
 +uniform sampler2D texUnit;   // the background as it is
-+uniform sampler2D wavesUnit; // the waves: the glass's slope (x, y) and their height
++uniform sampler2D wavesUnit; // the waves: the glass's slope (x, y), the ripples' height and the swell's
 +uniform vec2 size;           // the background's size, device px
 +uniform vec2 origin;         // its top left in the window, logical px
 +uniform vec2 area;           // its size, logical px
@@ -1811,7 +1818,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/underl
 +
 +void main(void)
 +{
-+    vec3 wave = texture(wavesUnit, uv).xyz;
++    vec4 wave = texture(wavesUnit, uv);
 +    vec2 waveLean = -wave.xy * lean; // a wave faces downhill
 +    float tilt = min(length(waveLean), 1.0);
 +    vec2 facing = waveLean / max(length(waveLean), 1e-6);
@@ -1819,7 +1826,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/underl
 +    vec2 shift = facing * light.x * tilt * tilt / size;
 +    vec4 color = texture(texUnit, uv + vec2(-shift.x, shift.y));
 +
-+    float crest = max(wave.z, 0.0);
++    // the busy pushes' crests, and the sloshing's (where the window's moves heap the liquid up)
++    float crest = max(wave.z, 0.0) + max(wave.w, 0.0);
 +    if (crest > 0.002 && light.y > 0.0) {
 +        // the foil's shard here: the Voronoi cells of a jittered grid, light.z logical px across, fixed to
 +        // the window, each with its own colour and sparkle

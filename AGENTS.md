@@ -398,6 +398,16 @@ docs are in README.md; this file covers how to work on it.
   without it), the full-size underlay pass and the heavier frost do. KRunner could also draw the foil on
   top of the glass, crisp (`[Light] layer` top or both, which the user asked for on 2026-10-14), until the
   liquid: KRunner can't see a liquid only KWin has.
+- **The foil lights at the sloshing's crests too** (2026-10-16, the user: "momentum waves on the light
+  mode version don't seem to be rendering the diffraction pattern"). It lit where `wave.z` crests, the
+  ripples' height only, and a window's moves go mostly into the swell (`s_swellMomentum` 30 against the
+  ripples' 0.15), which reached the surface's slope but not its height. surface.frag now passes the
+  swell's height in `w` (the dark bevel reads only `xyz`) over the crest of a slosh from rim to rim of
+  the glass (√(w·h)) whose slope just leans it fully (lean x slope = `s_liquidSteep`), and underlay.frag
+  adds it to the ripples' crest. Over the glass's size first (lean left out): with the user's tuning
+  (momentum 2, sloshSpeed 1800, amplitude 2) a Meta+drag's sloshes crested at 0.3-0.4, faint patches;
+  with the lean in, 0.7-1, as bright as the busy pushes' foil. Read the waves texture back (a scratch
+  `glReadPixels` per frame into raw files) to measure such things; it slows KWin's frames.
 - **Without shaders (software rendering) the busy pulse is a gradient, not a mask.** The band of
   light that stands in for the ripple is the gradient of a rounded Rectangle over the glass (stops
   moved by a 0..1 progress), so it keeps to the corners at every size. A MultiEffect mask (the
