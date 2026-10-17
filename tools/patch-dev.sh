@@ -75,8 +75,9 @@ refresh() {
         out=$(patchfile "$pkg")
         mkdir -p "$(dirname "$out")"
         # diff exits 1 when there are differences; -N includes added files; strip timestamps so refreshes
-        # diff cleanly in git
-        (cd "$DEV" && diff -ruN --exclude='*.orig' --exclude='*.rej' "a/$pkg" "b/$pkg" || true) \
+        # diff cleanly in git; C's order of names, not the locale's (en_US put NotificationPopup.qml after
+        # components/), so every machine writes the same file
+        (cd "$DEV" && LC_ALL=C diff -ruN --exclude='*.orig' --exclude='*.rej' "a/$pkg" "b/$pkg" || true) \
             | sed -E -e "s#^(---|\+\+\+) (a|b)/$pkg/#\1 \2/#" -e 's/^(---|\+\+\+) ([^\t]+)\t.*/\1 \2/' \
                   -e "s#^diff -ruN (.*)a/$pkg/(.*) b/$pkg/(.*)#diff -ruN \1a/\2 b/\3#" > "$out"
         printf '%s: %s files changed\n' "$(basename "$out")" "$(grep -c '^+++ ' "$out")"
