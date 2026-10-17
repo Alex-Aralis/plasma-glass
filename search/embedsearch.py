@@ -657,6 +657,9 @@ def hidden_kcms():
     return hidden
 
 
+SETTINGS_HINTS = {"setting", "settings"}  # "settings focus stealing": a hint to show options first, not a word to match
+
+
 def settings_prompt(e):
     return f"title: {e['text']} | text: {e['where']}" + (f". {e['detail']}" if e["detail"] else "")
 
@@ -701,7 +704,7 @@ class Settings:
         entries, words, vecs = self.entries, self.words, self.vecs
         if not entries:
             return []
-        q = re.findall(r"\w+", query.lower())
+        q = [w for w in re.findall(r"\w+", query.lower()) if w not in SETTINGS_HINTS]
         scores = vecs @ qvec
 
         def has(ws, w):
@@ -873,12 +876,16 @@ def serve():
                     "urls": Variant("as", [p.as_uri()]),
                     "category": Variant("s", "Semantic Search"),
                 }])
+            # KRunner orders the groups by their best match's category relevance alone, so options go above
+            # the files (70) when one holds every word of the query, the query says "settings", or one is
+            # closer in meaning than any file; otherwise below them (50)
+            hinted = bool(SETTINGS_HINTS & set(re.findall(r"\w+", query.lower())))
+            best_file = max((r["score"] for r in results if not r.get("by_name")), default=0.0)
             for n, o in enumerate(options):
                 mid = f"setting:{self.seq}:{n}"
                 self.matches[mid] = o
-                # under KRunner's own "System Settings" results; one holding every word of the query ranks
-                # with a page whose name starts with it (70), one found by meaning lower (50)
-                out.append([mid, o["text"], o["icon"], 70 if o["by_words"] else 50,
+                first = o["by_words"] or hinted or o["score"] > best_file
+                out.append([mid, o["text"], o["icon"], 100 if first else 50,
                             (0.8 if o["by_words"] else 0.5) + 0.1 * o["score"], {
                                 "subtext": Variant("s", o["where"]),
                                 "category": Variant("s", "System Settings"),

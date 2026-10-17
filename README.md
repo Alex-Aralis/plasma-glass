@@ -71,7 +71,9 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
   labels from the 63 System Settings pages shown here, with the page (and, for Window Behavior, the tab)
   each is on. They show under KRunner's "System Settings" results: up to three, those holding every
   word of the query first, then any close in meaning (`settings_results`, `settings_min_score` in the
-  config). Choosing one opens its page. Pages a KDE restriction hides are left out. The list is built
+  config). They come above the files when one holds every word of the query, the query says
+  "settings" ("settings focus stealing"), or one is closer in meaning than any file. Choosing one
+  opens its page. Pages a KDE restriction hides are left out. The list is built
   from the installed packages' sources in /var/cache/distfiles by `search/settings_index.py`; re-run it
   after a Plasma upgrade. Only new labels are embedded again.
 - **Terminal:** `embedsearch search "query"` searches from the command line, `embedsearch settings
