@@ -657,6 +657,8 @@ def hidden_kcms():
     return hidden
 
 
+KCM_DIRS = [Path("/usr/lib64/qt6/plugins/plasma/kcms/systemsettings"),
+            Path("/usr/lib64/qt6/plugins/plasma/kcms/systemsettings_qwidgets")]
 SETTINGS_HINTS = {"setting", "settings"}  # "settings focus stealing": a hint to show options first, not a word to match
 
 
@@ -678,7 +680,8 @@ class Settings:
             log(f"no System Settings index: {e}")
             return
         hidden = hidden_kcms()
-        entries = [e for e in data["entries"] if e["kcm"] not in hidden
+        installed = {p.stem for d in KCM_DIRS if d.is_dir() for p in d.glob("*.so")}  # the index may come from another machine
+        entries = [e for e in data["entries"] if e["kcm"] not in hidden and e["kcm"] in installed
                    and e["text"].lower() != data["pages"][e["kcm"]]["name"].lower()]  # KRunner finds pages itself
         texts = [settings_prompt(e) for e in entries]
         hashes = [hashlib.sha1(t.encode()).hexdigest() for t in texts]
