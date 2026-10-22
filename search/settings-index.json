@@ -12,6 +12,10 @@
 "name": "Animations",
 "icon": "preferences-desktop-animations"
 },
+"kcm_app-permissions": {
+"name": "Application Permissions",
+"icon": "preferences-security"
+},
 "kcm_autostart": {
 "name": "Autostart",
 "icon": "system-run"
@@ -39,6 +43,10 @@
 "kcm_componentchooser": {
 "name": "Default Applications",
 "icon": "preferences-desktop-default-applications"
+},
+"kcm_cron": {
+"name": "Task Scheduler",
+"icon": "preferences-system-time"
 },
 "kcm_cursortheme": {
 "name": "Pointers",
@@ -75,6 +83,10 @@
 "kcm_kded": {
 "name": "Background Services",
 "icon": "preferences-system-session-services"
+},
+"kcm_kdf": {
+"name": "Storage Devices",
+"icon": "kdf"
 },
 "kcm_keyboard": {
 "name": "Keyboard",
@@ -252,6 +264,247 @@
 "name": "Spell Check",
 "icon": "tools-check-spelling"
 }
+},
+"keys": {
+"32": "Space",
+"16777216": "Esc",
+"16777217": "Tab",
+"16777218": "Backtab",
+"16777219": "Backspace",
+"16777220": "Return",
+"16777221": "Enter",
+"16777222": "Ins",
+"16777223": "Del",
+"16777224": "Pause",
+"16777225": "Print",
+"16777226": "SysReq",
+"16777227": "Clear",
+"16777232": "Home",
+"16777233": "End",
+"16777234": "Left",
+"16777235": "Up",
+"16777236": "Right",
+"16777237": "Down",
+"16777238": "PgUp",
+"16777239": "PgDown",
+"16777248": "Shift",
+"16777249": "Control",
+"16777250": "Meta",
+"16777251": "Alt",
+"16777252": "CapsLock",
+"16777253": "NumLock",
+"16777254": "ScrollLock",
+"16777301": "Menu",
+"16777304": "Help",
+"16777313": "Back",
+"16777314": "Forward",
+"16777315": "Stop",
+"16777316": "Refresh",
+"16777328": "Volume Down",
+"16777329": "Volume Mute",
+"16777330": "Volume Up",
+"16777331": "Bass Boost",
+"16777332": "Bass Up",
+"16777333": "Bass Down",
+"16777334": "Treble Up",
+"16777335": "Treble Down",
+"16777344": "Media Play",
+"16777345": "Media Stop",
+"16777346": "Media Previous",
+"16777347": "Media Next",
+"16777348": "Media Record",
+"16777349": "Media Pause",
+"16777350": "Toggle Media Play/Pause",
+"16777360": "Home Page",
+"16777361": "Favorites",
+"16777362": "Search",
+"16777363": "Standby",
+"16777364": "Open URL",
+"16777376": "Launch Mail",
+"16777377": "Launch Media",
+"16777378": "Launch (0)",
+"16777379": "Launch (1)",
+"16777380": "Launch (2)",
+"16777381": "Launch (3)",
+"16777382": "Launch (4)",
+"16777383": "Launch (5)",
+"16777384": "Launch (6)",
+"16777385": "Launch (7)",
+"16777386": "Launch (8)",
+"16777387": "Launch (9)",
+"16777388": "Launch (A)",
+"16777389": "Launch (B)",
+"16777390": "Launch (C)",
+"16777391": "Launch (D)",
+"16777392": "Launch (E)",
+"16777393": "Launch (F)",
+"16777394": "Monitor Brightness Up",
+"16777395": "Monitor Brightness Down",
+"16777396": "Keyboard Light On/Off",
+"16777397": "Keyboard Brightness Up",
+"16777398": "Keyboard Brightness Down",
+"16777399": "Power Off",
+"16777400": "Wake Up",
+"16777401": "Eject",
+"16777402": "Screensaver",
+"16777403": "WWW",
+"16777404": "Memo",
+"16777405": "LightBulb",
+"16777406": "Shop",
+"16777407": "History",
+"16777408": "Add Favorite",
+"16777409": "Hot Links",
+"16777410": "Adjust Brightness",
+"16777411": "Finance",
+"16777412": "Community",
+"16777413": "Media Rewind",
+"16777414": "Back Forward",
+"16777415": "Application Left",
+"16777416": "Application Right",
+"16777417": "Book",
+"16777418": "CD",
+"16777419": "Calculator",
+"16777420": "To-do list",
+"16777421": "Clear Grab",
+"16777422": "Close",
+"16777423": "Copy",
+"16777424": "Cut",
+"16777425": "Display",
+"16777426": "DOS",
+"16777427": "Documents",
+"16777428": "Spreadsheet",
+"16777429": "Browser",
+"16777430": "Game",
+"16777431": "Go",
+"16777432": "iTouch",
+"16777433": "Logoff",
+"16777434": "Market",
+"16777435": "Meeting",
+"16777436": "Keyboard Menu",
+"16777437": "Menu PB",
+"16777438": "My Sites",
+"16777439": "News",
+"16777440": "Home Office",
+"16777441": "Option",
+"16777442": "Paste",
+"16777443": "Phone",
+"16777444": "Calendar",
+"16777445": "Reply",
+"16777446": "Reload",
+"16777447": "Rotate Windows",
+"16777448": "Rotation PB",
+"16777449": "Rotation KB",
+"16777450": "Save",
+"16777451": "Send",
+"16777452": "Spellchecker",
+"16777453": "Split Screen",
+"16777454": "Support",
+"16777455": "Task Panel",
+"16777456": "Terminal",
+"16777457": "Tools",
+"16777458": "Travel",
+"16777459": "Video",
+"16777460": "Word Processor",
+"16777461": "XFer",
+"16777462": "Zoom In",
+"16777463": "Zoom Out",
+"16777464": "Away",
+"16777465": "Messenger",
+"16777466": "WebCam",
+"16777467": "Mail Forward",
+"16777468": "Pictures",
+"16777469": "Music",
+"16777470": "Battery",
+"16777471": "Bluetooth",
+"16777472": "Wireless",
+"16777473": "Ultra Wide Band",
+"16777474": "Media Fast Forward",
+"16777475": "Audio Repeat",
+"16777476": "Audio Random Play",
+"16777477": "Subtitle",
+"16777478": "Audio Cycle Track",
+"16777479": "Time",
+"16777480": "Hibernate",
+"16777481": "View",
+"16777482": "Top Menu",
+"16777483": "Power Down",
+"16777484": "Suspend",
+"16777485": "Adjust contrast",
+"16777486": "Launch (G)",
+"16777487": "Launch (H)",
+"16777488": "Touchpad Toggle",
+"16777489": "Touchpad On",
+"16777490": "Touchpad Off",
+"16777491": "Microphone Mute",
+"16777492": "Red",
+"16777493": "Green",
+"16777494": "Yellow",
+"16777495": "Blue",
+"16777496": "Channel Up",
+"16777497": "Channel Down",
+"16777498": "Guide",
+"16777499": "Info",
+"16777500": "Settings",
+"16777501": "Microphone Volume Up",
+"16777502": "Microphone Volume Down",
+"16777503": "Keyboard",
+"16777504": "New",
+"16777505": "Open",
+"16777506": "Find",
+"16777507": "Undo",
+"16777508": "Redo",
+"16781601": "Kanji",
+"16781602": "Muhenkan",
+"16781603": "Henkan",
+"16781604": "Romaji",
+"16781605": "Hiragana",
+"16781606": "Katakana",
+"16781607": "Hiragana Katakana",
+"16781608": "Zenkaku",
+"16781609": "Hankaku",
+"16781610": "Zenkaku Hankaku",
+"16781611": "Touroku",
+"16781612": "Massyo",
+"16781613": "Kana Lock",
+"16781614": "Kana Shift",
+"16781615": "Eisu Shift",
+"16781616": "Eisu toggle",
+"16781617": "Hangul",
+"16781618": "Hangul Start",
+"16781619": "Hangul End",
+"16781620": "Hangul Hanja",
+"16781621": "Hangul Jamo",
+"16781622": "Hangul Romaja",
+"16781623": "Code input",
+"16781624": "Hangul Jeonja",
+"16781625": "Hangul Banja",
+"16781626": "Hangul PreHanja",
+"16781627": "Hangul PostHanja",
+"16781629": "Multiple Candidate",
+"16781630": "Previous Candidate",
+"16781631": "Hangul Special",
+"16842752": "Select",
+"16842753": "Yes",
+"16842754": "No",
+"16908289": "Cancel",
+"16908290": "Printer",
+"16908291": "Execute",
+"16908292": "Sleep",
+"16908293": "Play",
+"16908294": "Zoom",
+"16908298": "Exit",
+"17825792": "Context1",
+"17825793": "Context2",
+"17825794": "Context3",
+"17825795": "Context4",
+"17825796": "Call",
+"17825797": "Hangup",
+"17825798": "Flip",
+"17825799": "Toggle Call/Hangup",
+"17825800": "Voice Dial",
+"17825801": "Last Number Redial",
+"17825824": "Camera Shutter",
+"17825825": "Camera Focus"
 },
 "entries": [
 {
@@ -1343,6 +1596,294 @@
 "detail": ""
 },
 {
+"kcm": "kcm_app-permissions",
+"text": "Activate game mode",
+"where": "Application Permissions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Add Filesystem Path Permission",
+"where": "Application Permissions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Add Session Bus Permission",
+"where": "Application Permissions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Add System Bus Permission",
+"where": "Application Permissions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Apply Permissions",
+"where": "Application Permissions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Block automatic sleep and screen locking",
+"where": "Application Permissions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Camera access",
+"where": "Application Permissions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Enter filesystem path",
+"where": "Application Permissions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Enter session bus name",
+"where": "Application Permissions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Enter system bus name",
+"where": "Application Permissions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Gain higher process priority",
+"where": "Application Permissions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Manage Flatpak Settings",
+"where": "Application Permissions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Revoke All",
+"where": "Application Permissions",
+"icon": "preferences-security",
+"args": "",
+"detail": "revoke all screencasting/screen sharing sessions"
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Screen sharing",
+"where": "Application Permissions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Select an application from the list to view its permissions here",
+"where": "Application Permissions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Send notifications",
+"where": "Application Permissions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Set Environment Variable",
+"where": "Application Permissions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Take screenshots",
+"where": "Application Permissions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Add New File System Permission",
+"where": "Application Permissions › %1 – Flatpak Settings",
+"icon": "preferences-security",
+"args": "",
+"detail": "action:button accessible"
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Add New…",
+"where": "Application Permissions › %1 – Flatpak Settings",
+"icon": "preferences-security",
+"args": "",
+"detail": "in section header"
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Hide advanced permissions",
+"where": "Application Permissions › %1 – Flatpak Settings",
+"icon": "preferences-security",
+"args": "",
+"detail": "in section header"
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Show advanced permissions",
+"where": "Application Permissions › %1 – Flatpak Settings",
+"icon": "preferences-security",
+"args": "",
+"detail": "in section header"
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Control pointer keyboard, and share screen with other apps without asking",
+"where": "Application Permissions › %1 – Input Capture Sessions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Remote control",
+"where": "Application Permissions › %1 – Input Capture Sessions",
+"icon": "preferences-security",
+"args": "",
+"detail": "'Remote control' like in xdg-desktop-portal-kde remotedesktopdialog.cpp"
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Capture pointer keyboard input",
+"where": "Application Permissions › %1 – Screencast Sessions",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "City",
+"where": "Application Permissions › Camera access",
+"icon": "preferences-security",
+"args": "",
+"detail": "location accuracy"
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Country",
+"where": "Application Permissions › Camera access",
+"icon": "preferences-security",
+"args": "",
+"detail": "location accuracy"
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Exact",
+"where": "Application Permissions › Camera access",
+"icon": "preferences-security",
+"args": "",
+"detail": "location accuracy"
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Location accuracy",
+"where": "Application Permissions › Camera access",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Neighborhood",
+"where": "Application Permissions › Camera access",
+"icon": "preferences-security",
+"args": "",
+"detail": "location accuracy"
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Set desktop and lock screen background",
+"where": "Application Permissions › Camera access",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Street",
+"where": "Application Permissions › Camera access",
+"icon": "preferences-security",
+"args": "",
+"detail": "location accuracy"
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Allow",
+"where": "Application Permissions › Take screenshots",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Always Ask",
+"where": "Application Permissions › Take screenshots",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Ask Once",
+"where": "Application Permissions › Take screenshots",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_app-permissions",
+"text": "Deny",
+"where": "Application Permissions › Take screenshots",
+"icon": "preferences-security",
+"args": "",
+"detail": ""
+},
+{
 "kcm": "kcm_autostart",
 "text": "Add New",
 "where": "Autostart",
@@ -2277,6 +2818,510 @@
 "icon": "preferences-desktop-default-applications",
 "args": "",
 "detail": "Default phone app"
+},
+{
+"kcm": "kcm_cron",
+"text": "Days of Month",
+"where": "Task Scheduler",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Days of Week",
+"where": "Task Scheduler",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Edit Task",
+"where": "Task Scheduler",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Edit Variable",
+"where": "Task Scheduler",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Environment Variables",
+"where": "Task Scheduler",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Go to Dashboard",
+"where": "Task Scheduler",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "New Task",
+"where": "Task Scheduler",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "New Variable",
+"where": "Task Scheduler",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Scheduled Tasks",
+"where": "Task Scheduler",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Scheduling Details",
+"where": "Task Scheduler",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "System Schedule",
+"where": "Task Scheduler",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "User Schedule",
+"where": "Task Scheduler",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Welcome to Task Scheduler!",
+"where": "Task Scheduler",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Add Variable…",
+"where": "Task Scheduler › Comment",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Edit Variable…",
+"where": "Task Scheduler › Comment",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "April",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "August",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Custom selection",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "December",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Each minute",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Every 10 minutes",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Every 15 minutes",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Every 2 minutes",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Every 20 minutes",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Every 30 minutes",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Every 5 minutes",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "February",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Friday",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "January",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "July",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "June",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "March",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "May",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Monday",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "November",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "October",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Saturday",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Selection",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "September",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Sunday",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Thursday",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Tuesday",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Wednesday",
+"where": "Task Scheduler › Minutes",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Browse the Program",
+"where": "Task Scheduler › New Task",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Command",
+"where": "Task Scheduler › New Task",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Comment",
+"where": "Task Scheduler › New Task",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Create",
+"where": "Task Scheduler › New Task",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Enable this task",
+"where": "Task Scheduler › New Task",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Every day",
+"where": "Task Scheduler › New Task",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Run",
+"where": "Task Scheduler › New Task",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "User",
+"where": "Task Scheduler › New Task",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "When system starts",
+"where": "Task Scheduler › New Task",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Enable this variable",
+"where": "Task Scheduler › New Variable",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Value",
+"where": "Task Scheduler › New Variable",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Variable",
+"where": "Task Scheduler › New Variable",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Add Task…",
+"where": "Task Scheduler › Scheduling Details",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Copy",
+"where": "Task Scheduler › Scheduling Details",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Cut",
+"where": "Task Scheduler › Scheduling Details",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Edit Task…",
+"where": "Task Scheduler › Scheduling Details",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Paste",
+"where": "Task Scheduler › Scheduling Details",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Run task",
+"where": "Task Scheduler › Scheduling Details",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Select All",
+"where": "Task Scheduler › Scheduling Details",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_cron",
+"text": "Print Summary…",
+"where": "Task Scheduler › System Schedule",
+"icon": "preferences-system-time",
+"args": "",
+"detail": ""
 },
 {
 "kcm": "kcm_cursortheme",
@@ -3255,6 +4300,86 @@
 "detail": "Accessible description"
 },
 {
+"kcm": "kcm_kdf",
+"text": "Custom file manager not supported when running as Flatpak.",
+"where": "Storage Devices",
+"icon": "kdf",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_kdf",
+"text": "Default Icon",
+"where": "Storage Devices",
+"icon": "kdf",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_kdf",
+"text": "Get Command...",
+"where": "Storage Devices",
+"icon": "kdf",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_kdf",
+"text": "Icon name",
+"where": "Storage Devices",
+"icon": "kdf",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_kdf",
+"text": "Mount Command",
+"where": "Storage Devices",
+"icon": "kdf",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_kdf",
+"text": "Open file manager automatically on mount",
+"where": "Storage Devices",
+"icon": "kdf",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_kdf",
+"text": "Pop up a window when a disk gets critically full",
+"where": "Storage Devices",
+"icon": "kdf",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_kdf",
+"text": "Unmount Command",
+"where": "Storage Devices",
+"icon": "kdf",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_kdf",
+"text": "Update frequency",
+"where": "Storage Devices",
+"icon": "kdf",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_kdf",
+"text": "Use system default file manager",
+"where": "Storage Devices",
+"icon": "kdf",
+"args": "",
+"detail": ""
+},
+{
 "kcm": "kcm_keyboard",
 "text": "Add Layout",
 "where": "Keyboard",
@@ -3909,6 +5034,983 @@
 "icon": "preferences-desktop-keyboard-shortcut",
 "args": "",
 "detail": "Template for file dialog"
+},
+{
+"kcm": "kcm_keys",
+"text": "Clear",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Clear",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "Clear",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Copy",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Copy",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "Copy",
+"default_keys": [
+67108931,
+83886086
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Cut",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Cut",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "Cut",
+"default_keys": [
+67108952,
+50331655
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Delete Word Backwards",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Delete Word Backwards",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "DeleteWordBack",
+"default_keys": [
+83886083
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Delete Word Forward",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Delete Word Forward",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "DeleteWordForward",
+"default_keys": [
+83886087
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Deselect",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Deselect",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "Deselect",
+"default_keys": [
+100663361
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Find",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Find",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "Find",
+"default_keys": [
+67108934
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Find Next",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Find Next",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "FindNext",
+"default_keys": [
+16777266
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Find Prev",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Find Prev",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "FindPrev",
+"default_keys": [
+50331698
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Next Completion Match",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Next Completion Match",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "NextCompletion",
+"default_keys": [
+83886101
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Paste",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Paste",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "Paste",
+"default_keys": [
+67108950,
+50331654
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Paste Selection",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Paste Selection",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "Paste Selection",
+"default_keys": [
+117440518
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Previous Completion Match",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Previous Completion Match",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "PrevCompletion",
+"default_keys": [
+83886099
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Redo",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Redo",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "Redo",
+"default_keys": [
+100663386
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Replace",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Replace",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "Replace",
+"default_keys": [
+67108946
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Revert",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Revert",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "Revert",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Select All",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Select All",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "SelectAll",
+"default_keys": [
+67108929
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Spelling",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Spelling",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "Spelling",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Substring Completion",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Substring Completion",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "SubstringCompletion",
+"default_keys": [
+67108948
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Text Completion",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Text Completion",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "TextCompletion",
+"default_keys": [
+67108933
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Undo",
+"where": "Shortcuts › Common Actions › Edit",
+"args": "Edit Undo",
+"detail": "keyboard shortcut, Common Actions › Edit",
+"shortcut": "Undo",
+"default_keys": [
+67108954
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Close",
+"where": "Shortcuts › Common Actions › File",
+"args": "File Close",
+"detail": "keyboard shortcut, Common Actions › File",
+"shortcut": "Close",
+"default_keys": [
+67108951,
+83886080
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Create Folder",
+"where": "Shortcuts › Common Actions › File",
+"args": "File Create Folder",
+"detail": "keyboard shortcut, Common Actions › File",
+"shortcut": "CreateFolder",
+"default_keys": [
+100663374
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Delete",
+"where": "Shortcuts › Common Actions › File",
+"args": "File Delete",
+"detail": "keyboard shortcut, Common Actions › File",
+"shortcut": "DeleteFile",
+"default_keys": [
+50331655
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Move to Trash",
+"where": "Shortcuts › Common Actions › File",
+"args": "File Move to Trash",
+"detail": "keyboard shortcut, Common Actions › File",
+"shortcut": "MoveToTrash",
+"default_keys": [
+16777223
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "New",
+"where": "Shortcuts › Common Actions › File",
+"args": "File New",
+"detail": "keyboard shortcut, Common Actions › File",
+"shortcut": "New",
+"default_keys": [
+67108942
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Open",
+"where": "Shortcuts › Common Actions › File",
+"args": "File Open",
+"detail": "keyboard shortcut, Common Actions › File",
+"shortcut": "Open",
+"default_keys": [
+67108943
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Open Recent",
+"where": "Shortcuts › Common Actions › File",
+"args": "File Open Recent",
+"detail": "keyboard shortcut, Common Actions › File",
+"shortcut": "OpenRecent",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Print",
+"where": "Shortcuts › Common Actions › File",
+"args": "File Print",
+"detail": "keyboard shortcut, Common Actions › File",
+"shortcut": "Print",
+"default_keys": [
+67108944
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Print Preview",
+"where": "Shortcuts › Common Actions › File",
+"args": "File Print Preview",
+"detail": "keyboard shortcut, Common Actions › File",
+"shortcut": "PrintPreview",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Rename",
+"where": "Shortcuts › Common Actions › File",
+"args": "File Rename",
+"detail": "keyboard shortcut, Common Actions › File",
+"shortcut": "RenameFile",
+"default_keys": [
+16777265
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Save",
+"where": "Shortcuts › Common Actions › File",
+"args": "File Save",
+"detail": "keyboard shortcut, Common Actions › File",
+"shortcut": "Save",
+"default_keys": [
+67108947
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Save As",
+"where": "Shortcuts › Common Actions › File",
+"args": "File Save As",
+"detail": "keyboard shortcut, Common Actions › File",
+"shortcut": "SaveAs",
+"default_keys": [
+100663379
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "About Application",
+"where": "Shortcuts › Common Actions › Help",
+"args": "Help About Application",
+"detail": "keyboard shortcut, Common Actions › Help",
+"shortcut": "AboutApp",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "About KDE",
+"where": "Shortcuts › Common Actions › Help",
+"args": "Help About KDE",
+"detail": "keyboard shortcut, Common Actions › Help",
+"shortcut": "AboutKDE",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Donate",
+"where": "Shortcuts › Common Actions › Help",
+"args": "Help Donate",
+"detail": "keyboard shortcut, Common Actions › Help",
+"shortcut": "Donate",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Help",
+"where": "Shortcuts › Common Actions › Help",
+"args": "Help Help",
+"detail": "keyboard shortcut, Common Actions › Help",
+"shortcut": "Help",
+"default_keys": [
+16777264
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Mail",
+"where": "Shortcuts › Common Actions › Help",
+"args": "Help Mail",
+"detail": "keyboard shortcut, Common Actions › Help",
+"shortcut": "Mail",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Report Bug",
+"where": "Shortcuts › Common Actions › Help",
+"args": "Help Report Bug",
+"detail": "keyboard shortcut, Common Actions › Help",
+"shortcut": "ReportBug",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "What's This",
+"where": "Shortcuts › Common Actions › Help",
+"args": "Help What's This",
+"detail": "keyboard shortcut, Common Actions › Help",
+"shortcut": "WhatsThis",
+"default_keys": [
+50331696
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Activate Next Tab",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Activate Next Tab",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "Activate Next Tab",
+"default_keys": [
+83886103,
+67108957
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Activate Previous Tab",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Activate Previous Tab",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "Activate Previous Tab",
+"default_keys": [
+83886102,
+67108955
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Add Bookmark",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Add Bookmark",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "AddBookmark",
+"default_keys": [
+67108930
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Back",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Back",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "Back",
+"default_keys": [
+150994962,
+16777313
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Backward Word",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Backward Word",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "BackwardWord",
+"default_keys": [
+83886098
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Begin",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Begin",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "Begin",
+"default_keys": [
+83886096
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Beginning of Line",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Beginning of Line",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "BeginningOfLine",
+"default_keys": [
+16777232
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Document Back",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Document Back",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "DocumentBack",
+"default_keys": [
+184549394
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Document Forward",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Document Forward",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "DocumentForward",
+"default_keys": [
+184549396
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Edit Bookmarks",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Edit Bookmarks",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "EditBookmarks",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "End",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation End",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "End",
+"default_keys": [
+83886097
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "End of Line",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation End of Line",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "EndOfLine",
+"default_keys": [
+16777233
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Forward",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Forward",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "Forward",
+"default_keys": [
+150994964,
+16777314
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Forward Word",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Forward Word",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "ForwardWord",
+"default_keys": [
+83886100
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Go to Line",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Go to Line",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "GotoLine",
+"default_keys": [
+67108935
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Goto",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Goto",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "Goto",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Goto Page",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Goto Page",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "GotoPage",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Home",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Home",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "Home",
+"default_keys": [
+150994960,
+16777360
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Next",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Next",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "Next",
+"default_keys": [
+16777239
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Next Item in List",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Next Item in List",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "RotateDown",
+"default_keys": [
+16777237
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Previous Item in List",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Previous Item in List",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "RotateUp",
+"default_keys": [
+16777235
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Prior",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Prior",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "Prior",
+"default_keys": [
+16777238
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Quit",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Quit",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "Quit",
+"default_keys": [
+67108945
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Reload",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Reload",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "Reload",
+"default_keys": [
+16777268,
+16777316
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Up",
+"where": "Shortcuts › Common Actions › Navigation",
+"args": "Navigation Up",
+"detail": "keyboard shortcut, Common Actions › Navigation",
+"shortcut": "Up",
+"default_keys": [
+150994963
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Configure Application",
+"where": "Shortcuts › Common Actions › Settings",
+"args": "Settings Configure Application",
+"detail": "keyboard shortcut, Common Actions › Settings",
+"shortcut": "Preferences",
+"default_keys": [
+100663340
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Configure Language…",
+"where": "Shortcuts › Common Actions › Settings",
+"args": "Settings Configure Language…",
+"detail": "keyboard shortcut, Common Actions › Settings",
+"shortcut": "SwitchApplicationLanguage",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Configure Notifications",
+"where": "Shortcuts › Common Actions › Settings",
+"args": "Settings Configure Notifications",
+"detail": "keyboard shortcut, Common Actions › Settings",
+"shortcut": "ConfigureNotifications",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Configure Toolbars",
+"where": "Shortcuts › Common Actions › Settings",
+"args": "Settings Configure Toolbars",
+"detail": "keyboard shortcut, Common Actions › Settings",
+"shortcut": "ConfigureToolbars",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Key Bindings",
+"where": "Shortcuts › Common Actions › Settings",
+"args": "Settings Key Bindings",
+"detail": "keyboard shortcut, Common Actions › Settings",
+"shortcut": "KeyBindings",
+"default_keys": [
+201326636
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Fit To Height",
+"where": "Shortcuts › Common Actions › View",
+"args": "View Fit To Height",
+"detail": "keyboard shortcut, Common Actions › View",
+"shortcut": "FitToHeight",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Fit To Page",
+"where": "Shortcuts › Common Actions › View",
+"args": "View Fit To Page",
+"detail": "keyboard shortcut, Common Actions › View",
+"shortcut": "FitToPage",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Fit To Width",
+"where": "Shortcuts › Common Actions › View",
+"args": "View Fit To Width",
+"detail": "keyboard shortcut, Common Actions › View",
+"shortcut": "FitToWidth",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Full Screen Mode",
+"where": "Shortcuts › Common Actions › View",
+"args": "View Full Screen Mode",
+"detail": "keyboard shortcut, Common Actions › View",
+"shortcut": "FullScreen",
+"default_keys": [
+100663366
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Open Context Menu",
+"where": "Shortcuts › Common Actions › View",
+"args": "View Open Context Menu",
+"detail": "keyboard shortcut, Common Actions › View",
+"shortcut": "OpenContextMenu",
+"default_keys": [
+16777301,
+50331705
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Open Main Menu",
+"where": "Shortcuts › Common Actions › View",
+"args": "View Open Main Menu",
+"detail": "keyboard shortcut, Common Actions › View",
+"shortcut": "OpenMainMenu",
+"default_keys": [
+16777273
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Show Menu Bar",
+"where": "Shortcuts › Common Actions › View",
+"args": "View Show Menu Bar",
+"detail": "keyboard shortcut, Common Actions › View",
+"shortcut": "ShowMenubar",
+"default_keys": [
+67108941
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Show Statusbar",
+"where": "Shortcuts › Common Actions › View",
+"args": "View Show Statusbar",
+"detail": "keyboard shortcut, Common Actions › View",
+"shortcut": "ShowStatusbar",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Show Toolbar",
+"where": "Shortcuts › Common Actions › View",
+"args": "View Show Toolbar",
+"detail": "keyboard shortcut, Common Actions › View",
+"shortcut": "ShowToolbar",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Show/Hide Hidden Files",
+"where": "Shortcuts › Common Actions › View",
+"args": "View Show/Hide Hidden Files",
+"detail": "keyboard shortcut, Common Actions › View",
+"shortcut": "ShowHideHiddenFiles",
+"default_keys": [
+67108936,
+134217774
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Zoom",
+"where": "Shortcuts › Common Actions › View",
+"args": "View Zoom",
+"detail": "keyboard shortcut, Common Actions › View",
+"shortcut": "Zoom",
+"default_keys": [],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Zoom In",
+"where": "Shortcuts › Common Actions › View",
+"args": "View Zoom In",
+"detail": "keyboard shortcut, Common Actions › View",
+"shortcut": "ZoomIn",
+"default_keys": [
+67108907,
+67108925
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Zoom Out",
+"where": "Shortcuts › Common Actions › View",
+"args": "View Zoom Out",
+"detail": "keyboard shortcut, Common Actions › View",
+"shortcut": "ZoomOut",
+"default_keys": [
+67108909
+],
+"icon": "preferences-desktop-keyboard-shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Zoom to Actual Size",
+"where": "Shortcuts › Common Actions › View",
+"args": "View Zoom to Actual Size",
+"detail": "keyboard shortcut, Common Actions › View",
+"shortcut": "ActualSize",
+"default_keys": [
+67108912
+],
+"icon": "preferences-desktop-keyboard-shortcut"
 },
 {
 "kcm": "kcm_kscreen",

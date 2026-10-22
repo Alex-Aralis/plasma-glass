@@ -9,7 +9,9 @@ notification cruft trimmed.
   finds files by meaning, and every file by its name and folders, fuzzily ("pragconv" finds
   `pragmatic-convalescence.md`, "t14 readme" `hosts/t14/README.md`). It also finds the options inside
   System Settings pages, which KRunner alone only knows by page name: "focus stealing" opens Window
-  Behavior on its Focus tab, "tap to click" the Touchpad page.
+  Behavior on its Focus tab, "tap to click" the Touchpad page. Keyboard shortcuts too, with their keys:
+  "maximize window" shows Meta+Up and opens the Shortcuts page searching for it, with its keys open
+  to change.
 - **Liquid Glass Plasma Style.** Translucent popups over KWin's blur: 18 px corners, a light rim along
   the top, a soft shadow, glassy search fields, list highlights and scrollbars, and quiet header
   bands in applet popups. Everything else
@@ -82,7 +84,16 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
   "settings" ("settings focus stealing"), or one is closer in meaning than any file. Choosing one
   opens its page. Pages a KDE restriction hides are left out. The list is built
   from the installed packages' sources in /var/cache/distfiles by `search/settings_index.py`; re-run it
-  after a Plasma upgrade. Only new labels are embedded again.
+  after a Plasma upgrade. Only new labels are embedded again. Pages one machine lacks keep their
+  entries from the last list, so it covers every machine it was built on.
+- **Keyboard shortcuts:** every action on System Settings' Shortcuts page is an option too: the global
+  shortcuts (KWin's, Spectacle's, each app's launch key, custom commands) as KDE's shortcut service
+  (kglobalaccel) lists them, and Common Actions (Copy, Find, Zoom In...). Each shows its keys now
+  beside where it is ("Shortcuts › Window Management · Meta+Up"), and a key's name finds it ("volume up"
+  finds Increase Volume). Choosing one opens the Shortcuts page with the action in its search field and
+  its keys open to change (that needs the plasma-desktop patch; without it the page opens on the
+  action's app). The service lists them when it starts and checks their keys as you type, at most every
+  2 s, so a changed key shows at once and a new action is searchable within seconds.
 - **Terminal:** `embedsearch search "query"` searches from the command line, `embedsearch settings
   "query"` searches the System Settings options, `embedsearch status`
   shows what's indexed, and `journalctl --user -fu embedsearch` shows indexing progress.
@@ -111,7 +122,7 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 | `~/.local/bin/plasma-glass-mode`, `~/.local/share/applications/plasma-glass-mode.desktop` | Toggle Dark/Light Mode (below) |
 | `~/.local/share/plasma/look-and-feel/plasma-glass.liquid-glass{,-light}/`, `kdeglobals` `[KDE] DefaultDarkLookAndFeel`, `DefaultLightLookAndFeel` | the Liquid Glass global themes, and KDE's default dark and light ones |
 | `krunnerrc`, `kdeglobals`, `kglobalshortcutsrc` | settings from [`desktop/plasma-settings.sh`](desktop/plasma-settings.sh) |
-| `/etc/portage/patches/kde-plasma/{plasma-workspace,milou,kwin}/` | the patches (root): `plasma-workspace-tweaks.patch`, `milou-section-headers.patch`, `kwin-liquid-glass.patch`, beside kde-fixes' |
+| `/etc/portage/patches/kde-plasma/{plasma-workspace,milou,kwin,plasma-desktop}/` | the patches (root): `plasma-workspace-tweaks.patch`, `milou-section-headers.patch`, `kwin-liquid-glass.patch`, `plasma-desktop-shortcut-search.patch`, beside kde-fixes' |
 
 `plasma-settings.sh` sets a KDE restriction to hide KRunner's settings button. As a side effect,
 that also hides the KRunner page in System Settings. Delete `kcm_krunnersettings` from
@@ -219,8 +230,8 @@ KWin's environment still overrides the glass for experiments (`KWIN_LIQUID_GLASS
 
 ## Patches
 
-The patches were made against Plasma 6.7.5. Portage re-applies them whenever plasma-workspace, milou or
-kwin is rebuilt, together with kde-fixes' patches for the same packages (they change other files). If a
+The patches were made against Plasma 6.7.5. Portage re-applies them whenever plasma-workspace, milou,
+kwin or plasma-desktop is rebuilt, together with kde-fixes' patches for the same packages (they change other files). If a
 future version changes the patched lines, that build stops at the patch step until the patch is
 refreshed.
 
@@ -272,6 +283,12 @@ refreshed.
   - Window Behavior in System Settings opens on a tab given as an argument
     (`systemsettings kcm_kwinoptions --args focus`; also `titlebar-actions`, `window-actions`,
     `movement`, `advanced`), also when it's already open, so settings search lands on the option's tab
+- `plasma-desktop-shortcut-search.patch` (kde-plasma/plasma-desktop): System Settings' Shortcuts page
+  opens on an action: `systemsettings kcm_keys --args "kwin Maximize Window"` (the component's id, then
+  the action's name) puts the name in the page's search field, selects the component and opens the
+  action's keys, also when the page is already open. Stock takes only the component (and only when the
+  page opens), so settings search's shortcut results land on the shortcut. An app's launch key is asked
+  for by the app's name (`org.kde.konsole.desktop Konsole`), since the page shows it as "Launch"
 
 The bug fixes these patches held until 2026-10-17 (KWin's frame pacing across screens, the render GPU's
 copy for another GPU's screens, the crash at every logout, activation tokens; KSvg's colours after a style

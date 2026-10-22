@@ -639,49 +639,126 @@ class Index:
 # ---------------------------------------------------------------------------- System Settings options
 
 
+def kde_group(name, group):
+    """The entries of GROUP in ~/.config/NAME (KConfig's INI format), {} if there are none."""
+    try:
+        text = (Path.home() / ".config" / name).read_text()
+    except OSError:
+        return {}
+    out, inside = {}, False
+    for line in map(str.strip, text.splitlines()):
+        if line.startswith("["):
+            inside = line == f"[{group}]"
+        elif inside and "=" in line:
+            key, value = line.split("=", 1)
+            out[key.strip()] = value.strip()
+    return out
+
+
 def hidden_kcms():
     """Pages a KDE restriction hides from System Settings ([KDE Control Module Restrictions] kcm_x=false
     in kdeglobals; plasma-settings.sh hides KRunner's), so they're left out here too."""
-    try:
-        text = (Path.home() / ".config" / "kdeglobals").read_text()
-    except OSError:
-        return set()
-    hidden, inside = set(), False
-    for line in map(str.strip, text.splitlines()):
-        if line.startswith("["):
-            inside = line == "[KDE Control Module Restrictions]"
-        elif inside and "=" in line:
-            key, value = line.split("=", 1)
-            if value.strip().lower() == "false":
-                hidden.add(key.strip())
-    return hidden
+    return {k for k, v in kde_group("kdeglobals", "KDE Control Module Restrictions").items() if v.lower() == "false"}
 
 
 KCM_DIRS = [Path("/usr/lib64/qt6/plugins/plasma/kcms/systemsettings"),
             Path("/usr/lib64/qt6/plugins/plasma/kcms/systemsettings_qwidgets")]
 SETTINGS_HINTS = {"setting", "settings"}  # "settings focus stealing": a hint to show options first, not a word to match
+SHORTCUTS_KCM = "kcm_keys"  # System Settings > Shortcuts ("systemsettings kcm_keys --args 'COMPONENT ACTION'")
+SHORTCUTS_NAMES = {"kwin": "Window Management", "plasmashell": "Plasma Workspace"}  # the page's names for them
+MODIFIERS = ((0x10000000, "Meta"), (0x04000000, "Ctrl"), (0x08000000, "Alt"), (0x02000000, "Shift"), (0x20000000, "Num"))
+
+
+async def global_shortcuts(bus):
+    """The actions the Shortcuts page lists besides Common Actions, from kglobalaccel (inside KWin):
+    {(component id, action name): (component name, keys as Qt key codes, whether it launches the app)}."""
+    from dbus_fast import Message, MessageType
+
+    def call(path, interface, member):
+        return bus.call(Message(destination="org.kde.kglobalaccel", path=path, interface=interface, member=member))
+
+    reply = await call("/kglobalaccel", "org.kde.KGlobalAccel", "allComponents")
+    if reply.message_type == MessageType.ERROR:
+        raise RuntimeError(f"{reply.error_name}: {reply.body[0] if reply.body else ''}")
+    found = {}
+    for r in await asyncio.gather(*(call(p, "org.kde.kglobalaccel.Component", "allShortcutInfos") for p in reply.body[0])):
+        if r.message_type == MessageType.ERROR:
+            continue
+        for action_id, action, component, component_name, _, _, keys, _ in r.body[0]:
+            if action.strip():
+                found.setdefault((component, action), (component_name, keys, action_id == "_launch"))
+    return found
+
+
+def app_description(component):
+    """What an app is ("Screenshot Capture Utility", "Terminal"), from the .desktop file a component
+    id like org.kde.spectacle.desktop names, "" otherwise."""
+    if not component.endswith(".desktop"):
+        return ""
+    dirs = [os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share"))]
+    dirs += os.environ.get("XDG_DATA_DIRS", "/usr/local/share:/usr/share").split(":")
+    for d in dirs:
+        try:
+            text = Path(d, "applications", component).read_text(errors="replace")
+        except OSError:
+            continue
+        entry = dict(line.split("=", 1) for line in text.split("\n[", 1)[0].splitlines() if "=" in line)
+        return (entry.get("GenericName") or entry.get("Comment") or "").strip()
+    return ""
+
+
+async def session_global_shortcuts():
+    """global_shortcuts() on a connection of its own (for the command line)."""
+    from dbus_fast.aio import MessageBus
+    bus = await MessageBus().connect()
+    try:
+        return await global_shortcuts(bus)
+    finally:
+        bus.disconnect()
 
 
 def settings_prompt(e):
+    if "component" in e or "shortcut" in e:  # a Shortcuts page action: what it belongs to, not where it is
+        return f"title: {e['text']} | text: {e['detail']}"
     return f"title: {e['text']} | text: {e['where']}" + (f". {e['detail']}" if e["detail"] else "")
 
 
 class Settings:
     """The labels inside System Settings pages, found by meaning and by their words. Their vectors are
-    kept in the index DB by text, so only new labels are embedded (after a Plasma upgrade)."""
+    kept in the index DB by text, so only new labels are embedded (after a Plasma upgrade).
+
+    The Shortcuts page's actions are among them: Common Actions from the list, the global shortcuts
+    (KWin's, Spectacle's, each app's launch key...) as kglobalaccel has them, each with its keys now."""
 
     def __init__(self):
         self.entries, self.words, self.vecs = [], [], np.zeros((0, DIM), np.float32)
+        self.shortcuts = {}  # global_shortcuts() as last listed
+        self.keynames = {}  # Qt key code -> QKeySequence's name, from the list
 
-    def load(self, emb, pause=None):
+    def load(self, emb, pause=None, shortcuts=None, store=True):
+        """SHORTCUTS: global_shortcuts(), or None to keep the last ones. STORE=False embeds new labels
+        without keeping their vectors in the DB (the preview's read-only copy of the service)."""
         try:
             data = json.loads(SETTINGS_JSON.read_text())
         except (OSError, ValueError) as e:
             log(f"no System Settings index: {e}")
             return
+        if shortcuts is not None:
+            self.shortcuts = shortcuts
+        page = data["pages"].get(SHORTCUTS_KCM)
+        listed, apps = [], {}
+        for (component, action), (name, _, launch) in self.shortcuts.items() if page else ():
+            name = SHORTCUTS_NAMES.get(component, name)
+            what = apps.setdefault(component, app_description(component))
+            # an app's launch key is named after the app alone ("Konsole"), and the page shows it as
+            # "Launch": it opens on it searching for the app
+            text = f"Launch {action}" if launch and not action.startswith("Launch") else action
+            listed.append({"kcm": SHORTCUTS_KCM, "text": text, "where": f"{page['name']} › {name}", "icon": page["icon"],
+                           "args": f"{component} {name if launch else action}", "component": component, "action": action,
+                           "detail": f"keyboard shortcut, {name}" + (f", {what}" if what and what != name else "")})
         hidden = hidden_kcms()
         installed = {p.stem for d in KCM_DIRS if d.is_dir() for p in d.glob("*.so")}  # the index may come from another machine
-        entries = [e for e in data["entries"] if e["kcm"] not in hidden and e["kcm"] in installed
+        entries = [e for e in data["entries"] + listed if e["kcm"] not in hidden and e["kcm"] in installed
                    and e["text"].lower() != data["pages"][e["kcm"]]["name"].lower()]  # KRunner finds pages itself
         texts = [settings_prompt(e) for e in entries]
         hashes = [hashlib.sha1(t.encode()).hexdigest() for t in texts]
@@ -691,15 +768,54 @@ class Settings:
         if missing:
             vecs = emb.embed([texts[i] for i in missing], pause=pause)
             rows = [(hashes[i], v.astype(np.float16).tobytes()) for i, v in zip(missing, vecs)]
-            db.executemany("INSERT OR REPLACE INTO settings VALUES (?, ?)", rows)
-            db.commit()
+            if store:
+                db.executemany("INSERT OR REPLACE INTO settings VALUES (?, ?)", rows)
+                db.commit()
             cached.update(rows)
         db.close()
         words = [(set(re.findall(r"\w+", e["text"].lower())), set(re.findall(r"\w+", e["where"].lower())))
                  for e in entries]
         vecs = np.frombuffer(b"".join(cached[h] for h in hashes), dtype=np.float16).reshape(-1, DIM).astype(np.float32)
+        self.keynames = {int(k): v for k, v in data.get("keys", {}).items()}
+        self.set_keys(entries=entries)
+        if missing or len(entries) != len(self.entries):
+            log(f"{len(entries)} System Settings options, {len(listed)} of them global shortcuts ({len(missing)} embedded now)")
         self.entries, self.words, self.vecs = entries, words, vecs  # swapped in whole, for the query thread
-        log(f"{len(entries)} System Settings options ({len(missing)} embedded now)")
+
+    def key_text(self, code):
+        """A Qt key code with its modifiers as QKeySequence writes it ("Meta+PgUp"), "" for none."""
+        key = code & 0x01ffffff
+        if not key or key == 0x01ffffff:
+            return ""
+        if 0x01000030 <= key <= 0x01000052:  # F1-F35
+            name = f"F{key - 0x0100002f}"
+        else:
+            name = self.keynames.get(key) or (chr(key).upper() if key < 0x110000 else "")
+        return "+".join([m for bit, m in MODIFIERS if code & bit] + [name]) if name else ""
+
+    def set_keys(self, shortcuts=None, entries=None):
+        """Writes each shortcut's keys as the Shortcuts page shows them into its "keys": the global ones'
+        from SHORTCUTS (global_shortcuts(), or the last listed), Common Actions' from kdeglobals'
+        [Shortcuts] where they were changed. Returns whether SHORTCUTS lists other actions than those
+        loaded, which needs a load()."""
+        changed = shortcuts is not None and shortcuts.keys() != self.shortcuts.keys()
+        if shortcuts is not None and not changed:
+            self.shortcuts = shortcuts
+        shortcuts = self.shortcuts if shortcuts is None else shortcuts
+        mine = kde_group("kdeglobals", "Shortcuts")
+        for e in self.entries if entries is None else entries:
+            if "component" in e:
+                codes = shortcuts.get((e["component"], e["action"]), ("", [], False))[1]
+                keys = ", ".join(t for t in map(self.key_text, codes) if t)
+            elif "shortcut" in e and e["shortcut"] in mine:  # changed: QKeySequence::listToString's portable text
+                keys = ", ".join(k for k in mine[e["shortcut"]].split("; ") if k)
+            elif "shortcut" in e:
+                keys = ", ".join(t for t in map(self.key_text, e["default_keys"]) if t)
+            else:
+                continue
+            # the keys' names count as words of where it is: "volume up" finds Increase Volume (Volume Up)
+            e["keys"], e["key_words"] = keys, set(re.findall(r"\w+", keys.lower()))
+        return changed
 
     def find(self, query, qvec, max_results=3, min_score=0.74):
         """Options holding every word of the query (as word starts) first, those in the label itself
@@ -715,6 +831,7 @@ class Settings:
 
         hits = []
         for i, (label, where) in enumerate(words):
+            where = where | entries[i].get("key_words", set())
             if q and all(has(label, w) for w in q):
                 hits.append((2.0 + scores[i], i, True))
             elif q and all(has(label, w) or has(where, w) for w in q) and any(has(label, w) for w in q):
@@ -815,13 +932,31 @@ def serve():
     settings = Settings()
     query_pool = ThreadPoolExecutor(max_workers=1)
 
+    settings_now = threading.Event()  # the global shortcuts changed: load the options again
+
     class Runner(ServiceInterface):
-        def __init__(self):
+        def __init__(self, bus):
             super().__init__("org.kde.krunner1")
+            self.bus = bus
             self.seq = 0
             self.matches = {}  # match id -> path, for Run
             self.session_over = False
             self.token = ""
+            self.shortcuts_checked, self.check, self.check_failed = 0.0, None, False
+
+        async def check_shortcuts(self):
+            """The global shortcuts' keys as they are now (one may have changed since the last query);
+            new or removed ones load the options again."""
+            try:
+                found = await global_shortcuts(self.bus)
+            except Exception as e:
+                if not self.check_failed:  # (once, not on every query while kglobalaccel is away)
+                    log(f"listing the global shortcuts failed: {e!r}")
+                self.check_failed = True
+                return
+            self.check_failed = False
+            if settings.set_keys(shortcuts=found):
+                settings_now.set()
 
         @method()
         def Config(self) -> "a{sv}":
@@ -850,6 +985,9 @@ def serve():
             self.seq += 1
             mine = self.seq
             LAST_QUERY[0] = time.monotonic()
+            if LAST_QUERY[0] - self.shortcuts_checked > 2:  # (about 1 ms, done before the results go out)
+                self.shortcuts_checked = LAST_QUERY[0]
+                self.check = asyncio.ensure_future(self.check_shortcuts())
             await asyncio.sleep(0.15)  # wait for typing to pause; newer queries supersede this one
             if mine != self.seq or len(query.strip()) < 4:
                 return []
@@ -890,7 +1028,7 @@ def serve():
                 first = o["by_words"] or hinted or o["score"] > best_file
                 out.append([mid, o["text"], o["icon"], 100 if first else 50,
                             (0.8 if o["by_words"] else 0.5) + 0.1 * o["score"], {
-                                "subtext": Variant("s", o["where"]),
+                                "subtext": Variant("s", o["where"] + (f" · {o['keys']}" if o.get("keys") else "")),
                                 "category": Variant("s", "System Settings"),
                                 "actions": Variant("as", []),
                             }])
@@ -972,10 +1110,6 @@ def serve():
             last[0] = now
             loop.call_soon_threadsafe(indexer.set_progress, -1.0 if share is None else share)
 
-        try:  # before the files, so new options are searchable at once
-            settings.load(reindex_emb, pause=wait_while_searching)
-        except Exception as e:
-            log(f"loading System Settings options failed: {e!r}")
         while True:
             asked = index_now.is_set()  # (a request during a run gets a run of its own afterwards)
             index_now.clear()
@@ -991,13 +1125,32 @@ def serve():
                 asyncio.run_coroutine_threadsafe(notify(bus, summary, body), loop)
             index_now.wait(cfg["reindex_minutes"] * 60)
 
+    def settings_loop(loop, bus):
+        """Loads the System Settings options with the global shortcuts kglobalaccel lists, and again
+        when a query finds those changed (or a minute later, if kglobalaccel didn't answer: at login
+        the service can start before KWin)."""
+        read_only = bool(os.environ.get("EMBEDSEARCH_NO_REINDEX"))
+        while True:
+            settings_now.clear()
+            try:
+                shortcuts = asyncio.run_coroutine_threadsafe(global_shortcuts(bus), loop).result(30)
+            except Exception as e:
+                log(f"listing the global shortcuts failed: {e!r}")
+                shortcuts = None
+            try:
+                settings.load(emb, pause=wait_while_searching, shortcuts=shortcuts, store=not read_only)
+            except Exception as e:
+                log(f"loading System Settings options failed: {e!r}")
+            settings_now.wait(60 if shortcuts is None else None)
+
     async def main():
         bus = await MessageBus().connect()
-        bus.export("/runner", Runner())
+        bus.export("/runner", Runner(bus))
         indexer = Indexer()
         bus.export("/indexer", indexer)
         await bus.request_name(BUS_NAME)
         log(f"KRunner runner on D-Bus as {BUS_NAME}")
+        threading.Thread(target=settings_loop, args=(asyncio.get_running_loop(), bus), daemon=True).start()
         # set by tools/preview so a second instance never races the real service on the index
         if not os.environ.get("EMBEDSEARCH_NO_REINDEX"):
             threading.Thread(target=reindex_loop, args=(indexer, asyncio.get_running_loop(), bus), daemon=True).start()
@@ -1033,11 +1186,17 @@ def main():
         cfg = load_config()
         emb = Embedder(cfg)
         settings = Settings()
-        settings.load(emb)
+        try:
+            shortcuts = asyncio.run(session_global_shortcuts())
+        except Exception as e:
+            log(f"no global shortcuts: {e!r}")
+            shortcuts = None
+        settings.load(emb, shortcuts=shortcuts)
         q = " ".join(sys.argv[2:])
         for o in settings.find(q, emb.embed_query(q), max_results=10, min_score=0.3):
-            print(f"{o['score']:.3f}{' words' if o['by_words'] else '      '}  {o['text']}\n"
-                  f"              {o['where']}  [{o['kcm']}{' --args ' + o['args'] if o['args'] else ''}]")
+            keys = f"  ({o['keys']})" if o.get("keys") else ""
+            print(f"{o['score']:.3f}{' words' if o['by_words'] else '      '}  {o['text']}{keys}\n"
+                  f"              {o['where']}  [{o['kcm']}{' --args ' + repr(o['args']) if o['args'] else ''}]")
     elif cmd == "status":
         db = connect()
         files, chunks = db.execute("SELECT COUNT(*), COALESCE(SUM(chunks), 0) FROM files").fetchone()

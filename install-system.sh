@@ -6,9 +6,10 @@
 #
 # 1. Intel GPU compute runtime (OpenCL/Level Zero) so OpenVINO can run the search model on the iGPU.
 # 2. Portage user patches for kde-plasma/plasma-workspace (KRunner + notification popups),
-#    kde-plasma/milou (KRunner result rows) and kde-plasma/kwin (the Liquid Glass styles' glass and
-#    KRunner's liquid; Window Behavior opening on a tab), then rebuilds the packages whose patch is new
-#    or changed. Portage re-applies the patches on every future update of those packages.
+#    kde-plasma/milou (KRunner result rows), kde-plasma/kwin (the Liquid Glass styles' glass and
+#    KRunner's liquid; Window Behavior opening on a tab) and kde-plasma/plasma-desktop (the Shortcuts
+#    page opening on an action), then rebuilds the packages whose patch is new or changed. Portage
+#    re-applies the patches on every future update of those packages.
 #
 # The fixes for bugs in KDE and Qt that plasma-glass carried until 2026-10-17 (KWin's frame pacing, its
 # crash at logout and activation tokens, KSvg's colours after a style switch, Qt's resize glitches and
@@ -88,7 +89,7 @@ if [ "$CHECKS" = 1 ]; then
     sh "$REPO/tools/check-patches.sh" || die "patch checks failed; nothing was installed (override with --skip-checks)"
 fi
 say "Installing Portage user patches"
-pkgs="kde-plasma/plasma-workspace kde-plasma/milou kde-plasma/kwin"
+pkgs="kde-plasma/plasma-workspace kde-plasma/milou kde-plasma/kwin kde-plasma/plasma-desktop"
 rebuild=""
 for atom in $pkgs; do
     dest=/etc/portage/patches/$atom
@@ -124,7 +125,7 @@ if [ ! -e /etc/portage/patches/kde-plasma/kwin/kwin-activation-token-serial.patc
 fi
 
 if [ "$REBUILD" = 1 ] && [ -n "$rebuild" ]; then
-    say "Rebuilding$rebuild (plasma-workspace and kwin take a while)"
+    say "Rebuilding$rebuild (plasma-workspace, kwin and plasma-desktop take a while)"
     # shellcheck disable=SC2086
     emerge --oneshot --verbose $rebuild
 elif [ "$REBUILD" = 1 ]; then

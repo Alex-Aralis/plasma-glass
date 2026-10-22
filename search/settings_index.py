@@ -9,6 +9,13 @@ KRunner's own System Settings runner only knows each page's name, description an
 .kcfg files with the page (and for Window Behavior, the tab) they're on; embedsearch searches them.
 The sources come from /var/cache/distfiles (Portage keeps them), matching the installed versions.
 Re-run after a Plasma upgrade.
+
+The Shortcuts page's Common Actions (Copy, Find, Zoom In: KStandardShortcut, from kconfig's source) are
+listed too, with their default keys, and Qt's key names, which embedsearch uses to write out the keys
+of the global shortcuts it lists itself (those depend on what's installed and running).
+
+Pages installed on another machine but not this one keep their entries from the existing OUT, so
+the list built on either machine covers both.
 """
 
 import json
@@ -55,6 +62,12 @@ def installed_kcms():
     return {p.stem for d in KCM_DIRS if d.is_dir() for p in d.glob("*.so")}
 
 
+def installed_pv(pkg):
+    """The installed CATEGORY/NAME's name and version without the revision ("kconfig-6.31.0"), or None."""
+    cpv = subprocess.run(["qlist", "-Iv", "-e", pkg], capture_output=True, text=True).stdout.split()
+    return re.sub(r"-r\d+$", "", cpv[0].split("/", 1)[1]) if cpv else None
+
+
 def tarballs():
     """The source tarball of each package that installs a System Settings page."""
     pkgs = set()
@@ -64,16 +77,106 @@ def tarballs():
             pkgs.update(out[:1])
     found = []
     for pkg in sorted(pkgs):
-        cpv = subprocess.run(["qlist", "-Iv", "-e", pkg], capture_output=True, text=True).stdout.split()
-        if not cpv:
+        pv = installed_pv(pkg)
+        if not pv:
             continue
-        pv = re.sub(r"-r\d+$", "", cpv[0].split("/", 1)[1])
         tar = next((t for t in sorted(DISTFILES.glob(pv + ".tar.*"))), None)
         if tar:
             found.append(tar)
         else:
             print(f"no source for {pv}", file=sys.stderr)
     return found
+
+
+def source_file(pkg, path, top="{pv}"):
+    """The text of PATH in the installed PKG's source tarball, whose top folder is TOP ("{pv}" is the
+    package's name-version; Qt's are "qtbase-everywhere-src-6.11.2")."""
+    pv = installed_pv(pkg) or sys.exit(f"{pkg} is not installed")
+    top = top.format(pv=pv, v=pv.rsplit("-", 1)[1])
+    tar = next(iter(sorted(DISTFILES.glob(top + ".tar.*"))), None) or sys.exit(f"no source for {top} in {DISTFILES}")
+    with tarfile.open(tar, "r|*") as t:  # a stream: stops reading once the file has gone by
+        for m in t:
+            if m.name == f"{top}/{path}":
+                return t.extractfile(m).read().decode("utf-8", "replace")
+    sys.exit(f"{path} not in {tar}")
+
+
+def qt_keys():
+    """Qt's key codes and the English names QKeySequence gives them ("PgUp", "Volume Down"), for the
+    keys that aren't one printable character or F1-F35. Values from the installed qnamespace.h, names
+    from QKeySequence's own table."""
+    header = Path("/usr/include/qt6/QtCore/qnamespace.h").read_text()
+    codes = {name: int(value, 0) for name, value in re.findall(r"\b(Key_\w+)\s*=\s*(0x[0-9a-fA-F]+|\d+)", header)}
+    table = source_file("dev-qt/qtbase", "src/gui/kernel/qkeysequence.cpp", "qtbase-everywhere-src-{v}")
+    names = {}
+    for key, name in re.findall(r'\{\s*Qt::(Key_\w+),\s*QT_TRANSLATE_NOOP\("QShortcut",\s*"([^"]*)"\)\s*\}', table):
+        if key in codes:
+            names.setdefault(codes[key], name)  # QKeySequence takes the first one listed
+    return codes, names
+
+
+def split_top(s):
+    """S's comma-separated parts, not splitting inside (), {} or strings."""
+    parts, depth, cur, quote = [], 0, "", False
+    for i, c in enumerate(s):
+        if c == '"' and s[i - 1] != "\\":
+            quote = not quote
+        elif not quote and c in "({":
+            depth += 1
+        elif not quote and c in ")}":
+            depth -= 1
+        elif not quote and c == "," and depth == 0:
+            parts.append(cur.strip())
+            cur = ""
+            continue
+        cur += c
+    return parts + [cur.strip()] if cur.strip() else parts
+
+
+def standard_shortcuts(codes, page):
+    """The Shortcuts page's Common Actions: KStandardShortcut's table (kconfig's kstandardshortcut.cpp),
+    the Linux side of its #ifs, with each action's name (its key in kdeglobals' [Shortcuts], where a
+    changed one is kept), label, category and default keys as Qt key codes."""
+    src = source_file("kde-frameworks/kconfig", "src/gui/kstandardshortcut.cpp")
+    mods = {"CTRL": 0x04000000, "SHIFT": 0x02000000, "ALT": 0x08000000, "META": 0x10000000}
+    macros = {name: sum(mods[m] for m in re.findall(r"Qt::(CTRL|SHIFT|ALT|META)\b", body))
+              for name, body in re.findall(r"#define (\w+)\(x\) (.*)", src)}
+    body = src[src.index("g_infoStandardShortcut[] = {"):]
+    body = body[body.index("{") + 1: body.index("};")]  # (entries end in "},")
+    kept, skip = [], []
+    for line in body.splitlines():
+        s = line.strip()
+        if s.startswith("#if"):
+            skip.append("Q_OS_MACOS" in s and "!" not in s)
+        elif s.startswith("#else"):
+            skip[-1] = not skip[-1]
+        elif s.startswith("#endif"):
+            skip.pop()
+        elif not any(skip) and not s.startswith("//"):
+            kept.append(line)
+    rows, depth, start = [], 0, 0
+    text = "\n".join(kept)
+    for i, c in enumerate(text):  # each top-level {...} is one shortcut
+        if c == "{":
+            depth += 1
+            if depth == 1:
+                start = i + 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                rows.append(split_top(text[start:i]))
+    entries = []
+    for f in rows:
+        label = re.findall(r'"((?:[^"\\]|\\.)*)"', f[2])
+        category = re.match(r"Category::(\w+)", f[-1])
+        if not f[1].startswith('"') or len(label) < 2 or not category or category[1] == "InvalidCategory":
+            continue
+        keys = [macros[m] | codes["Key_" + k] if m else codes[q]
+                for m, k, q in re.findall(r"\b(\w+)\((\w+)\)|Qt::(Key_\w+)", f[3]) if (m in macros and "Key_" + k in codes) or q in codes]
+        entries.append({"kcm": "kcm_keys", "text": label[1], "where": f"{page} › Common Actions › {category[1]}",
+                        "args": f"{category[1]} {label[1]}", "detail": f"keyboard shortcut, Common Actions › {category[1]}",
+                        "shortcut": f[1].strip('"'), "default_keys": keys})
+    return entries
 
 
 def clean(s):
@@ -154,7 +257,7 @@ def from_kcfg(text):
             for e in root.iter("entry") if e.findtext("label")]
 
 
-def build():
+def build(codes):
     kcms = installed_kcms()
     pages = {}  # kcm id -> {"name", "icon", "description", "dir"}
     files = {}  # path in tarball -> text
@@ -224,15 +327,27 @@ def build():
         if kcm in pages:
             for title, arg in tabs.values():
                 add(kcm, title, "", f"{pages[kcm]['name']} tab", (title, arg))
-    return sorted(entries, key=lambda e: (e["kcm"], e["args"], e["where"], e["text"])), pages
+    if "kcm_keys" in pages:
+        entries += [dict(e, icon=pages["kcm_keys"]["icon"]) for e in standard_shortcuts(codes, pages["kcm_keys"]["name"])]
+    return entries, pages
 
 
 def main():
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else OUT
-    entries, pages = build()
-    out.write_text(json.dumps({"pages": {k: {"name": v["name"], "icon": v["icon"]} for k, v in sorted(pages.items())},
+    codes, keys = qt_keys()
+    entries, pages = build(codes)
+    pages = {k: {"name": v["name"], "icon": v["icon"]} for k, v in pages.items()}
+    try:  # the pages this machine lacks (or has no source for) keep their entries from the last list
+        old = json.loads((out if out.exists() else OUT).read_text())
+    except (OSError, ValueError):
+        old = {"pages": {}, "entries": []}
+    kept = sorted(k for k in old["pages"] if k not in pages)
+    pages.update({k: old["pages"][k] for k in kept})
+    entries += [e for e in old["entries"] if e["kcm"] in kept]
+    entries.sort(key=lambda e: (e["kcm"], e["args"], e["where"], e["text"]))
+    out.write_text(json.dumps({"pages": dict(sorted(pages.items())), "keys": {str(c): n for c, n in sorted(keys.items())},
                                "entries": entries}, indent=0, ensure_ascii=False) + "\n")
-    print(f"{len(entries)} settings from {len(pages)} pages -> {out}")
+    print(f"{len(entries)} settings from {len(pages)} pages -> {out}" + (f" ({', '.join(kept)} kept from the last list)" if kept else ""))
 
 
 if __name__ == "__main__":

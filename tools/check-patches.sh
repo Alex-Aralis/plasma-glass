@@ -4,10 +4,11 @@
 #      other user patches in /etc/portage/patches for that package (kde-fixes'), in Portage's order
 #   2. the patched QML loads under Qt, with stubs for modules that only exist inside krunner or
 #      plasmashell (this catches errors that only show at runtime, like assigning to a grouped property)
-#   3. patched KRunner C++ passes a compiler syntax check (KWin's needs its build tree's generated
-#      headers: `tools/patch-dev.sh kwin` compiles it)
+#   3. patched KRunner C++ passes a compiler syntax check (KWin's and the Shortcuts page's need their build
+#      trees' generated headers: `tools/patch-dev.sh kwin` and `tools/patch-dev.sh kcm-keys` compile them)
 # Needs the source tarballs in Portage's DISTDIR (kept after a build; otherwise `emerge --fetchonly
-# kde-plasma/plasma-workspace kde-plasma/milou kde-plasma/kwin`). Exit status 1 on any failure.
+# kde-plasma/plasma-workspace kde-plasma/milou kde-plasma/kwin kde-plasma/plasma-desktop`). Exit status 1
+# on any failure.
 set -eu
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 WORK=$(mktemp -d)
@@ -80,9 +81,12 @@ prepare() {
     echo "$WORK/$pkg.all" > "$WORK/$pkg.dir"
 }
 
-# Stub QML modules standing in for C++ types that krunner/plasmashell register at runtime.
+# Stub QML modules standing in for C++ types that krunner/plasmashell (and the Shortcuts page) register at
+# runtime.
 STUBS="$WORK/stubs"
-mkdir -p "$STUBS/org/kde/krunner/private/view" "$STUBS/plasma/applet/org/kde/plasma/notifications"
+mkdir -p "$STUBS/org/kde/krunner/private/view" "$STUBS/plasma/applet/org/kde/plasma/notifications" "$STUBS/org/kde/private/kcms/keys"
+printf 'module org.kde.private.kcms.keys\nBaseModel 2.0 BaseModel.qml\n' > "$STUBS/org/kde/private/kcms/keys/qmldir"
+printf 'import QtQuick\nQtObject {}\n' > "$STUBS/org/kde/private/kcms/keys/BaseModel.qml"
 cat > "$STUBS/org/kde/krunner/private/view/qmldir" <<'EOF'
 module org.kde.krunner.private.view
 RunnerWindow 1.0 RunnerWindow.qml
@@ -176,8 +180,10 @@ echo "Patches"
 prepare kde-plasma/plasma-workspace
 prepare kde-plasma/milou
 prepare kde-plasma/kwin
+prepare kde-plasma/plasma-desktop
 PW=$(cat "$WORK/plasma-workspace.dir" 2>/dev/null || true)
 MI=$(cat "$WORK/milou.dir" 2>/dev/null || true)
+PD=$(cat "$WORK/plasma-desktop.dir" 2>/dev/null || true)
 
 echo "QML"
 if [ -n "$PW" ]; then
@@ -189,6 +195,8 @@ if [ -n "$PW" ]; then
     load_qml "notifications DelegatePopup.qml" "$PW/applets/notifications/delegates/DelegatePopup.qml" compile
 fi
 [ -n "$MI" ] && load_qml "milou ResultsView.qml (+ ResultDelegate.qml)" "$MI/lib/ResultsView.qml"
+# needs the page's C++ (the kcm object, its models) to instantiate, so compile only
+[ -n "$PD" ] && load_qml "Shortcuts page main.qml (+ ShortcutActionDelegate.qml)" "$PD/kcms/keys/ui/main.qml" compile
 
 echo "C++"
 if [ -n "$PW" ] && [ -f "$PW/krunner/view.cpp" ]; then

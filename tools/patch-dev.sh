@@ -14,10 +14,13 @@
 #                                Gentoo's patchset and the other user patches in /etc/portage/patches
 #                                (kde-fixes'), to check them before the emerge (a few minutes the first time,
 #                                then seconds). The patched KWin only runs after the emerge and a relogin.
+#   tools/patch-dev.sh kcm-keys  build System Settings' Shortcuts page (kcm_keys) from the edited tree and
+#                                print the folder to run it from (about a minute the first time, then seconds):
+#                                    QT_PLUGIN_PATH=$(tools/patch-dev.sh kcm-keys) systemsettings kcm_keys
 #   tools/patch-dev.sh install [PKG...]  (root) put the patches in /etc/portage/patches and rebuild the
 #                                packages whose patch changed or that weren't rebuilt since (or the PKGs named)
 #
-# Packages: plasma-workspace, milou and kwin (kde-plasma). Each has a single patch file; setup extracts
+# Packages: plasma-workspace, milou, kwin and plasma-desktop (kde-plasma). Each has a single patch file; setup extracts
 # whole directories (DIRS below), so any file in them can be edited and refresh picks it up. To touch
 # another directory, add it to DIRS and re-run setup. The fixes for KDE and Qt bugs that aren't
 # plasma-glass's own (KSvg, Qt, KWin's frame pacing and crash fixes) are in kde-fixes
@@ -26,14 +29,16 @@ set -eu
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 DEV="${XDG_CACHE_HOME:-$HOME/.cache}/plasma-glass/dev"
 DISTDIR=$(portageq envvar DISTDIR 2>/dev/null || echo /var/cache/distfiles)
-PKGS="plasma-workspace milou kwin"
-CAT_plasma_workspace=kde-plasma CAT_milou=kde-plasma CAT_kwin=kde-plasma
+PKGS="plasma-workspace milou kwin plasma-desktop"
+CAT_plasma_workspace=kde-plasma CAT_milou=kde-plasma CAT_kwin=kde-plasma CAT_plasma_desktop=kde-plasma
 DIRS_plasma_workspace="krunner applets/notifications"
 DIRS_milou="lib"
 DIRS_kwin="src"
+DIRS_plasma_desktop="kcms/keys"
 PATCH_plasma_workspace=plasma-workspace-tweaks.patch
 PATCH_milou=milou-section-headers.patch
 PATCH_kwin=kwin-liquid-glass.patch
+PATCH_plasma_desktop=plasma-desktop-shortcut-search.patch
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 var() { eval "echo \"\$${1}_$(echo "$2" | tr - _)\""; }
@@ -161,6 +166,27 @@ build_kwin() {
     echo "compiled: $edited" | tr '\n' ' '; echo
 }
 
+# The Shortcuts page (kcm_keys) alone, in a full plasma-desktop tree (CMake needs all of it) with the
+# edited kcms/keys copied in, configured without the X11 mouse and touchpad pages (Gentoo builds those
+# against headers of its own) and the tablet page (libwacom). Qt finds plugins in QT_PLUGIN_PATH before
+# the installed ones, so systemsettings run with it set to the printed folder loads this build of the page.
+build_keys() {
+    [ -d "$DEV/b/plasma-desktop/kcms/keys" ] || die "run setup plasma-desktop first"
+    ver=$(version plasma-desktop) d="$DEV/plasma-desktop"
+    src="$d/src" bld="$d/build"
+    if [ "$(cat "$d/version" 2>/dev/null)" != "$ver" ]; then
+        rm -rf "${d:?}" && mkdir -p "$src"
+        tar -xJf "$DISTDIR/plasma-desktop-$ver.tar.xz" -C "$src" --strip-components=1
+        cmake -S "$src" -B "$bld" -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_TESTING=OFF \
+            -DBUILD_KCM_MOUSE_X11=OFF -DBUILD_KCM_TOUCHPAD_X11=OFF -DBUILD_KCM_TABLET=OFF -DCMAKE_DISABLE_FIND_PACKAGE_PackageKitQt6=ON \
+            >"$d/configure.log" 2>&1 || die "cmake failed, see $d/configure.log"
+        echo "$ver" > "$d/version"
+    fi
+    cp -a "$DEV/b/plasma-desktop/kcms/keys/." "$src/kcms/keys/"
+    ninja -C "$bld" kcm_keys >"$d/build.log" 2>&1 || { grep -m5 -A3 error "$d/build.log" >&2; die "build failed, see $d/build.log"; }
+    echo "$bld/bin"
+}
+
 # Installs the patches and rebuilds the packages whose patch changed, or which weren't rebuilt after
 # their patch was installed (an earlier emerge failed); named PKGs are rebuilt regardless.
 install_patches() {
@@ -192,6 +218,7 @@ case "${1:-}" in
     krunner) build_krunner ;;
     qt) die "the Qt patches moved to kde-fixes: ~/Projects/kde-fixes/tools/patch-dev.sh qt" ;;
     kwin) build_kwin ;;
+    kcm-keys) build_keys ;;
     install) shift; install_patches "$@" ;;
-    *) sed -n '2,24p' "$0"; exit 2 ;;
+    *) sed -n '2,27p' "$0"; exit 2 ;;
 esac

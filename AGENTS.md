@@ -18,15 +18,15 @@ change different files), and each repo's check applies the other's installed pat
 | Path | What |
 |---|---|
 | `search/embedsearch.py` | search service: indexer, KRunner D-Bus runner (`local.embedsearch`), CLI. Installed copy: `~/.local/share/embedsearch/` (service `embedsearch.service`) |
-| `search/settings_index.py` | builds `search/settings-index.json` (System Settings option labels, page, tab) from the installed packages' source tarballs; re-run after a Plasma upgrade |
+| `search/settings_index.py` | builds `search/settings-index.json` (System Settings option labels, page, tab; the Shortcuts page's Common Actions; Qt's key names) from the installed packages' source tarballs; re-run after a Plasma upgrade |
 | `search/export_model.py` | one-time PyTorch to OpenVINO export with a parity check (run by install.sh in a throwaway venv) |
 | `theme/liquid-glass/generate.py` | draws both styles (`liquid-glass`, `liquid-glass-light`) into `~/.local/share/plasma/desktoptheme/` |
 | `patches/kde-plasma/{plasma-workspace,milou,kwin}/*.patch` | Portage user patches, one per package (`plasma-workspace-tweaks.patch`, `milou-section-headers.patch`, `kwin-liquid-glass.patch`; the KWin one was `kwin-fixes.patch` until 2026-10-17) |
 | `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc), `krunner-shortcut.sh` (KRunner on Meta+Space, or back on Alt+Space), `plasma-glass-tune.qml` (Liquid Glass Tuning: the liquid and the dark glass, live) |
-| `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` builds a test copy, `kwin` compiles the edited KWin files (with kde-fixes' installed KWin patches in the tree) |
+| `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` builds a test copy, `kwin` compiles the edited KWin files (with kde-fixes' installed KWin patches in the tree), `kcm-keys` builds the Shortcuts page |
 | `tools/check-patches.sh` | patches apply, alone and with the other user patches installed for the package (kde-fixes'); patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
 | `tools/screenprobe/screen.sh` | probes on the real screens (small, never focused, ask first): `fps` measures Qt Quick frame rate and animation speed per screen, `glass` shows the style's glass over a grey square (screenshot or by eye) |
-| `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh` (`SWITCH`: across a global theme switch), `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`); `record.sh` records KRunner into a video (demos); `fakeinput.c` for pointer input |
+| `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh` (`SWITCH`: across a global theme switch), `settings.sh` (System Settings on a page with arguments), `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`); `record.sh` records KRunner into a video (demos); `fakeinput.c` for pointer input |
 | `desktop/test-notifications.sh` | sample popups (clickable, long and scrolling, image, critical); installed as `plasma-glass-test-notifications` with a "Test Notifications" launcher |
 
 ## Dev loops
@@ -527,6 +527,40 @@ change different files), and each repo's check applies the other's installed pat
 - **A System Settings result in KRunner only made the open System Settings demand attention**
   (2026-10-17): KWin's activation tokens, fixed in kde-fixes (`kwin-activation-token-serial.patch`). The
   preview never showed it (no other window there asks for a token as it gets the focus back).
+- **Shortcuts in settings search** (2026-10-21, the user: "include the shortcut menu in the index.
+  There's already a search function in the shortcut settings menu you could probably leverage"):
+  - The global ones change with what's installed and running, so the service lists them itself at start
+    (a thread of its own, `settings_loop`) from kglobalaccel, inside KWin: `/kglobalaccel allComponents`,
+    then each component's `allShortcutInfos`, `a(ssssssaiai)` = action id, action name, component id,
+    component name, context, context name, keys, default keys. Keys are Qt key codes with modifier bits
+    (one per key sequence, 0 for none); `settings_index.py` takes Qt's names for them from qtbase's
+    `qkeysequence.cpp` (`keys` in the list), so they read as in System Settings ("Meta+PgUp", "Volume
+    Up"). Common Actions are KStandardShortcut's table (kconfig's source, the Linux side of its `#if`s),
+    changed keys in kdeglobals `[Shortcuts]`. Each Match checks the keys again (at most every 2 s, ~1 ms)
+    and wakes `settings_loop` when actions came or went. At login the service can start before KWin:
+    it tries again each minute until kglobalaccel answers.
+  - Embedded as "title: Maximize Window | text: keyboard shortcut, Window Management[, the app's
+    GenericName or Comment from its .desktop file]", not where the page puts it: of four forms tried on
+    19 queries, that one put 13 in the top 3 ("Shortcuts › Spectacle. Keyboard shortcut": 11; it missed
+    "screenshot of a region" → Capture Rectangular Region). "lock screen" still doesn't find Lock Session,
+    nor does the page's own search.
+  - The page (kcm_keys): component names are the page's, not kglobalaccel's (KWin is "Window
+    Management", plasmashell "Plasma Workspace": basemodel.cpp), an app's launch action (id `_launch`)
+    is named after the app ("Konsole") but shows as "Launch", and a component id can hold spaces ("KDE
+    Keyboard Layout Switcher"), which matters because systemsettings splits `--args` at spaces. So the
+    patch takes the longest run of leading words that is a component id, puts the rest in the search
+    field (the filter matches action and component names and keys), and opens the action named so, or
+    the launch action when the rest is the component's name. When the page is already open, systemsettings
+    sends the arguments as `activationRequested` (forwarded to the KQuickConfigModule), which stock ignores.
+  - Tested with `tools/preview/settings.sh` and `SYSTEMSETTINGS_ENV="QT_PLUGIN_PATH=$(tools/patch-dev.sh
+    kcm-keys)"`, also with `ARGS2` (the open page) and a component registered by hand on the preview's
+    bus with spaces in its id (`dbus-send ... org.kde.KGlobalAccel.doRegister array:string:ID,ACTION,NAME,ACTION`).
+  - In the preview, KRunner's first query starts the search service (D-Bus activation), which answers
+    before its options are loaded: type another letter once it's up (`HOVER_INPUT` with `key CODE
+    down/up`). A space and backspace don't re-query (KRunner skips an unchanged query). The preview's copy
+    embeds new labels without storing them (`EMBEDSEARCH_NO_REINDEX`), each run.
+  - KRunner's own Global Shortcuts runner lists the same actions when KWin's global shortcuts are on (it
+    runs them); these open their settings.
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and
   transformers 5.19 or later. Installing `sentence-transformers[image,audio]` downgraded
   transformers once.

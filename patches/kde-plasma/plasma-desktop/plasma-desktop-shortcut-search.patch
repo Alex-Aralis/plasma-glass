@@ -1,0 +1,141 @@
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/kcms/keys/kcm_keys.cpp b/kcms/keys/kcm_keys.cpp
+--- a/kcms/keys/kcm_keys.cpp
++++ b/kcms/keys/kcm_keys.cpp
+@@ -62,7 +62,20 @@
+     m_filteredModel = new FilteredShortcutsModel(this);
+     m_filteredModel->setSourceModel(m_shortcutsModel);
+ 
+-    m_argument = args.isEmpty() ? QString() : args.first().toString();
++    // "systemsettings kcm_keys --args 'COMPONENT ACTION'" opens on COMPONENT with ACTION in the search field
++    // and its shortcuts open (ACTION is optional), also when the page is already open
++    for (const QVariant &arg : args) {
++        m_arguments << arg.toString();
++    }
++    connect(this, &KAbstractConfigModule::activationRequested, this, [this](const QVariantList &args) {
++        m_arguments.clear();
++        for (const QVariant &arg : args) {
++            m_arguments << arg.toString();
++        }
++        if (m_loaded) {
++            showArguments();
++        }
++    });
+     connect(m_shortcutsModel, &QAbstractItemModel::dataChanged, this, [this] {
+         setNeedsSave(m_globalAccelModel->needsSave() || m_standardShortcutsModel->needsSave());
+         setRepresentsDefaults(m_globalAccelModel->isDefault() && m_standardShortcutsModel->isDefault());
+@@ -72,20 +85,58 @@
+         setRepresentsDefaults(m_globalAccelModel->isDefault() && m_standardShortcutsModel->isDefault());
+     });
+     connect(m_globalAccelModel, &QAbstractItemModel::modelReset, this, [this] {
+-        if (!m_argument.isEmpty()) {
+-            for (int i = 0, c = m_filteredModel->rowCount(); i < c; ++i) {
+-                if (m_filteredModel->data(m_filteredModel->index(i, 0), BaseModel::ComponentRole) == m_argument) {
+-                    Q_EMIT showComponent(i);
+-                    break;
+-                }
+-            }
+-            m_argument.clear();
+-        }
++        m_loaded = true;
++        showArguments();
+     });
+ 
+     connect(m_globalAccelModel, &GlobalAccelModel::errorOccured, this, &KCMKeys::setError);
+ }
+ 
++void KCMKeys::showArguments()
++{
++    // systemsettings splits --args at spaces, and a component id can hold some ("KDE Keyboard Layout
++    // Switcher"): the component is the longest run of leading words that is one, the rest the action
++    const QStringList args = std::exchange(m_arguments, {});
++    QModelIndex component;
++    qsizetype words = args.size();
++    for (; words > 0; --words) {
++        const QString id = args.first(words).join(QLatin1Char(' '));
++        for (int i = 0, c = m_shortcutsModel->rowCount(); i < c && !component.isValid(); ++i) {
++            if (m_shortcutsModel->index(i, 0).data(BaseModel::ComponentRole).toString() == id) {
++                component = m_shortcutsModel->index(i, 0);
++            }
++        }
++        if (component.isValid()) {
++            break;
++        }
++    }
++    if (!component.isValid()) {
++        return;
++    }
++    const QString action = args.sliced(words).join(QLatin1Char(' '));
++    Q_EMIT searchRequested(action); // the search field, whose binding filters the lists
++    m_filteredModel->setFilter(action); // (the same, should the binding not have run yet)
++    const QModelIndex shown = m_filteredModel->mapFromSource(component);
++    if (!shown.isValid()) {
++        return;
++    }
++    // the action by its name; an app's launch action shows as "Launch", so it's asked for by the app's name
++    int actionRow = -1;
++    const int count = action.isEmpty() ? 0 : m_filteredModel->rowCount(shown);
++    for (int i = 0; i < count && actionRow < 0; ++i) {
++        if (m_filteredModel->index(i, 0, shown).data(Qt::DisplayRole).toString().compare(action, Qt::CaseInsensitive) == 0) {
++            actionRow = i;
++        }
++    }
++    for (int i = 0; i < count && actionRow < 0; ++i) {
++        if (m_filteredModel->index(i, 0, shown).data(BaseModel::ActionRole).toString() == QLatin1String("_launch")
++            && shown.data(Qt::DisplayRole).toString().compare(action, Qt::CaseInsensitive) == 0) {
++            actionRow = i;
++        }
++    }
++    Q_EMIT showAction(shown.row(), actionRow);
++}
++
+ void KCMKeys::load()
+ {
+     m_globalAccelModel->load();
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/kcms/keys/kcm_keys.h b/kcms/keys/kcm_keys.h
+--- a/kcms/keys/kcm_keys.h
++++ b/kcms/keys/kcm_keys.h
+@@ -54,11 +54,14 @@
+ 
+ Q_SIGNALS:
+     void showComponent(int row);
++    void searchRequested(const QString &text);
++    void showAction(int componentRow, int actionRow);
+     void errorOccured();
+     void shortcutChangeRejected();
+ 
+ private:
+     void setError(const QString &errorMessage);
++    void showArguments();
+     QList<QPersistentModelIndex> conflictingIndices(const QKeySequence &keySequence) const;
+ 
+     QString m_lastError;
+@@ -66,5 +69,6 @@
+     GlobalAccelModel *m_globalAccelModel;
+     ShortcutsModel *m_shortcutsModel;
+     StandardShortcutsModel *m_standardShortcutsModel;
+-    QString m_argument;
++    QStringList m_arguments;
++    bool m_loaded = false;
+ };
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/kcms/keys/ui/main.qml b/kcms/keys/ui/main.qml
+--- a/kcms/keys/ui/main.qml
++++ b/kcms/keys/ui/main.qml
+@@ -34,6 +34,18 @@
+         function onShowComponent(row) {
+             components.currentIndex = row
+         }
++        // "--args 'COMPONENT ACTION'": ACTION searched for, COMPONENT selected and the action's shortcuts open
++        function onSearchRequested(text) {
++            search.text = text
++        }
++        function onShowAction(componentRow, actionRow) {
++            components.currentIndex = componentRow  // (which closes any open action)
++            components.positionViewAtIndex(componentRow, ListView.Contain)
++            shortcutsList.selectedIndex = actionRow
++            if (actionRow >= 0) {
++                Qt.callLater(() => shortcutsList.positionViewAtIndex(actionRow, ListView.Contain))
++            }
++        }
+     }
+ 
+     actions: [

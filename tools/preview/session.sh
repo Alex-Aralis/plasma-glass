@@ -9,6 +9,9 @@
 #                              script logs KRunner's frame geometry and output (kwin.log, "KRUNNER" lines)
 #   session.sh record QUERY    KRunner with results for QUERY, then its window recorded for
 #                              SECONDS_CAPTURED into record.mkv (frames.py record), HOVER_INPUT sent as it starts
+#   session.sh settings KCM [ARGS]  System Settings on page KCM, given ARGS (systemsettings --args), after
+#                              2 + HOLD s (4); ARGS2: then sent to the open page as KRunner's results do,
+#                              shots/before.png just before
 # Any mode: INDEXING="DELAY DURATION" starts a stand-in search service (fake-indexer.py) that reports
 # indexing progress for DURATION seconds after DELAY.
 MODE="$1"; shift
@@ -17,10 +20,13 @@ export XDG_CONFIG_HOME="$WORK/cfg"
 # SWITCH: global themes write their settings as defaults, where a Plasma session reads them
 [ -z "${SWITCH:-}" ] || export XDG_CONFIG_DIRS="$WORK/cfg/kdedefaults:${XDG_CONFIG_DIRS:-/etc/xdg}"
 
-# Global shortcuts stay off except for plasmashell, whose applet shortcuts open the popups. Permission
-# checks are off so tools/preview/fakeinput.c may send pointer input; this KWin only serves the preview.
+# Global shortcuts stay off except for plasmashell, whose applet shortcuts open the popups, and System
+# Settings, whose Shortcuts page lists them (SHORTCUTS=1: on in any mode, e.g. for KRunner's System
+# Settings results, which list them too). Permission checks are off so tools/preview/fakeinput.c may
+# send pointer input; this KWin only serves the preview.
 shortcuts=--no-global-shortcuts
-[ "$MODE" = popup ] && shortcuts=
+case "$MODE" in popup|settings) shortcuts= ;; esac
+[ -z "${SHORTCUTS:-}" ] || shortcuts=
 # KWIN_ENV: extra environment for KWin only, e.g. to composite on another GPU like the real session.
 # KWIN_WAYLAND: a dev build of KWin to run instead of the installed one (tools/patch-dev.sh kwin, then
 # ninja -C ~/.cache/plasma-glass/dev/kwin/build kwin_wayland)
@@ -158,6 +164,28 @@ JS
         fi
         if [ -n "${HOVER_INPUT:-}" ]; then "$FAKEINPUT" <"$HOVER_INPUT" & fi  # pointer moves while recording
         wait $REC
+        ;;
+    settings)
+        # SYSTEMSETTINGS_ENV: its environment, e.g. QT_PLUGIN_PATH=$(tools/patch-dev.sh kcm-keys) to load a
+        # dev build of the Shortcuts page
+        # shellcheck disable=SC2086
+        env ${SYSTEMSETTINGS_ENV:-} systemsettings "$1" ${2:+--args "$2"} >"$WORK/app.log" 2>&1 &
+        sleep 2
+        # the size it opens at with no saved one is cramped: 1240x760 logical px, centred
+        cat >"$WORK/size.js" <<JS
+for (const w of workspace.windowList())
+    if (String(w.resourceClass).indexOf("systemsettings") >= 0)
+        w.frameGeometry = {x: ($WIDTH / $SCALE - 1240) / 2, y: ($HEIGHT / $SCALE - 760) / 2, width: 1240, height: 760};
+JS
+        id=$(qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.loadScript "$WORK/size.js" preview-size)
+        qdbus6 org.kde.KWin "/Scripting/Script$id" org.kde.kwin.Script.run >/dev/null 2>&1
+        sleep "${HOLD:-4}"
+        if [ -n "${ARGS2:-}" ]; then  # a second systemsettings hands its arguments to the open one and exits
+            spectacle -b -n -f -o "$WORK/shots/before.png" >/dev/null 2>&1
+            # shellcheck disable=SC2086
+            env ${SYSTEMSETTINGS_ENV:-} systemsettings "$1" --args "$ARGS2" >>"$WORK/app.log" 2>&1
+            sleep 3
+        fi
         ;;
     popup)
         plasmashell --no-respawn >"$WORK/app.log" 2>&1 &

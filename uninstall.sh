@@ -55,8 +55,9 @@ cat <<'EOF'
 User part removed. To undo the system part (as root):
     rm -f /etc/portage/patches/kde-plasma/plasma-workspace/plasma-workspace-tweaks.patch \
           /etc/portage/patches/kde-plasma/milou/milou-section-headers.patch \
-          /etc/portage/patches/kde-plasma/kwin/kwin-liquid-glass.patch
-    emerge --oneshot kde-plasma/milou kde-plasma/plasma-workspace kde-plasma/kwin
+          /etc/portage/patches/kde-plasma/kwin/kwin-liquid-glass.patch \
+          /etc/portage/patches/kde-plasma/plasma-desktop/plasma-desktop-shortcut-search.patch
+    emerge --oneshot kde-plasma/milou kde-plasma/plasma-workspace kde-plasma/kwin kde-plasma/plasma-desktop
 (kde-fixes' patches for the same packages stay; its uninstall.sh removes them)
 and, if nothing else needs it, the GPU runtime:
     emerge --ask --depclean dev-libs/intel-compute-runtime virtual/opencl dev-libs/opencl-icd-loader
