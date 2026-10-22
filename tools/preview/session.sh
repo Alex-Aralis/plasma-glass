@@ -4,6 +4,10 @@
 #   session.sh krunner QUERY   (HOVER_INPUT: fakeinput commands sent once the results are in, after HOLD s, 8)
 #   session.sh dialog
 #   session.sh popup ACTION    plasmashell with popup.sh's config, then a plasmashell shortcut action
+#   session.sh panel float|dock|record  plasmashell with panel.sh's config and an ordinary window in the
+#                              middle: as it is, or with the window maximized (a floating panel docks), or
+#                              recorded (PANEL_AREA) for SECONDS_CAPTURED while the window maximizes MAX_AT s
+#                              in and is restored RESTORE_AT s in, into record.mkv
 #   session.sh unfold QUERY    KRunner; capture frames while results for QUERY unfold, then fold
 #   session.sh drag QUERY      KRunner with results for QUERY, then FAKEINPUT < DRAG_INPUT, while a KWin
 #                              script logs KRunner's frame geometry and output (kwin.log, "KRUNNER" lines)
@@ -25,7 +29,7 @@ export XDG_CONFIG_HOME="$WORK/cfg"
 # Settings results, which list them too). Permission checks are off so tools/preview/fakeinput.c may
 # send pointer input; this KWin only serves the preview.
 shortcuts=--no-global-shortcuts
-case "$MODE" in popup|settings) shortcuts= ;; esac
+case "$MODE" in popup|panel|settings) shortcuts= ;; esac
 [ -z "${SHORTCUTS:-}" ] || shortcuts=
 # KWIN_ENV: extra environment for KWin only, e.g. to composite on another GPU like the real session.
 # KWIN_WAYLAND: a dev build of KWin to run instead of the installed one (tools/patch-dev.sh kwin, then
@@ -44,7 +48,7 @@ if [ -n "${REFRESH:-}" ]; then
     kscreen-doctor -o 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | grep -E 'Output|Modes' | cut -c1-160 >>"$WORK/kscreen.log"
 fi
 
-if [ "$MODE" != popup ]; then  # plasmashell draws its own wallpaper
+if [ "$MODE" != popup ] && [ "$MODE" != panel ]; then  # plasmashell draws its own wallpaper
     # WALLPAPER_PAN=px/s: it scrolls up and down behind KRunner (record.sh; screenshots crop to everything)
     qml6 "$HERE/qml/wallpaper.qml" -- "$WALLPAPER_FILE" ${WALLPAPER_PAN:+"$WALLPAPER_PAN"} >"$WORK/wallpaper.log" 2>&1 &
     sleep 1.5
@@ -201,6 +205,34 @@ JS
                 || echo "could not invoke '$1'" >&2
             sleep 2
         fi
+        ;;
+    panel)
+        plasmashell --no-respawn >"$WORK/app.log" 2>&1 &
+        SHELL_PID=$!
+        for _ in $(seq 100); do qdbus6 org.kde.plasmashell >/dev/null 2>&1 && break; sleep 0.1; done
+        sleep 6  # panel, wallpaper and applets
+        # an ordinary window, placed clear of the panel: maximized, it touches it, and a floating panel docks
+        qml6 "$HERE/qml/window.qml" >"$WORK/window.log" 2>&1 &
+        sleep 1.5
+        maximize() {  # true: maximize the preview window; false: restore it
+            cat >"$WORK/maximize.js" <<JS
+for (const w of workspace.windowList())
+    if (w.caption === "Preview window") w.setMaximize($1, $1);
+JS
+            id=$(qdbus6 org.kde.KWin /Scripting org.kde.kwin.Scripting.loadScript "$WORK/maximize.js" "preview-maximize-$(date +%s%N)")
+            qdbus6 org.kde.KWin "/Scripting/Script$id" org.kde.kwin.Script.run >/dev/null 2>&1
+        }
+        case "$1" in
+            dock) maximize true; sleep 2 ;;
+            record)
+                "$TOOL_PYTHON" -I "$HERE/frames.py" record "$WORK/record.mkv" "$SECONDS_CAPTURED" "PANEL $PANEL_AREA" \
+                    >"$WORK/grab.log" 2>&1 &
+                REC=$!
+                sleep "$MAX_AT"; maximize true
+                sleep "$(awk "BEGIN{print $RESTORE_AT - $MAX_AT}")"; maximize false
+                wait $REC
+                ;;
+        esac
         ;;
 esac
 spectacle -b -n -f -o "$WORK/shots/app.png" >/dev/null 2>&1

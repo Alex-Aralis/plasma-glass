@@ -14,13 +14,16 @@ notification cruft trimmed.
   to change.
 - **Liquid Glass Plasma Style.** Translucent popups over KWin's blur: 18 px corners, a light rim along
   the top, a soft shadow, glassy search fields, list highlights and scrollbars, and quiet header
-  bands in applet popups. Everything else
-  falls back to Breeze, and colours follow your colour scheme. With the KWin patch, the dark style's
+  bands in applet popups. The panel is the same glass, floating or docked: a rounded bar with 16 px
+  corners while it floats, and flush against the screen's edge once a maximized window docks it, glass
+  still (the style turns off Plasma's adaptive transparency, which made a docked panel opaque). Everything
+  else falls back to Breeze, and colours follow your colour scheme. With the KWin patch, the dark style's
   glass is frosted lightly and rounds off at the edge like a lens: what's behind bends there and parts
   a little in colour. KRunner's glass holds a liquid, simulated: it sloshes as you drag KRunner or its
   dropdown opens, and while a search runs its rim pushes into it, sending waves across that bend what's
   behind. The light style's glass is frosted more, and the waves run beneath the frost, lit in shards of
-  colour as off an etched diffraction foil.
+  colour as off an etched diffraction foil. The panel's glass rounds off at its edges too, but not where
+  it meets the screen's edge: docked, only its top edge bends what's behind.
 - **Trimmed KRunner and notifications.** KRunner opens with Meta+Space (Alt+F2 still works) and floats where you drag it (by the glass rim, or anywhere
   with Meta held, as with other windows) and remembers the spot. It is wider, and types straight onto the glass in larger text, with no input box, like Spotlight. It uses
   compact section headers and has no help, settings, pin or clear buttons. Files show where they are on
@@ -149,6 +152,10 @@ radius, padding, glass opacity, rim brightness and shadow are constants at the t
 re-run `./install.sh --no-search --no-settings`. That regenerates the SVGs, clears Plasma's cache of
 the old ones and reapplies the style.
 
+The panel's frame takes the same glass with its own corner radius, shadow and margins (`PANEL_R`,
+`PANEL_SHADOW`, `PANEL_THICK_MARGIN`). Floating, Plasma draws all of it; docked, it leaves out the edges
+against the screen's.
+
 Plasma sizes each piece by its bounding box, so the generator builds everything from fills inside
 exact tile rectangles. Strokes would make the box half a pixel bigger and leave visible gaps.
 
@@ -158,6 +165,7 @@ appears on your screen.
 
 ```sh
 tools/preview/krunner.sh /tmp/krunner.png "some query"
+tools/preview/panel.sh /tmp/panel.png            # your panel, floating; DOCK=1: docked by a maximized window
 ```
 
 ### Tuning the glass and KRunner's liquid, live
@@ -276,7 +284,10 @@ refreshed.
     (strength 5), flat by default, with the waves beneath the frost: what's behind bends under them, and
     an etched diffraction foil lights up in shards of colour where they crest, all softened by the frost. Only while one of those styles is
     selected (it follows `plasmarc`, no relogin), on Plasma's own surfaces
-    (KRunner, popups, notifications, panels with rounded corners), not on windows with title bars. In
+    (KRunner, popups, notifications, the panel), not on windows with title bars. The glass's corners
+    are read off each surface's shape, whatever their radius; where the glass meets the screen's edge (a
+    docked panel) it has no bevel, as it runs on past it; and on thin glass (the panel) the bevel is at
+    most 35% of its thickness, refracting proportionally less. In
     KWin's environment, `KWIN_LIQUID_GLASS_FROST=strength`,
     `KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness` and
     `KWIN_LIQUID_GLASS_RIPPLE=scale,dispersion` override them (2; 24,9,2,1; 1,3, scale 0 for no waves)

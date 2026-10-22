@@ -4,9 +4,10 @@
 Two styles come out of one run: "Liquid Glass" (follows your colour scheme) next to this file, and
 "Liquid Glass Light" (bright frosted glass with its own light colours) in ../liquid-glass-light.
 
-Drawn here: dialogs/background (KRunner, Kickoff, the calendar and other popups) and the popups'
-scrollbars, search fields, list highlights and header bands; every other element falls back to the
-default Breeze style. Base colours follow the active colour scheme.
+Drawn here: dialogs/background (KRunner, Kickoff, the calendar and other popups), the panel's
+background (the same glass as a bar, floating or docked) and the popups' scrollbars, search fields, list
+highlights and header bands; every other element falls back to the default Breeze style. Base colours
+follow the active colour scheme.
 
 Plasma measures each element by its bounding box, so every piece is built from fills that stay
 inside an exact tile rectangle (no strokes, which would grow the box by half a pixel and misalign
@@ -32,6 +33,15 @@ GLOW_DEPTH = 14          # px the inner band reaches into the glass
 C = R
 K = 32                   # edge/centre tile length (stretched)
 T = SHADOW + C           # shadow tile thickness: SHADOW outside, C under the corner
+
+# The panel (widgets/panel-background): the same glass as a bar, with smaller corners, since it's only
+# 44-46 px thick. Floating, it has all four edges; docked, Plasma leaves out the edges against the
+# screen's, so the glass runs on past them. KWin's glass reads the corners off the panel's mask.
+PANEL_R = 16             # corner radius: two fit across panels down to 32 px thick
+PANEL_SHADOW = 24
+PANEL_GLOW_DEPTH = 8
+PANEL_MARGIN = 4         # the frame's margins, as Breeze's
+PANEL_THICK_MARGIN = 8   # thick-*: from the glass's edge to the applets (Plasma adds a small spacing)
 
 _defs = []
 
@@ -154,7 +164,7 @@ def shadow(x0):
     return "".join(pieces)
 
 
-def hints(y0):
+def hints(y0, thick=None):
     h, x = [], 0
 
     def rect(id_, w, hh):
@@ -178,17 +188,23 @@ def hints(y0):
     for s in ("left", "right"):
         rect(f"shadow-hint-{s}-margin", SHADOW, 4)
         rect(f"shadow-hint-{s}-inset", SHADOW, 4)
+    if thick:  # the panel's padding around its applets (Plasma reads the "thick" prefix's margins)
+        rect("thick-center", 4, 4)
+        for s in ("top", "bottom"):
+            rect(f"thick-hint-{s}-margin", 4, thick)
+        for s in ("left", "right"):
+            rect(f"thick-hint-{s}-margin", thick, 4)
     return "".join(h), x
 
 
-def svg(fill_opacity, glass=True, with_shadow=True):
+def svg(fill_opacity, glass=True, with_shadow=True, thick=None):
     _defs.clear()
     span = 2 * C + K
     body = frame(0, "", fill_opacity, glass=glass)
     body += frame(span + 10, "mask-", 1, mask=True)
     if with_shadow:
         body += shadow(2 * (span + 10))
-    hint_xml, hint_w = hints(2 * T + K + 10)
+    hint_xml, hint_w = hints(2 * T + K + 10, thick)
     body += hint_xml
     width = max(2 * (span + 10) + 2 * T + K, hint_w) + 10
     height = 2 * T + K + 10 + SHADOW + 10
@@ -196,6 +212,18 @@ def svg(fill_opacity, glass=True, with_shadow=True):
              '.ColorScheme-Background{color:#202326;}.ColorScheme-Text{color:#fcfcfc;}</style>')
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">'
             f'<defs>{style}{"".join(_defs)}</defs>{body}</svg>')
+
+
+def panel_svg(fill_opacity, glass=True):
+    """widgets/panel-background: the dialogs' frame with the panel's corners, shadow and margins."""
+    keys = ("R", "C", "T", "SHADOW", "GLOW_DEPTH", "MARGIN")
+    saved = {k: globals()[k] for k in keys}
+    globals().update(R=PANEL_R, C=PANEL_R, T=PANEL_SHADOW + PANEL_R, SHADOW=PANEL_SHADOW,
+                     GLOW_DEPTH=PANEL_GLOW_DEPTH, MARGIN=PANEL_MARGIN)
+    try:
+        return svg(fill_opacity, glass=glass, thick=PANEL_THICK_MARGIN)
+    finally:
+        globals().update(saved)
 
 
 # Scrollbar: Breeze's geometry (6px thick, 3px pill caps, same inset hints) with glassy paint.
@@ -428,6 +456,9 @@ def generate(style_id, variant):
         write(out, "dialogs/background.svgz", svg(FILL_OPAQUE))
         write(out, "opaque/dialogs/background.svgz", svg(1.0, glass=False))  # no compositing: no blur or shadow
         write(out, "solid/dialogs/background.svgz", svg(1.0, glass=False))
+        write(out, "translucent/widgets/panel-background.svgz", panel_svg(FILL_TRANSLUCENT))
+        write(out, "widgets/panel-background.svgz", panel_svg(FILL_OPAQUE))
+        write(out, "opaque/widgets/panel-background.svgz", panel_svg(1.0, glass=False))
         write(out, "widgets/scrollbar.svgz", scrollbar_svg())
         write(out, "widgets/lineedit.svgz", lineedit_svg())
         write(out, "widgets/viewitem.svgz", viewitem_svg())
@@ -446,9 +477,12 @@ def generate(style_id, variant):
         "X-Plasma-API": "5.0",
     }
     (out / "metadata.json").write_text(json.dumps(meta, indent=4) + "\n")
+    # No adaptive transparency: Plasma's panels would turn opaque (solid/widgets/panel-background, Breeze's)
+    # whenever a window touches them, which is just when a floating panel docks; without it they stay
+    # glass, docked or floating, and their settings don't offer an opacity
     (out / "plasmarc").write_text(
         "[Wallpaper]\ndefaultWallpaperTheme=Next\ndefaultFileSuffix=.png\ndefaultWidth=1920\ndefaultHeight=1080\n\n"
-        "[AdaptiveTransparency]\nenabled=true\n")
+        "[AdaptiveTransparency]\nenabled=false\n")
     colors = out / "colors"
     if "colors" in variant:
         colors.write_text(light_colors(variant["colors"]))

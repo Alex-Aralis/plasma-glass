@@ -14,7 +14,7 @@ set -eu
 OUT=$(realpath -m "${1:?usage: popup.sh OUT.png [APPLET]}"); APPLET="${2:-volume}"
 prepare
 cp "$HOME/.config/plasmashellrc" "$WORK/cfg/" 2>/dev/null || true  # its [Updates] list skips update scripts
-rm -rf "$WORK/cache" "$WORK/state" && mkdir -p "$WORK/cache" "$WORK/state" "$WORK/dbus-services"
+rm -rf "$WORK/cache" "$WORK/state" && mkdir -p "$WORK/cache" "$WORK/state"
 
 if [ "${PANEL:-}" = mine ]; then
     cp "$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc" "$WORK/cfg/"
@@ -99,26 +99,7 @@ kwriteconfig6 --file "$WORK/cfg/plasmashellrc" --group PlasmaViews --group "Pane
 kwriteconfig6 --file "$WORK/cfg/plasmashellrc" --group PlasmaViews --group "Panel 2" --group Defaults --key thickness "${thickness:-44}"
 fi
 
-# A private bus that can only start the activity manager (plasmashell waits for it).
-for s in org.kde.ActivityManager; do
-    ln -sf "/usr/share/dbus-1/services/$s.service" "$WORK/dbus-services/"
-done
-cat >"$WORK/dbus.conf" <<CFG
-<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
- "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
-<busconfig>
-  <type>session</type>
-  <listen>unix:tmpdir=/tmp</listen>
-  <auth>EXTERNAL</auth>
-  <servicedir>$WORK/dbus-services</servicedir>
-  <policy context="default">
-    <allow send_destination="*" eavesdrop="true"/>
-    <allow eavesdrop="true"/>
-    <allow own="*"/>
-  </policy>
-</busconfig>
-CFG
-
+plasmashell_bus
 DBUS_CONFIG="$WORK/dbus.conf" XDG_CACHE_HOME="$WORK/cache" XDG_STATE_HOME="$WORK/state" \
     run_session popup "$([ "$APPLET" = notify ] && echo notify || echo "activate widget $id")"
 # QML warnings while plasmashell ran, then the ones it logged while quitting (full log: $WORK/app.log)

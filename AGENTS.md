@@ -26,7 +26,7 @@ change different files), and each repo's check applies the other's installed pat
 | `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` builds a test copy, `kwin` compiles the edited KWin files (with kde-fixes' installed KWin patches in the tree), `kcm-keys` builds the Shortcuts page |
 | `tools/check-patches.sh` | patches apply, alone and with the other user patches installed for the package (kde-fixes'); patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
 | `tools/screenprobe/screen.sh` | probes on the real screens (small, never focused, ask first): `fps` measures Qt Quick frame rate and animation speed per screen, `glass` shows the style's glass over a grey square (screenshot or by eye) |
-| `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh` (`SWITCH`: across a global theme switch), `settings.sh` (System Settings on a page with arguments), `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`); `record.sh` records KRunner into a video (demos); `fakeinput.c` for pointer input |
+| `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh` (`SWITCH`: across a global theme switch), `settings.sh` (System Settings on a page with arguments), `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `panel.sh` (your panel, floating or docked, screenshot or video), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`); `record.sh` records KRunner into a video (demos); `fakeinput.c` for pointer input |
 | `desktop/test-notifications.sh` | sample popups (clickable, long and scrolling, image, critical); installed as `plasma-glass-test-notifications` with a "Test Notifications" launcher |
 
 ## Dev loops
@@ -209,15 +209,44 @@ change different files), and each repo's check applies the other's installed pat
   a move about 5 ms (300 ms/s at 60 Hz) against one or two knocks' 3.4, since the waves take the bevel
   pass's per-pixel path over all of the glass. `KRUNNER_BUSY_DEMO=1` keeps KRunner busy, to look at it
   (also in `tools/preview/krunner.sh`, and `tools/preview/record.sh` records it).
+- **The panel is glass, docked or floating** (2026-10-22, the user: "plasma glass to the taskbar in both
+  forms, attached and detached"). Plasma's Panel.qml (plasma-desktop's desktop package) draws
+  `widgets/panel-background` twice over: `floatingTranslucentItem` (all borders, inset by the floating
+  gap, 8 px unless the style has a `floating` prefix) while it floats or animates, `translucentItem`
+  (PanelView's enabled borders: none against the screen's edges) once docked; `thick-*` margins pad the
+  applets. A floating panel docks whenever a window touches it (maximized), and with adaptive opacity,
+  Plasma's default, it then cross-fades to `solid/widgets/panel-background` (Breeze's: opaque), so the
+  docked form was never glass. The styles' plasmarc says `[AdaptiveTransparency] enabled=false`
+  (`PanelView::opacityMode()` is then Translucent whatever the panel's setting, and its settings drop the
+  opacity choice), so it stays glass; no solid variant is drawn. generate.py draws the panel as the
+  dialogs' frame (`panel_svg()`: R, C, T, SHADOW, GLOW_DEPTH and MARGIN swapped for `PANEL_*` while it
+  runs), 16 px corners, as two 26 px ones don't fit across a 46 px panel. KWin (`kwin-liquid-glass.patch`)
+  had taken the glass for a frame only when a corner pixel was missing from the blur region, then rounded
+  every corner by 26: a docked panel got KWin's own blur (strength 15, so it looked like Breeze's), and a
+  floating one corners that didn't match. Now `liquidGlassCorners()` reads each corner's radius off the
+  region (r² (1 - π/4) is what a quarter circle leaves out of its square; to about a pixel, square
+  corners 0), dock windows count as glass with none, and edges within half a pixel of the window's
+  output's edge are moved out past the bevel in the bevel pass's box, so a docked panel bends what's behind
+  only along its top edge (and its ends, when it doesn't span the screen). A bevel 24 px wide covered all
+  of a 46 px glass from both sides, so on thin glass it's at most `s_liquidGlassThinBevel` 0.35 of the
+  short side (16 px on the panel) with its refraction scaled alike (9 px to 6), which leaves KRunner (69 px
+  folded) and the popups as they were: KRunner over ColorfulCups with the waves off
+  (`KWIN_LIQUID_GLASS_RIPPLE=0`) came out the same before and after but for its text cursor (22 px).
+  `tools/preview/panel.sh` runs plasmashell with your layout (popup.sh's private bus);
+  the activity manager there has this account's activity, not yours, so it rewrites the desktops'
+  `activityId` first (or plasmashell makes a new desktop with the default wallpaper), and `COLORS` applies
+  a colour scheme (`plasma-apply-colorscheme` needs `QT_QPA_PLATFORM=offscreen`). Task manager and pager
+  highlights are still Breeze's (`widgets/tasks`, `widgets/pager`: a style's file replaces Breeze's whole,
+  so glassy ones need every element, progress and group arrows too).
 - **KWin crashed at every logout** (Remember Window Positions' final save from a workspace already
   gone) until kde-fixes' `kwin-unload-scripts-before-workspace.patch`; preview KWins crashed the same way
   at their end.
 - **The dark Liquid Glass bevel is drawn by KWin's blur** (`kwin-liquid-glass.patch`: the bevel pass in
   `plugins/blur/blur.cpp`, `shaders/onscreen_bevel.frag`), since only KWin has what's behind the glass;
-  KRunner's shaders only see its own content. The glass is the blur region's bounding box, with a 26 px
-  radius (generate.py R) at each corner the frame's mask leaves out of the region; a shape with no
-  corner left out (a docked panel) gets no bevel, nor does a window with a title bar (it has KWin's own
-  border radius). Within 24 px of the edge the glass rounds off like a quarter circle (tilt 1 at the
+  KRunner's shaders only see its own content. The glass is the blur region's bounding box, with each
+  corner rounded as far as the frame's mask leaves it out of the region (read off its area; 26 px,
+  generate.py R, on popups); a shape with no corner left out gets no bevel unless it's a panel (below),
+  nor does a window with a title bar (it has KWin's own border radius). Within 24 px of the edge the glass rounds off like a quarter circle (tilt 1 at the
   edge, 0 where it turns flat): what's behind is seen from 9 px x tilt² further in, the background
   before the blur (the blur's first texture) shows through more towards the edge (x tilt), and red is
   taken from 2 px x tilt further out, blue as far in. That's the per-colour sampling along the normal

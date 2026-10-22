@@ -87,6 +87,31 @@ run_session() {
         dbus-run-session ${DBUS_CONFIG:+--config-file="$DBUS_CONFIG"} -- sh "$HERE/session.sh" "$@"
 }
 
+# plasmashell_bus : $WORK/dbus.conf, a private bus that can only start the activity manager (plasmashell
+# waits for it), so no second kded, KDE Connect or powerdevil comes up next to your real ones. Run with
+# DBUS_CONFIG="$WORK/dbus.conf".
+plasmashell_bus() {
+    rm -rf "$WORK/dbus-services" && mkdir -p "$WORK/dbus-services"
+    for s in org.kde.ActivityManager; do
+        ln -sf "/usr/share/dbus-1/services/$s.service" "$WORK/dbus-services/"
+    done
+    cat >"$WORK/dbus.conf" <<CFG
+<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+  <type>session</type>
+  <listen>unix:tmpdir=/tmp</listen>
+  <auth>EXTERNAL</auth>
+  <servicedir>$WORK/dbus-services</servicedir>
+  <policy context="default">
+    <allow send_destination="*" eavesdrop="true"/>
+    <allow eavesdrop="true"/>
+    <allow own="*"/>
+  </policy>
+</busconfig>
+CFG
+}
+
 # fakeinput : path to tools/preview/fakeinput.c, compiled on first use (pointer input for the preview)
 fakeinput() {
     if [ ! -x "$WORK/fakeinput" ] || [ "$HERE/fakeinput.c" -nt "$WORK/fakeinput" ]; then
