@@ -212,7 +212,7 @@ JS
         for _ in $(seq 100); do qdbus6 org.kde.plasmashell >/dev/null 2>&1 && break; sleep 0.1; done
         sleep 6  # panel, wallpaper and applets
         # an ordinary window, placed clear of the panel: maximized, it touches it, and a floating panel docks
-        qml6 "$HERE/qml/window.qml" >"$WORK/window.log" 2>&1 &
+        qml6 "$HERE/qml/window.qml" -- "${WINDOW_COLOR:-#2a2e32}" >"$WORK/window.log" 2>&1 &  # panel.sh's WINDOW_COLOR
         sleep 1.5
         maximize() {  # true: maximize the preview window; false: restore it
             cat >"$WORK/maximize.js" <<JS

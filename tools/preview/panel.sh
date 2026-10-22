@@ -11,6 +11,7 @@
 # before the screenshot (raise CROP to take it in). PLASMASHELL=path runs a dev build of plasmashell
 # (tools/patch-dev.sh plasmashell), SHELL_PACKAGE=dir puts that desktop package's contents/ (an edited
 # plasma-desktop desktoppackage, for Panel.qml) over the installed one.
+# WINDOW_COLOR=#eff0f1 paints the window that docks the panel (dark by default), to show a shadow on it.
 # COLORS=BreezeDark (any colour scheme's name) applies that scheme instead of yours (the dark style follows
 # it). FLOATING=0|1 overrides your panel's floating setting, CROP is the strip's height (logical px, default
 # 140), START the strip's left edge and CROP_WIDTH its width (default the screen's). The screen is
