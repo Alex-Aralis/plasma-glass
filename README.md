@@ -288,7 +288,8 @@ refreshed.
   the action's name) puts the name in the page's search field, selects the component and opens the
   action's keys, also when the page is already open. Stock takes only the component (and only when the
   page opens), so settings search's shortcut results land on the shortcut. An app's launch key is asked
-  for by the app's name (`org.kde.konsole.desktop Konsole`), since the page shows it as "Launch"
+  for by the app's name (`org.kde.konsole.desktop Konsole`), since the page shows it as "Launch". Opened
+  again with no arguments (a result for the page itself), it clears its search
 
 The bug fixes these patches held until 2026-10-17 (KWin's frame pacing across screens, the render GPU's
 copy for another GPU's screens, the crash at every logout, activation tokens; KSvg's colours after a style

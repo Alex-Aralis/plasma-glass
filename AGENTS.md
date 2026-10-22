@@ -560,7 +560,17 @@ change different files), and each repo's check applies the other's installed pat
     down/up`). A space and backspace don't re-query (KRunner skips an unchanged query). The preview's copy
     embeds new labels without storing them (`EMBEDSEARCH_NO_REINDEX`), each run.
   - KRunner's own Global Shortcuts runner lists the same actions when KWin's global shortcuts are on (it
-    runs them); these open their settings.
+    runs them); these open their settings. For "capture rectangular region" KRunner's first result is
+    Spectacle's own desktop action (it takes the screenshot).
+  - The user's report the same evening ("selecting a different shortcut from krunner does not update the
+    term in the shortcut menu searchbox"): the picks that didn't were the page's own UI labels ("Cancel
+    Export"), which settings_index.py had put under "Shortcuts › Common Actions" (the page's list section
+    names were taken for sections), so they looked like shortcuts, and they open the page without
+    arguments, which the patch then ignored. Now list section names aren't sections, and an activation
+    without arguments clears the search. Real shortcuts updated it every time (checked on the user's
+    desktop with gdb: breakpoints on `KAbstractConfigModule::activationRequested` and
+    `QQuickTextInput::setText`, both exported). Attach with `handle SIGINT stop print nopass`: without it
+    the interrupt that ends `timeout -s INT gdb` reaches the app on detach and quits it (it did once).
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and
   transformers 5.19 or later. Installing `sentence-transformers[image,audio]` downgraded
   transformers once.

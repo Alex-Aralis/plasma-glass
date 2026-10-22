@@ -4261,6 +4261,14 @@
 },
 {
 "kcm": "kcm_kded",
+"text": "Start Service",
+"where": "Background Services",
+"icon": "preferences-system-session-services",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_kded",
 "text": "Startup Services",
 "where": "Background Services",
 "icon": "preferences-system-session-services",
@@ -4269,24 +4277,8 @@
 },
 {
 "kcm": "kcm_kded",
-"text": "Running",
-"where": "Background Services › Load-on-Demand Services",
-"icon": "preferences-system-session-services",
-"args": "",
-"detail": ""
-},
-{
-"kcm": "kcm_kded",
-"text": "Start Service",
-"where": "Background Services › Load-on-Demand Services",
-"icon": "preferences-system-session-services",
-"args": "",
-"detail": ""
-},
-{
-"kcm": "kcm_kded",
 "text": "Stop Service",
-"where": "Background Services › Load-on-Demand Services",
+"where": "Background Services",
 "icon": "preferences-system-session-services",
 "args": "",
 "detail": ""
@@ -4294,7 +4286,7 @@
 {
 "kcm": "kcm_kded",
 "text": "Toggle automatically loading this service on startup",
-"where": "Background Services › Load-on-Demand Services",
+"where": "Background Services",
 "icon": "preferences-system-session-services",
 "args": "",
 "detail": "Accessible description"
@@ -4717,6 +4709,46 @@
 },
 {
 "kcm": "kcm_keys",
+"text": "Add New",
+"where": "Shortcuts",
+"icon": "preferences-desktop-keyboard-shortcut",
+"args": "",
+"detail": "Add new shortcut"
+},
+{
+"kcm": "kcm_keys",
+"text": "Add new application",
+"where": "Shortcuts",
+"icon": "preferences-desktop-keyboard-shortcut",
+"args": "",
+"detail": "accessible"
+},
+{
+"kcm": "kcm_keys",
+"text": "Add new command or script",
+"where": "Shortcuts",
+"icon": "preferences-desktop-keyboard-shortcut",
+"args": "",
+"detail": "accessible"
+},
+{
+"kcm": "kcm_keys",
+"text": "Cancel Export",
+"where": "Shortcuts",
+"icon": "preferences-desktop-keyboard-shortcut",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_keys",
+"text": "Command or Script…",
+"where": "Shortcuts",
+"icon": "preferences-desktop-keyboard-shortcut",
+"args": "",
+"detail": "End of the sentence 'Add New Command or Script…'"
+},
+{
+"kcm": "kcm_keys",
 "text": "Common Actions",
 "where": "Shortcuts",
 "icon": "preferences-desktop-keyboard-shortcut",
@@ -4757,11 +4789,67 @@
 },
 {
 "kcm": "kcm_keys",
+"text": "Export shortcut scheme",
+"where": "Shortcuts",
+"icon": "preferences-desktop-keyboard-shortcut",
+"args": "",
+"detail": "accessible"
+},
+{
+"kcm": "kcm_keys",
+"text": "Import shortcut scheme",
+"where": "Shortcuts",
+"icon": "preferences-desktop-keyboard-shortcut",
+"args": "",
+"detail": "accessible"
+},
+{
+"kcm": "kcm_keys",
+"text": "Select an item from the list to view its shortcuts here",
+"where": "Shortcuts",
+"icon": "preferences-desktop-keyboard-shortcut",
+"args": "",
+"detail": "placeholdermessage"
+},
+{
+"kcm": "kcm_keys",
+"text": "Select the components below that should be included in the exported scheme",
+"where": "Shortcuts",
+"icon": "preferences-desktop-keyboard-shortcut",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_keys",
 "text": "System Services",
 "where": "Shortcuts",
 "icon": "preferences-desktop-keyboard-shortcut",
 "args": "",
 "detail": "list section name"
+},
+{
+"kcm": "kcm_keys",
+"text": "These shortcuts will be deleted when changes are applied.",
+"where": "Shortcuts",
+"icon": "preferences-desktop-keyboard-shortcut",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_keys",
+"text": "Undo deleting shortcuts",
+"where": "Shortcuts",
+"icon": "preferences-desktop-keyboard-shortcut",
+"args": "",
+"detail": ""
+},
+{
+"kcm": "kcm_keys",
+"text": "Undo deletion",
+"where": "Shortcuts",
+"icon": "preferences-desktop-keyboard-shortcut",
+"args": "",
+"detail": ""
 },
 {
 "kcm": "kcm_keys",
@@ -4818,142 +4906,6 @@
 "icon": "preferences-desktop-keyboard-shortcut",
 "args": "",
 "detail": "Filename filters for file dialog. Do not translate any of the filename extensions"
-},
-{
-"kcm": "kcm_keys",
-"text": "Add New",
-"where": "Shortcuts › Common Actions",
-"icon": "preferences-desktop-keyboard-shortcut",
-"args": "",
-"detail": "Add new shortcut"
-},
-{
-"kcm": "kcm_keys",
-"text": "Add new application",
-"where": "Shortcuts › Common Actions",
-"icon": "preferences-desktop-keyboard-shortcut",
-"args": "",
-"detail": "accessible"
-},
-{
-"kcm": "kcm_keys",
-"text": "Add new command or script",
-"where": "Shortcuts › Common Actions",
-"icon": "preferences-desktop-keyboard-shortcut",
-"args": "",
-"detail": "accessible"
-},
-{
-"kcm": "kcm_keys",
-"text": "Application…",
-"where": "Shortcuts › Common Actions",
-"icon": "preferences-desktop-keyboard-shortcut",
-"args": "",
-"detail": "End of the sentence 'Add New Application…'"
-},
-{
-"kcm": "kcm_keys",
-"text": "Cancel Export",
-"where": "Shortcuts › Common Actions",
-"icon": "preferences-desktop-keyboard-shortcut",
-"args": "",
-"detail": ""
-},
-{
-"kcm": "kcm_keys",
-"text": "Command or Script…",
-"where": "Shortcuts › Common Actions",
-"icon": "preferences-desktop-keyboard-shortcut",
-"args": "",
-"detail": "End of the sentence 'Add New Command or Script…'"
-},
-{
-"kcm": "kcm_keys",
-"text": "Export",
-"where": "Shortcuts › Common Actions",
-"icon": "preferences-desktop-keyboard-shortcut",
-"args": "",
-"detail": "Export shortcut scheme"
-},
-{
-"kcm": "kcm_keys",
-"text": "Export shortcut scheme",
-"where": "Shortcuts › Common Actions",
-"icon": "preferences-desktop-keyboard-shortcut",
-"args": "",
-"detail": "accessible"
-},
-{
-"kcm": "kcm_keys",
-"text": "Export…",
-"where": "Shortcuts › Common Actions",
-"icon": "preferences-desktop-keyboard-shortcut",
-"args": "",
-"detail": "Export shortcut scheme"
-},
-{
-"kcm": "kcm_keys",
-"text": "Import shortcut scheme",
-"where": "Shortcuts › Common Actions",
-"icon": "preferences-desktop-keyboard-shortcut",
-"args": "",
-"detail": "accessible"
-},
-{
-"kcm": "kcm_keys",
-"text": "Import…",
-"where": "Shortcuts › Common Actions",
-"icon": "preferences-desktop-keyboard-shortcut",
-"args": "",
-"detail": "Import shortcut scheme"
-},
-{
-"kcm": "kcm_keys",
-"text": "Select an item from the list to view its shortcuts here",
-"where": "Shortcuts › Common Actions",
-"icon": "preferences-desktop-keyboard-shortcut",
-"args": "",
-"detail": "placeholdermessage"
-},
-{
-"kcm": "kcm_keys",
-"text": "Select the components below that should be included in the exported scheme",
-"where": "Shortcuts › Common Actions",
-"icon": "preferences-desktop-keyboard-shortcut",
-"args": "",
-"detail": ""
-},
-{
-"kcm": "kcm_keys",
-"text": "These shortcuts will be deleted when changes are applied.",
-"where": "Shortcuts › Common Actions",
-"icon": "preferences-desktop-keyboard-shortcut",
-"args": "",
-"detail": ""
-},
-{
-"kcm": "kcm_keys",
-"text": "Undo",
-"where": "Shortcuts › Common Actions",
-"icon": "preferences-desktop-keyboard-shortcut",
-"args": "",
-"detail": ""
-},
-{
-"kcm": "kcm_keys",
-"text": "Undo deleting shortcuts",
-"where": "Shortcuts › Common Actions",
-"icon": "preferences-desktop-keyboard-shortcut",
-"args": "",
-"detail": ""
-},
-{
-"kcm": "kcm_keys",
-"text": "Undo deletion",
-"where": "Shortcuts › Common Actions",
-"icon": "preferences-desktop-keyboard-shortcut",
-"args": "",
-"detail": ""
 },
 {
 "kcm": "kcm_keys",

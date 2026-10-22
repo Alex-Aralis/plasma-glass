@@ -1,7 +1,7 @@
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/kcms/keys/kcm_keys.cpp b/kcms/keys/kcm_keys.cpp
 --- a/kcms/keys/kcm_keys.cpp
 +++ b/kcms/keys/kcm_keys.cpp
-@@ -62,7 +62,20 @@
+@@ -62,7 +62,22 @@
      m_filteredModel = new FilteredShortcutsModel(this);
      m_filteredModel->setSourceModel(m_shortcutsModel);
  
@@ -16,14 +16,16 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/kcms/keys/kcm_keys.cpp b/kcms/k
 +        for (const QVariant &arg : args) {
 +            m_arguments << arg.toString();
 +        }
-+        if (m_loaded) {
++        if (m_arguments.isEmpty()) { // opened again on no action: unfiltered, as it opens
++            Q_EMIT searchRequested(QString());
++        } else if (m_loaded) {
 +            showArguments();
 +        }
 +    });
      connect(m_shortcutsModel, &QAbstractItemModel::dataChanged, this, [this] {
          setNeedsSave(m_globalAccelModel->needsSave() || m_standardShortcutsModel->needsSave());
          setRepresentsDefaults(m_globalAccelModel->isDefault() && m_standardShortcutsModel->isDefault());
-@@ -72,20 +85,58 @@
+@@ -72,20 +87,58 @@
          setRepresentsDefaults(m_globalAccelModel->isDefault() && m_standardShortcutsModel->isDefault());
      });
      connect(m_globalAccelModel, &QAbstractItemModel::modelReset, this, [this] {

@@ -205,7 +205,8 @@ def context_hint(args):
 
 def from_qml(text):
     """(label, section, context) for each translated string, in order. The section is the last group
-    title (an "@title" context or a FormData section) above it."""
+    title (an "@title" context or a FormData section) above it; a list's section names (the Shortcuts
+    page's "Applications", "Common Actions") name groups of list rows, not the controls after them."""
     out, section = [], ""
     for m in I18N.finditer(text):
         kind, args, s = m.group(1) or "", m.group(2), clean(m.group(3))
@@ -213,6 +214,9 @@ def from_qml(text):
             args = STRING.sub("", args, count=1)
         ctx = context_hint(args) if "c" in kind else ""
         line = text[text.rfind("\n", 0, m.start()) + 1: text.find("\n", m.end())]
+        if "list section" in args:
+            out.append((s, "", ctx))
+            continue
         if "@title" in args or "isSection" in text[m.start() - 200: m.start()] or "Heading" in line:
             section = s
             out.append((s, "", ctx))
