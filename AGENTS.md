@@ -253,6 +253,32 @@ change different files), and each repo's check applies the other's installed pat
   shadow darkened them from 46 to 38 over the maximized window; flat after). Task manager and pager
   highlights are still Breeze's (`widgets/tasks`, `widgets/pager`: a style's file replaces Breeze's whole,
   so glassy ones need every element, progress and group arrows too).
+- **Clicks press on the liquid** (2026-10-22, the user: "add the fluid effect when clicking on the menu
+  items. have the effect like a push down on the floating element"). KWin does it without the apps:
+  `slotMouseChanged` (EffectsHandler::mouseChanged, emitted on every button change, no polling needed)
+  takes a left press, finds the topmost window under it in the stacking order, and if that's a Liquid
+  Glass surface (no KWin border radius; corners cut off its blur region, or a dock) and the press is on
+  its blur region, records where in the glass and when (`BlurEffectData::click`, monotonic s, the clock
+  `m_frameTime` comes from); the release sets `up`. blur() runs the liquid for a window with a Stir
+  client, or a click, or liquid still settling (`runLiquid` takes the client as a pointer now, null for
+  plasmashell's windows: no busy pushes, no breeze and no momentum for them, or every popup's slide-in
+  and the panel's docking would slosh it). The press is fluid.frag's second Gaussian (`click`, beside the
+  busy `press`), `clickWidth` px (24) wide, eased in and out with sin² over the time a wave that wide takes
+  to pass (clamped 0.04-0.5 s) and held between, at `click` x 0.8 c² clickWidth, the busy press's pressure
+  (it would press down by 0.8 x its width). The waves then run until settled, as the pushes'. On thin glass
+  the shore and the sponge are narrowed (`shoreIn` at most 0.12 of the short side, `rimWidth` 0.5 of it - 2,
+  both as they were from 69 px up, KRunner folded): with the 32 px sponge and 8 px shore a 46 px panel was all
+  sponge and shore, and a click's waves died where they started. What shows: the dark glass bends what's
+  behind by the waves' lean through the bevel's refraction (6 px on the panel after the thin-glass cap, 9
+  elsewhere), clear at frost 1 (the user's) at 24 px; at 14 px a press was a barely visible dimple. Liquid
+  Glass Light at the user's frost 6 blurs away what a narrow wave bends (a 14 px press changed nothing by
+  more than 12 levels), so there it's the foil, which lights at crests normalized by a fresh push's crest
+  (0.8 x the push width / 1.19: 41 px at the user's width 61, which left a click's crests at a quarter):
+  a window only clicks stir normalizes by a third of the press's depth instead. Then it shows as soft
+  patches of colour running out from the click, as KRunner's busy waves do there. Tuning: two sliders
+  (Clicks: press, width). Preview: `CLICKS="X Y, X Y" CLICK_HOLD=ms tools/preview/panel.sh OUT.mp4`
+  (fakeinput presses while recording; `DOCK=1`, `POPUP=kickoff` first); the pointer shows in
+  `CaptureArea`'s frames, so a frame difference lights up at the cursor, not only the waves.
 - **KWin crashed at every logout** (Remember Window Positions' final save from a workspace already
   gone) until kde-fixes' `kwin-unload-scripts-before-workspace.patch`; preview KWins crashed the same way
   at their end.

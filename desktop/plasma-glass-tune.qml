@@ -273,6 +273,21 @@ Kirigami.ApplicationWindow {
 
             Kirigami.Separator {
                 Kirigami.FormData.isSection: true
+                Kirigami.FormData.label: "Clicks"
+            }
+            Tuner {
+                Kirigami.FormData.label: "Click press:"
+                key: "Ripple/click"; fallback: 1; from: 0; to: 3; stepSize: 0.05; decimals: 2
+            }
+            Hint { text: "How hard a click presses down on the liquid of the glass it lands on (the panel, its popups, KRunner): a dimple under the pointer while the button is held, rings as it's pressed and let go. 0: clicks don't stir it." }
+            Tuner {
+                Kirigami.FormData.label: "Click width:"
+                key: "Ripple/clickWidth"; fallback: 24; from: 4; to: 80; stepSize: 1; unit: "px"
+            }
+            Hint { text: "How wide the press is. Under Liquid Glass Light's heavier frost, narrow ones blur away." }
+
+            Kirigami.Separator {
+                Kirigami.FormData.isSection: true
                 Kirigami.FormData.label: "Shore and floor"
             }
             Tuner {

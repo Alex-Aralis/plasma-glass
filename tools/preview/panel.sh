@@ -7,6 +7,9 @@
 #   tools/preview/panel.sh OUT.mp4          a video: floating, then a window maximizes (the panel docks) and
 #                                           is restored (it floats again): MAX_AT and RESTORE_AT s in (1.5,
 #                                           4.5) of SECONDS_CAPTURED (7); a lossless OUT.mkv stays beside it
+# CLICKS="X Y, X Y" (screen px) presses the pointer at each spot for CLICK_HOLD ms (250) and lets go, a
+# second apart, while recording (instead of the window maximizing; DOCK=1 docks the panel first, POPUP opens
+# a popup first): to record what a click does to the glass.
 # POPUP=kickoff (an applet's name, org.kde.plasma.NAME, in the panel or its tray) opens that applet's popup
 # before the screenshot (raise CROP to take it in). PLASMASHELL=path runs a dev build of plasmashell
 # (tools/patch-dev.sh plasmashell), SHELL_PACKAGE=dir puts that desktop package's contents/ (an edited
@@ -69,6 +72,12 @@ export PANEL_AREA
 PANEL_AREA=$(awk -v w="$WIDTH" -v h="$HEIGHT" -v s="$SCALE" -v c="$crop" -v x="${START:-0}" -v cw="${CROP_WIDTH:-0}" \
     'BEGIN { W = int(w / s); if (cw == 0) cw = W - x; printf "{\"x\": %d, \"y\": %d, \"width\": %d, \"height\": %d}", x, int(h / s) - c, cw, c }')
 
+if [ -n "${CLICKS:-}" ]; then
+    FAKEINPUT=$(fakeinput); CLICK_INPUT="$WORK/clicks.in"; export FAKEINPUT CLICK_INPUT
+    echo "$CLICKS" | tr ',' '\n' | while read -r x y; do
+        printf 'move %s %s\nwait 300\ndown\nwait %s\nup\nwait 700\n' "$x" "$y" "${CLICK_HOLD:-250}"
+    done >"$CLICK_INPUT"
+fi
 plasmashell_bus
 case "$OUT" in
     *.mp4)

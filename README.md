@@ -23,7 +23,9 @@ notification cruft trimmed.
   a little in colour. KRunner's glass holds a liquid, simulated: it sloshes as you drag KRunner or its
   dropdown opens, and while a search runs its rim pushes into it, sending waves across that bend what's
   behind. The light style's glass is frosted more, and the waves run beneath the frost, lit in shards of
-  colour as off an etched diffraction foil. The panel's glass rounds off at its edges too, but not where
+  colour as off an etched diffraction foil. A click presses down on the liquid of the glass it lands on,
+  the panel, a popup or KRunner, like a finger on a floating pane: a dimple under the pointer while the
+  button is held, and rings that run out as it's pressed and let go. The panel's glass rounds off at its edges too, but not where
   it meets the screen's edge: docked, only its top edge bends what's behind.
 - **Trimmed KRunner and notifications.** KRunner opens with Meta+Space (Alt+F2 still works) and floats where you drag it (by the glass rim, or anywhere
   with Meta held, as with other windows) and remembers the spot. It is wider, and types straight onto the glass in larger text, with no input box, like Spotlight. It uses
@@ -186,7 +188,7 @@ liquid's settings, the dark glass's and Liquid Glass Light's: the ripples' speed
 push comes, damping, how much the rim sends back, amplitude, colour split, the breeze and its gusts'
 size, jitter; how the liquid is stirred (pushing the rim in, or pressing on the surface just inside it),
 which side, where along it and how much of it pushes in as one; momentum, and the sloshing's speed and
-damping; how far the shore bends and how uneven the floor is; the dark glass's frost, bevel width,
+damping; how hard and how wide a click presses; how far the shore bends and how uneven the floor is; the dark glass's frost, bevel width,
 refraction, colour split and sharpness; and the light
 glass's frost, the waves' refraction and diffraction beneath it, the diffraction foil's etch size and
 saturation, and an optional bevel. Changes apply as you drag. While the window is open, KRunner's
@@ -220,6 +222,8 @@ lines; the tuning window rewrites the file as you move its sliders):
 | | `shoreScale` | 120 | px, how long the shore's bends are |
 | | `floor` | 0.35 | how much deeper and shallower the liquid gets (0-0.8 of the average; 0: flat), bending waves as they cross |
 | | `floorScale` | 220 | px, how long the floor's swells are |
+| | `click` | 1 | how hard a click presses down on the liquid of the glass it lands on (the panel, its popups, KRunner) while the button is held (0: clicks don't) |
+| | `clickWidth` | 24 | px, how wide the press is (the radius of a Gaussian) |
 | `[Glass]` | `frost` | 2 | blur strength 1-15, never more than KWin's Blur setting |
 | | `bevelWidth` | 24 | px |
 | | `refraction` | 9 | px |
@@ -283,7 +287,9 @@ refreshed.
     `org.kde.KWin.LiquidGlass.Stir`): shallow water simulated on the GPU, sloshing as the window moves
     or grows and pushed while KRunner is busy, whose waves bend what's behind the glass the same way, the
     glass clear where they run, their colours parting a little more than the bevel's (see
-    [Tuning](#tuning-the-glass-and-krunners-liquid-live)). Liquid Glass Light gets frosted glass too
+    [Tuning](#tuning-the-glass-and-krunners-liquid-live)). Every glass surface gets the liquid where a
+    click lands on it (KWin watches the pointer's button; no app asks): it presses down there while the
+    button is held and lets go as it comes up. Liquid Glass Light gets frosted glass too
     (strength 5), flat by default, with the waves beneath the frost: what's behind bends under them, and
     an etched diffraction foil lights up in shards of colour where they crest, all softened by the frost. Only while one of those styles is
     selected (it follows `plasmarc`, no relogin), on Plasma's own surfaces

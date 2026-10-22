@@ -180,7 +180,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  static QMatrix4x4 colorTransformMatrix(qreal saturation, qreal contrast)
  {
      QMatrix4x4 saturationMatrix;
-@@ -119,6 +210,89 @@
+@@ -119,6 +210,90 @@
          m_roundedOnscreenPass.opacityLocation = m_roundedOnscreenPass.shader->uniformLocation("opacity");
      }
  
@@ -219,6 +219,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        m_fluidPass.accelLocation = m_fluidPass.shader->uniformLocation("accel");
 +        m_fluidPass.pushLocation = m_fluidPass.shader->uniformLocation("push");
 +        m_fluidPass.pressLocation = m_fluidPass.shader->uniformLocation("press");
++        m_fluidPass.clickLocation = m_fluidPass.shader->uniformLocation("click");
 +        m_fluidPass.breezeLocation = m_fluidPass.shader->uniformLocation("breeze");
 +        m_fluidPass.shoreLocation = m_fluidPass.shader->uniformLocation("shore");
 +        m_fluidPass.bedLocation = m_fluidPass.shader->uniformLocation("bed");
@@ -270,7 +271,15 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      m_downsamplePass.shader = ShaderManager::instance()->generateShaderFromFile(ShaderTrait::MapTexture,
                                                                                  QStringLiteral(":/effects/blur/shaders/vertex.vert"),
                                                                                  QStringLiteral(":/effects/blur/shaders/downsample.frag"));
-@@ -181,14 +355,140 @@
+@@ -167,6 +342,7 @@
+ 
+     connect(effects, &EffectsHandler::windowAdded, this, &BlurEffect::slotWindowAdded);
+     connect(effects, &EffectsHandler::windowDeleted, this, &BlurEffect::slotWindowDeleted);
++    connect(effects, &EffectsHandler::mouseChanged, this, &BlurEffect::slotMouseChanged);
+     connect(effects, &EffectsHandler::viewRemoved, this, &BlurEffect::slotViewRemoved);
+ #if KWIN_BUILD_X11
+     connect(effects, &EffectsHandler::propertyNotify, this, &BlurEffect::slotPropertyNotify);
+@@ -181,14 +357,142 @@
          slotWindowAdded(window);
      }
  
@@ -376,6 +385,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +    m_liquid.momentum = number("momentum", 1, 0, 5);
 +    m_liquid.sloshSpeed = number("sloshSpeed", 900, 100, 4000);
 +    m_liquid.sloshDamping = number("sloshDamping", 1.5, 0.1, 60);
++    m_liquid.click = number("click", 1, 0, 5);
++    m_liquid.clickWidth = number("clickWidth", 24, 2, 200);
 +
 +    if (bevel != m_bevel || frost != m_frost || lightBevel != m_lightBevel || lightFrost != m_lightFrost || lightUnderlay != m_lightUnderlay) {
 +        m_bevel = bevel;
@@ -411,7 +422,70 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  void BlurEffect::initBlurStrengthValues()
  {
      // This function creates an array of blur strength values that are evenly distributed
-@@ -479,6 +779,8 @@
+@@ -354,6 +658,9 @@
+ 
+ void BlurEffect::slotWindowDeleted(EffectWindow *w)
+ {
++    if (w == m_clickWindow) {
++        m_clickWindow = nullptr;
++    }
+     if (auto it = m_windows.find(w); it != m_windows.end()) {
+         effects->makeOpenGLContextCurrent();
+         m_windows.erase(it);
+@@ -364,6 +671,52 @@
+     }
+ }
+ 
++void BlurEffect::slotMouseChanged(const QPointF &pos, const QPointF &oldpos, Qt::MouseButtons buttons, Qt::MouseButtons oldbuttons,
++                                  Qt::KeyboardModifiers modifiers, Qt::KeyboardModifiers oldmodifiers)
++{
++    Q_UNUSED(oldpos)
++    Q_UNUSED(modifiers)
++    Q_UNUSED(oldmodifiers)
++    const bool pressed = (buttons & Qt::LeftButton) && !(oldbuttons & Qt::LeftButton);
++    const bool released = !(buttons & Qt::LeftButton) && (oldbuttons & Qt::LeftButton);
++    if (released && m_clickWindow) {
++        // the press lets go
++        if (auto it = m_windows.find(m_clickWindow); it != m_windows.end() && it->second.click.down >= 0 && it->second.click.up < 0) {
++            it->second.click.up = monotonicNow();
++            m_clickWindow->addRepaintFull();
++        }
++        m_clickWindow = nullptr;
++    }
++    if (!pressed || !(m_liquidGlass || m_liquidGlassLight) || m_liquid.click <= 0 || !m_fluidPass.shader || !m_bevelOnscreenPass.shader) {
++        return;
++    }
++    // the window the press lands on, the topmost there; it presses on the liquid if that's a Liquid Glass
++    // surface (as blur() tells one) and the press is on its glass
++    const QList<EffectWindow *> stack = effects->stackingOrder();
++    for (auto it = stack.crbegin(); it != stack.crend(); ++it) {
++        EffectWindow *w = *it;
++        if (w->isDeleted() || !w->isVisible() || w->isMinimized() || !w->isOnCurrentDesktop() || !w->frameGeometry().contains(pos)) {
++            continue;
++        }
++        const auto data = m_windows.find(w);
++        if (data == m_windows.end() || !w->window()->borderRadius().isNull()) {
++            return;
++        }
++        RegionF shape = blurRegion(w);
++        shape.translate(w->pos());
++        const RectF glass = shape.boundingRect();
++        if (!shape.contains(pos) || (liquidGlassCorners(shape, glass).isNull() && !w->isDock())) {
++            return;
++        }
++        data->second.click.at = pos - glass.topLeft();
++        data->second.click.down = monotonicNow();
++        data->second.click.up = -1;
++        m_clickWindow = w;
++        w->addRepaintFull();
++        return;
++    }
++}
++
+ void BlurEffect::slotViewRemoved(KWin::RenderView *view)
+ {
+     for (auto &[window, data] : m_windows) {
+@@ -479,6 +832,8 @@
  void BlurEffect::prePaintScreen(ScreenPrePaintData &data)
  {
      m_currentView = data.view;
@@ -420,7 +494,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
      effects->prePaintScreen(data);
  }
-@@ -547,6 +849,343 @@
+@@ -547,6 +902,383 @@
      return m_noisePass.noiseTexture.get();
  }
  
@@ -520,8 +594,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +// Runs the liquid in a Liquid Glass window on to this frame, and draws its surface into data.wavesTexture.
 +// Returns how much of it to show (1 while it moves, less as it settles; 0: nothing drawn yet), or nothing
 +// once it's calm.
-+std::optional<double> BlurEffect::runLiquid(BlurEffectData &data, const LiquidGlassClient &client, const RectF &glass, const BorderRadius &corners, const Rect &background, GLVertexBuffer *vbo)
++std::optional<double> BlurEffect::runLiquid(BlurEffectData &data, const LiquidGlassClient *client, const RectF &glass, const BorderRadius &corners, const Rect &background, GLVertexBuffer *vbo)
 +{
++    // a window whose client asked for the liquid (Stir()) gets the busy pushes and the moves' sloshing; any
++    // other Liquid Glass surface only the clicks' presses
++    const bool busy = client && client->busy;
++    const double momentum = client ? m_liquid.momentum : 0;
 +    // it renders into float textures: desktop OpenGL
 +    if (!m_fluidPass.shader || !m_surfacePass.shader || EglContext::currentContext()->isOpenGLES() || glass.isEmpty()) {
 +        return std::nullopt;
@@ -548,10 +626,21 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        moving = moving || std::abs(followers[i]->x - followers[i]->target) > 0.05 || std::abs(followers[i]->v) > 0.5;
 +    }
 +    const double settle = liquidSettleTime(glass);
-+    if (client.busy || f.pushStart >= 0) {
++    if (busy || f.pushStart >= 0) {
 +        f.liveUntil = std::max(f.liveUntil, now + settle);
 +    }
-+    if (moving) {
++    // A click presses on the liquid where it landed while the button is held, easing in and out over the time
++    // a wave as wide as the press takes to pass: a dimple under the pointer that rings out as it's pressed,
++    // and again as it's let go. The waves run on until they've settled.
++    const double clickIn = std::clamp(m_liquid.clickWidth / (0.38 * m_liquid.speed), 0.04, 0.5);
++    if (data.click.down >= 0) {
++        const double pressed = data.click.up >= 0 ? data.click.up + clickIn : now;
++        f.liveUntil = std::max(f.liveUntil, std::max(pressed, now) + settle);
++        if (data.click.up >= 0 && f.time > data.click.up + clickIn) {
++            data.click.down = -1; // let go: the press is over
++        }
++    }
++    if (moving && momentum > 0) {
 +        // the swell settles as fast as it's damped; a move only stirs the ripples a little, so they're out of
 +        // sight sooner than after a push
 +        f.liveUntil = std::max(f.liveUntil, now + std::min(std::max(3 * m_liquid.sloshDamping, 0.4 * settle), 15.0));
@@ -591,9 +680,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        const double width = m_liquid.width * (1 + 0.8 * jit(1));
 +        f.pushIn = std::clamp(width / (0.38 * m_liquid.speed), 0.04, 0.8 * f.pushInterval);
 +        const double strength = std::max(0.0, 1 + 1.2 * jit(2));
-+        f.pushSide = client.side;
++        f.pushSide = client->side;
 +        const double length = f.pushSide < 2 ? glass.height() : glass.width();
-+        f.pushAt = std::clamp((client.at >= 0 ? client.at : length / 3) + 0.4 * length * jit(3), 1.0, std::max(1.0, length - 1));
++        f.pushAt = std::clamp((client->at >= 0 ? client->at : length / 3) + 0.4 * length * jit(3), 1.0, std::max(1.0, length - 1));
 +        const double c2 = m_liquid.speed * m_liquid.speed;
 +        // pushing in at this speed at its fastest makes a wave whose steepest slope is s_pushSlope (in a
 +        // straight channel; it spreads and loses some on its way across); pressing down by about the wave's
@@ -604,11 +693,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        if (f.pushStart >= 0 && t >= f.pushStart + f.pushInterval) {
 +            const double next = f.pushStart + f.pushInterval;
 +            f.pushStart = -1;
-+            if (client.busy) {
++            if (busy) {
 +                startPush(next); // on the beat
 +            }
 +        }
-+        if (f.pushStart < 0 && client.busy) {
++        if (f.pushStart < 0 && busy) {
 +            startPush(t);
 +        }
 +        *push = QVector4D(-1, 0, 0, 0);
@@ -629,6 +718,23 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +        const double speed = tc < f.pushIn ? f.pushStrength * std::sin(M_PI * tc / f.pushIn)
 +                                           : -f.pushStrength * f.pushIn / rest * std::sin(M_PI * (tc - f.pushIn) / rest);
 +        *push = QVector4D(f.pushSide, f.pushAt, m_liquid.strike / 2, speed);
++    };
++
++    // the click's press at time t (s): as the busy press, it presses down by about its width at full strength
++    const auto clickAt = [&](double t) {
++        if (data.click.down < 0 || t < data.click.down) {
++            return QVector4D(0, 0, 1, 0);
++        }
++        const auto ease = [&](double x) {
++            const double s = std::sin(0.5 * M_PI * std::clamp(x / clickIn, 0.0, 1.0));
++            return s * s;
++        };
++        double level = ease(t - data.click.down);
++        if (data.click.up >= 0) {
++            level *= 1 - ease(t - data.click.up);
++        }
++        const double pressure = m_liquid.click * 0.8 * m_liquid.speed * m_liquid.speed * m_liquid.clickWidth;
++        return QVector4D(data.click.at.x(), data.click.at.y(), m_liquid.clickWidth, pressure * level);
 +    };
 +
 +    // what the glass's moves do over a step from t s into the span: the liquid is pushed against the
@@ -652,7 +758,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +    // the liquid's edge: in from the rim by as much as it wanders, so it stays inside; and its floor; both
 +    // shaped their own way for each window
 +    const double seed = std::fmod(f.born * 0.6180339887, 1.0) * 97;
-+    const QVector4D shore(m_liquid.shore, m_liquid.shore, m_liquid.shoreScale, seed);
++    // on thin glass (the panel) the shore keeps closer to the rim and the sponge along it is narrower, so
++    // waves still run along its middle (both as they were on glass 69 px across and more, as KRunner's)
++    const double across = std::min(glass.width(), glass.height());
++    const double shoreIn = std::min(m_liquid.shore, 0.12 * across);
++    const double rimWidth = std::clamp(0.5 * across - 2, 4.0, s_liquidRim);
++    const QVector4D shore(shoreIn, shoreIn, m_liquid.shoreScale, seed);
 +    const QVector3D bed(m_liquid.floor, m_liquid.floorScale, seed * 1.37 + 5);
 +    // where the floor is deepest, waves run sqrt(1 + floor) times as fast: the steps get as much shorter
 +    const double fastest = std::sqrt(1 + m_liquid.floor);
@@ -669,7 +780,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +    if (span > 0) {
 +        // ripples: slow and short, pushed while busy, kept from the rim by the sponge
 +        const double c = m_liquid.speed;
-+        const double sponge = 3 * c * -std::log(std::max(m_liquid.reflection, 0.02)) / s_liquidRim;
++        const double sponge = 3 * c * -std::log(std::max(m_liquid.reflection, 0.02)) / rimWidth;
 +        stepLiquid(f.ripples, QSize(int(std::ceil(glass.width() / s_ripplesCell)) + 3, int(std::ceil(glass.height() / s_ripplesCell)) + 3), s_ripplesCell, span,
 +                   0.5 * s_ripplesCell / (c * fastest), [&](double t, double dt) {
 +                       common();
@@ -677,25 +788,27 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +                       pushAt(start + t + dt / 2, &push, &press);
 +                       m_fluidPass.shader->setUniform(m_fluidPass.pushLocation, push);
 +                       m_fluidPass.shader->setUniform(m_fluidPass.pressLocation, press);
-+                       moves(t, dt, s_ripplesMomentum * m_liquid.momentum, f.ripplesAccel, pushTime);
++                       m_fluidPass.shader->setUniform(m_fluidPass.clickLocation, clickAt(start + t + dt / 2));
++                       moves(t, dt, s_ripplesMomentum * momentum, f.ripplesAccel, pushTime);
 +                       // gusts about chopScale across, coming and going as fast as a wave crosses half of one,
 +                       // pressing hard enough that the waves they raise lean the glass a little
 +                       const double gusts = m_liquid.chopScale;
 +                       m_fluidPass.shader->setUniform(m_fluidPass.breezeLocation, QVector3D(0.2 * m_liquid.chop * f.breeze * c * c * gusts, gusts, (start + t - f.born) * 0.5 * c / gusts));
 +                       m_fluidPass.shader->setUniform(m_fluidPass.timingLocation, QVector4D(dt, c * c, 10 * s_ripplesCell * s_ripplesCell / (M_PI * M_PI), s_liquidLevel));
-+                       m_fluidPass.shader->setUniform(m_fluidPass.dampingLocation, QVector3D(2 / m_liquid.damping, sponge, s_liquidRim));
++                       m_fluidPass.shader->setUniform(m_fluidPass.dampingLocation, QVector3D(2 / m_liquid.damping, sponge, rimWidth));
 +                   }, vbo);
 +        // swell: fast and long, sloshed by the window's moves, every bit of it sent back by the rim
 +        const double cs = m_liquid.sloshSpeed;
-+        if (m_liquid.momentum > 0) {
++        if (momentum > 0) {
 +            stepLiquid(f.swell, QSize(int(std::ceil(glass.width() / s_swellCell)) + 3, int(std::ceil(glass.height() / s_swellCell)) + 3), s_swellCell, span,
 +                       0.5 * s_swellCell / (cs * fastest), [&](double t, double dt) {
 +                           common();
 +                           m_fluidPass.shader->setUniform(m_fluidPass.pushLocation, QVector4D(-1, 0, 0, 0));
 +                           m_fluidPass.shader->setUniform(m_fluidPass.pressLocation, QVector4D(0, 0, 1, 0));
++                           m_fluidPass.shader->setUniform(m_fluidPass.clickLocation, QVector4D(0, 0, 1, 0));
 +                           m_fluidPass.shader->setUniform(m_fluidPass.breezeLocation, QVector3D(0, 1, 0));
 +                           // its waves at least ~0.15 s long, so broad at its speed
-+                           moves(t, dt, s_swellMomentum * m_liquid.momentum, f.swellAccel, std::max(0.15, m_liquid.width / (0.38 * cs)));
++                           moves(t, dt, s_swellMomentum * momentum, f.swellAccel, std::max(0.15, m_liquid.width / (0.38 * cs)));
 +                           m_fluidPass.shader->setUniform(m_fluidPass.timingLocation, QVector4D(dt, cs * cs, 10 * s_swellCell * s_swellCell / (M_PI * M_PI), s_liquidLevel));
 +                           m_fluidPass.shader->setUniform(m_fluidPass.dampingLocation, QVector3D(2 / m_liquid.sloshDamping, 0, s_liquidRim));
 +                       }, vbo);
@@ -706,7 +819,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +            follower->x = followerAt(*follower, span, omega, &follower->v);
 +        }
 +        // the breeze rises over about half a second while busy, and dies down over a second after
-+        f.breeze = client.busy ? 1 - (1 - f.breeze) * std::exp(-span / 0.5) : f.breeze * std::exp(-span / 1.0);
++        f.breeze = busy ? 1 - (1 - f.breeze) * std::exp(-span / 0.5) : f.breeze * std::exp(-span / 1.0);
 +        f.time = now;
 +    }
 +    GLTexture *ripples = f.ripples.textures[f.ripples.current].get();
@@ -740,8 +853,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
 +    // a fresh wave's crest is about this high (the push's speed over the waves' speed, in a straight channel);
 +    // and, for Liquid Glass Light's foil, a slosh's from rim to rim of a glass this size (either way) whose
 +    // slope just leans the glass fully (lean x slope = s_liquidSteep), so the foil lights up as the moves'
-+    // waves show
-+    const double crest = s_pushSlope * m_liquid.width / (0.38 * M_PI);
++    // waves show. On a surface only clicks stir, the crests the press heaps up around it (about a third of how
++    // deep it presses at full strength) are the fresh ones, so a click lights the foil whatever the pushes' width.
++    const double crest = client ? s_pushSlope * m_liquid.width / (0.38 * M_PI) : 0.3 * 0.8 * m_liquid.clickWidth;
 +    const double sloshCrest = s_liquidSteep / std::max(m_rippleLean.value_or(m_liquid.amplitude), 0.05) * std::sqrt(glass.width() * glass.height()) / M_PI;
 +    m_surfacePass.shader->setUniform(m_surfacePass.gainLocation, QVector4D(1, swell ? 1 : 0, crest, sloshCrest));
 +    glActiveTexture(GL_TEXTURE1);
@@ -764,7 +878,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  void BlurEffect::blur(const RenderTarget &renderTarget, const RenderViewport &viewport, EffectWindow *w, int mask, const Region &deviceRegion, WindowPaintData &data)
  {
      auto it = m_windows.find(w);
-@@ -571,6 +1210,24 @@
+@@ -571,6 +1303,24 @@
  
      blurShape.translate(w->pos());
  
@@ -789,7 +903,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      const Rect backgroundRect = blurShape.boundingRect().rounded();
      const Rect scaledBackgroundRect = backgroundRect.scaled(viewport.scale()).rounded();
      const Rect deviceBackgroundRect = viewport.mapToDeviceCoordinates(backgroundRect).rounded();
-@@ -605,12 +1262,12 @@
+@@ -605,12 +1355,12 @@
          textureFormat = renderTarget.texture()->internalFormat();
      }
  
@@ -804,21 +918,23 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
              auto texture = GLTexture::allocate(textureFormat, backgroundRect.size() / (1 << i));
              if (!texture) {
                  qCWarning(KWIN_BLUR) << "Failed to allocate an offscreen texture";
-@@ -742,6 +1399,81 @@
+@@ -742,6 +1492,83 @@
  
      vbo->bindArrays();
  
-+    // The liquid in a Liquid Glass surface whose client asked for it (Stir()): its surface's slope and the
++    // The liquid in a Liquid Glass surface whose client asked for it (Stir()), or that a click presses on: its surface's slope and the
 +    // ripples' height over the background, at half size, for the bevel pass to lean and clear the glass by
 +    // (what it multiplies them by; 0: still), and how far their colours part (device px, where a wave leans
 +    // the glass fully)
 +    QVector2D ripple;
 +    float rippleDispersion = 0;
 +    if (liquidGlass) {
-+        if (const auto client = m_liquidGlassClients.find(w->pid()); client != m_liquidGlassClients.end()) {
++        const auto client = m_liquidGlassClients.find(w->pid());
++        const LiquidGlassClient *asked = client != m_liquidGlassClients.end() ? &client->second : nullptr;
++        if (asked || blurInfo.fluid || blurInfo.click.down >= 0) {
 +            const double lean = m_rippleLean.value_or(m_liquid.amplitude);
 +            if (lean > 0) {
-+                if (const std::optional<double> shown = runLiquid(blurInfo, client->second, blurShape.boundingRect(), bevelCorners, backgroundRect, vbo)) {
++                if (const std::optional<double> shown = runLiquid(blurInfo, asked, blurShape.boundingRect(), bevelCorners, backgroundRect, vbo)) {
 +                    if (*shown > 0) {
 +                        ripple = QVector2D(lean / s_liquidSteep, lean) * *shown;
 +                        rippleDispersion = m_rippleDispersion.value_or(m_liquid.aberration);
@@ -886,7 +1002,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      // The downsample pass of the dual Kawase algorithm: the background will be scaled down 50% every iteration.
      {
          ShaderManager::instance()->pushShader(m_downsamplePass.shader.get());
-@@ -750,7 +1482,7 @@
+@@ -750,7 +1577,7 @@
          projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
  
          m_downsamplePass.shader->setUniform(m_downsamplePass.mvpMatrixLocation, projectionMatrix);
@@ -895,7 +1011,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
          for (size_t i = 1; i < renderInfo.framebuffers.size(); ++i) {
              const auto &read = renderInfo.framebuffers[i - 1];
-@@ -760,7 +1492,7 @@
+@@ -760,7 +1587,7 @@
                                        0.5 / read->colorAttachment()->height());
              m_downsamplePass.shader->setUniform(m_downsamplePass.halfpixelLocation, halfpixel);
  
@@ -904,7 +1020,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
              GLFramebuffer::pushFramebuffer(draw.get());
              vbo->draw(GL_TRIANGLES, 0, 6);
-@@ -777,7 +1509,7 @@
+@@ -777,7 +1604,7 @@
          projectionMatrix.ortho(QRectF(0.0, 0.0, backgroundRect.width(), backgroundRect.height()));
  
          m_upsamplePass.shader->setUniform(m_upsamplePass.mvpMatrixLocation, projectionMatrix);
@@ -913,7 +1029,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
  
          for (size_t i = renderInfo.framebuffers.size() - 1; i > 1; --i) {
              GLFramebuffer::popFramebuffer();
-@@ -824,7 +1556,7 @@
+@@ -824,7 +1651,7 @@
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.mvpMatrixLocation, projectionMatrix);
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.colorMatrixLocation, m_colorMatrix);
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.halfpixelLocation, halfpixel);
@@ -922,7 +1038,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.boxLocation, QVector4D(nativeBox.horizontalCenter(), nativeBox.verticalCenter(), nativeBox.width() * 0.5, nativeBox.height() * 0.5));
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.cornerRadiusLocation, nativeCornerRadius.toVector());
          m_roundedOnscreenPass.shader->setUniform(m_roundedOnscreenPass.opacityLocation, modulation);
-@@ -839,6 +1571,79 @@
+@@ -839,6 +1666,79 @@
          glDisable(GL_BLEND);
  
          ShaderManager::instance()->popShader();
@@ -1002,7 +1118,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.cpp b/src
      } else {
          ShaderManager::instance()->pushShader(m_onscreenPass.shader.get());
  
-@@ -854,7 +1659,7 @@
+@@ -854,7 +1754,7 @@
          m_onscreenPass.shader->setUniform(m_onscreenPass.mvpMatrixLocation, projectionMatrix);
          m_onscreenPass.shader->setUniform(m_onscreenPass.colorMatrixLocation, m_colorMatrix);
          m_onscreenPass.shader->setUniform(m_onscreenPass.halfpixelLocation, halfpixel);
@@ -1086,7 +1202,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  struct BlurEffectData
  {
      /// The region that should be blurred behind the window
-@@ -43,9 +99,17 @@
+@@ -43,9 +99,25 @@
      std::unordered_map<RenderView *, BlurRenderData> render;
  
      std::unique_ptr<BackgroundEffectItem> blurItem;
@@ -1098,6 +1214,14 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
 +    /// and on Liquid Glass Light, the background with the waves in it, for the blur to frost
 +    std::unique_ptr<GLTexture> underlayTexture;
 +    std::unique_ptr<GLFramebuffer> underlayFramebuffer;
++    /// a click pressing on its liquid: where (logical px in the glass), when the button went down and when it
++    /// came up (s, monotonic; -1: not yet, or no click)
++    struct
++    {
++        QPointF at;
++        double down = -1;
++        double up = -1;
++    } click;
  };
  
 -class BlurEffect : public KWin::Effect
@@ -1105,7 +1229,15 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  {
      Q_OBJECT
  
-@@ -81,6 +145,13 @@
+@@ -76,11 +148,21 @@
+     void slotWindowAdded(KWin::EffectWindow *w);
+     void slotWindowDeleted(KWin::EffectWindow *w);
+     void slotViewRemoved(KWin::RenderView *view);
++    // plasma-glass: a press on a Liquid Glass surface presses on its liquid until the button comes up
++    void slotMouseChanged(const QPointF &pos, const QPointF &oldpos, Qt::MouseButtons buttons, Qt::MouseButtons oldbuttons,
++                          Qt::KeyboardModifiers modifiers, Qt::KeyboardModifiers oldmodifiers);
+ #if KWIN_BUILD_X11
+     void slotPropertyNotify(KWin::EffectWindow *w, long atom);
  #endif
      void setupDecorationConnections(EffectWindow *w);
  
@@ -1119,18 +1251,18 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
  private:
      void initBlurStrengthValues();
      RegionF blurRegion(EffectWindow *w) const;
-@@ -90,6 +161,10 @@
+@@ -90,6 +172,10 @@
      void updateBlurRegion(EffectWindow *w);
      void blur(const RenderTarget &renderTarget, const RenderViewport &viewport, EffectWindow *w, int mask, const Region &deviceRegion, WindowPaintData &data);
      GLTexture *ensureNoiseTexture();
 +    void updateLiquidGlass();
-+    std::optional<double> runLiquid(BlurEffectData &data, const LiquidGlassClient &client, const RectF &glass, const BorderRadius &corners, const Rect &background, GLVertexBuffer *vbo);
++    std::optional<double> runLiquid(BlurEffectData &data, const LiquidGlassClient *client, const RectF &glass, const BorderRadius &corners, const Rect &background, GLVertexBuffer *vbo);
 +    void stepLiquid(LiquidGlassLayer &layer, const QSize &cells, double cell, double span, double maxStep, const std::function<void(double t0, double dt)> &uniforms, GLVertexBuffer *vbo);
 +    double liquidSettleTime(const RectF &glass) const;
  
  private:
      struct
-@@ -113,6 +188,110 @@
+@@ -113,6 +199,114 @@
          int opacityLocation;
      } m_roundedOnscreenPass;
  
@@ -1164,6 +1296,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
 +        int accelLocation;
 +        int pushLocation;
 +        int pressLocation;
++        int clickLocation;
 +        int breezeLocation;
 +        int shoreLocation;
 +        int bedLocation;
@@ -1234,7 +1367,10 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.h b/src/p
 +        double momentum = 1; // how much the window's moves slosh the liquid
 +        double sloshSpeed = 900; // px/s the long waves run at
 +        double sloshDamping = 1.5; // s the sloshing takes to fall by e
++        double click = 1; // how hard a click presses on the liquid of the glass it lands on (0: not at all)
++        double clickWidth = 24; // px: how wide the press is (a Gaussian's 1/e radius)
 +    } m_liquid;
++    EffectWindow *m_clickWindow = nullptr; // the window a held click presses on
 +    std::unordered_map<pid_t, LiquidGlassClient> m_liquidGlassClients;
 +    double m_frameTime = 0; // s, monotonic: when the frame being painted is due on screen
 +
@@ -1262,7 +1398,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/blur.qrc b/src
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/fluid.frag b/src/plugins/blur/shaders/fluid.frag
 --- a/src/plugins/blur/shaders/fluid.frag
 +++ b/src/plugins/blur/shaders/fluid.frag
-@@ -0,0 +1,248 @@
+@@ -0,0 +1,253 @@
 +#version 140
 +
 +#include "sdf.glsl"
@@ -1295,6 +1431,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/fluid.
 +                           // moves in there now (px/s)
 +uniform vec4 press;        // or a press on the surface: its centre (px), radius (px), and pressure
 +                           // (px^2/s^2, as c^2 times the height it would push down by)
++uniform vec4 click;        // a click's press, the same way
 +uniform vec3 breeze;       // how hard the breeze's gusts press (px^2/s^2; 0: none), how big they are (px),
 +                           // and the time in their turns (they come and go once a turn)
 +uniform vec4 shore;        // the shore: how far in from the rim it runs on average and how far it wanders
@@ -1401,13 +1538,17 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/plugins/blur/shaders/fluid.
 +    return push.w * f * f;
 +}
 +
-+// what presses on the surface at p (px^2/s^2): the press, and the breeze
++// what presses on the surface at p (px^2/s^2): the press, a click, and the breeze
 +float pressure(vec2 p)
 +{
 +    float sum = 0.0;
 +    if (press.w != 0.0) {
 +        vec2 d = (p - press.xy) / press.z;
 +        sum += press.w * exp(-dot(d, d));
++    }
++    if (click.w != 0.0) {
++        vec2 d = (p - click.xy) / click.z;
++        sum += click.w * exp(-dot(d, d));
 +    }
 +    if (breeze.x != 0.0) {
 +        sum += breeze.x * gnoise(vec3(p / breeze.y, breeze.z));

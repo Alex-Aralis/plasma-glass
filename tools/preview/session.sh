@@ -224,8 +224,9 @@ JS
         }
         case "$1" in
             dock) maximize true; sleep 2 ;;
+            record) if [ -n "${CLICK_INPUT:-}" ] && [ "${DOCK:-0}" = 1 ]; then maximize true; sleep 2; fi ;;
         esac
-        if [ -n "${POPUP_ID:-}" ] && [ "$1" != record ]; then  # panel.sh's POPUP
+        if [ -n "${POPUP_ID:-}" ] && { [ "$1" != record ] || [ -n "${CLICK_INPUT:-}" ]; }; then  # panel.sh's POPUP
             qdbus6 org.kde.kglobalaccel /component/plasmashell org.kde.kglobalaccel.Component.invokeShortcut \
                 "activate widget $POPUP_ID" || echo "could not open widget $POPUP_ID" >&2
             sleep 2
@@ -235,8 +236,12 @@ JS
                 "$TOOL_PYTHON" -I "$HERE/frames.py" record "$WORK/record.mkv" "$SECONDS_CAPTURED" "PANEL $PANEL_AREA" \
                     >"$WORK/grab.log" 2>&1 &
                 REC=$!
-                sleep "$MAX_AT"; maximize true
-                sleep "$(awk "BEGIN{print $RESTORE_AT - $MAX_AT}")"; maximize false
+                if [ -n "${CLICK_INPUT:-}" ]; then  # panel.sh's CLICKS
+                    sleep 0.5; "$FAKEINPUT" <"$CLICK_INPUT"
+                else
+                    sleep "$MAX_AT"; maximize true
+                    sleep "$(awk "BEGIN{print $RESTORE_AT - $MAX_AT}")"; maximize false
+                fi
                 wait $REC
                 ;;
         esac
