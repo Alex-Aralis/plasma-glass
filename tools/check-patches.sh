@@ -4,8 +4,8 @@
 #      other user patches in /etc/portage/patches for that package (kde-fixes'), in Portage's order
 #   2. the patched QML loads under Qt, with stubs for modules that only exist inside krunner or
 #      plasmashell (this catches errors that only show at runtime, like assigning to a grouped property)
-#   3. patched KRunner C++ passes a compiler syntax check (KWin's and the Shortcuts page's need their build
-#      trees' generated headers: `tools/patch-dev.sh kwin` and `tools/patch-dev.sh kcm-keys` compile them)
+#   3. patched KRunner C++ passes a compiler syntax check (KWin's, plasmashell's and the Shortcuts page's need
+#      their build trees' generated headers: `tools/patch-dev.sh kwin`, `plasmashell` and `kcm-keys` compile them)
 # Needs the source tarballs in Portage's DISTDIR (kept after a build; otherwise `emerge --fetchonly
 # kde-plasma/plasma-workspace kde-plasma/milou kde-plasma/kwin kde-plasma/plasma-desktop`). Exit status 1
 # on any failure.

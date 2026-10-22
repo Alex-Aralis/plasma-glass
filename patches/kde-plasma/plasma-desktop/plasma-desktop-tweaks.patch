@@ -1,3 +1,21 @@
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/desktoppackage/contents/views/Panel.qml b/desktoppackage/contents/views/Panel.qml
+--- a/desktoppackage/contents/views/Panel.qml
++++ b/desktoppackage/contents/views/Panel.qml
+@@ -195,11 +195,12 @@
+             panelOpacity = 1
+             opaqueApplets = true
+             floatingnessTarget = 0
+-            floatingApplets = (panel.floatingApplets && !floating)
++            // plasma-glass: a floating panel that docks under a window keeps its popups floating
++            floatingApplets = panel.floatingApplets || floating
+         } else if ((!floating || touchingWindow) && (isTransparent || (!touchingWindow && isAdaptive))) {
+             panelOpacity = 0
+             floatingnessTarget = 0
+-            floatingApplets = (panel.floatingApplets && !floating)
++            floatingApplets = panel.floatingApplets || floating
+         } else if ((floating && !touchingWindow) && (isTransparent || isAdaptive)) {
+             panelOpacity = 0
+             floatingnessTarget = 1
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/kcms/keys/kcm_keys.cpp b/kcms/keys/kcm_keys.cpp
 --- a/kcms/keys/kcm_keys.cpp
 +++ b/kcms/keys/kcm_keys.cpp

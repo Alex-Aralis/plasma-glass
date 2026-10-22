@@ -7,6 +7,10 @@
 #   tools/preview/panel.sh OUT.mp4          a video: floating, then a window maximizes (the panel docks) and
 #                                           is restored (it floats again): MAX_AT and RESTORE_AT s in (1.5,
 #                                           4.5) of SECONDS_CAPTURED (7); a lossless OUT.mkv stays beside it
+# POPUP=kickoff (an applet's name, org.kde.plasma.NAME, in the panel or its tray) opens that applet's popup
+# before the screenshot (raise CROP to take it in). PLASMASHELL=path runs a dev build of plasmashell
+# (tools/patch-dev.sh plasmashell), SHELL_PACKAGE=dir puts that desktop package's contents/ (an edited
+# plasma-desktop desktoppackage, for Panel.qml) over the installed one.
 # COLORS=BreezeDark (any colour scheme's name) applies that scheme instead of yours (the dark style follows
 # it). FLOATING=0|1 overrides your panel's floating setting, CROP is the strip's height (logical px, default
 # 140), START the strip's left edge and CROP_WIDTH its width (default the screen's). The screen is
@@ -35,6 +39,20 @@ for c in $(awk '/^\[Containments\]\[[0-9]+\]$/{h=$0} /^plugin=org\.kde\.(plasma\
     kwriteconfig6 --file "$layout" --group Containments --group "$c" --group Wallpaper --group org.kde.image \
         --group General --key Image "file://$WALLPAPER_FILE"
 done
+if [ -n "${POPUP:-}" ]; then  # a global shortcut for the applet, which session.sh invokes
+    group=$(awk -v p="plugin=org.kde.plasma.$POPUP" '/^\[/{h=$0} $0 == p && h ~ /\]\[Applets\]\[[0-9]+\]$/{print h; exit}' "$layout")
+    [ -n "$group" ] || die "no org.kde.plasma.$POPUP in your panel"
+    export POPUP_ID
+    POPUP_ID=$(echo "$group" | sed 's/.*\[\([0-9]*\)\]$/\1/')
+    # shellcheck disable=SC2046
+    kwriteconfig6 --file "$layout" $(echo "$group" | tr -d '[' | tr ']' '\n' | sed '/^$/d; s/^/--group /') \
+        --group Shortcuts --key global Meta+Ctrl+Alt+F11
+fi
+if [ -n "${SHELL_PACKAGE:-}" ]; then
+    pkg="$WORK/data/plasma/shells/org.kde.plasma.desktop"
+    mkdir -p "$(dirname "$pkg")" && cp -r /usr/share/plasma/shells/org.kde.plasma.desktop "$pkg"
+    cp -r "$SHELL_PACKAGE/contents/." "$pkg/contents/"
+fi
 if [ -n "${COLORS:-}" ]; then
     XDG_CONFIG_HOME="$WORK/cfg" QT_QPA_PLATFORM=offscreen plasma-apply-colorscheme "$COLORS" >"$WORK/colors.log" 2>&1 || die "colour scheme $COLORS: $(cat "$WORK/colors.log")"
 fi

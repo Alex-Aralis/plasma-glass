@@ -95,8 +95,9 @@ for atom in $pkgs; do
     dest=/etc/portage/patches/$atom
     mkdir -p "$dest"
     # names used by earlier versions of these patches (kwin-fixes.patch until 2026-10-17, with the fixes
-    # that are kde-fixes' now)
-    rm -f "$dest/krunner-hide-pin.patch" "$dest/krunner-tweaks.patch" "$dest/kwin-fixes.patch"
+    # that are kde-fixes' now; plasma-desktop-shortcut-search.patch until 2026-10-22)
+    rm -f "$dest/krunner-hide-pin.patch" "$dest/krunner-tweaks.patch" "$dest/kwin-fixes.patch" \
+        "$dest/plasma-desktop-shortcut-search.patch"
     for p in "$REPO"/patches/$atom/*.patch; do
         cmp -s "$p" "$dest/$(basename "$p")" || install -m 644 "$p" "$dest/"
         # rebuild if the patch is newer than the installed build (new, changed, or an earlier emerge failed)

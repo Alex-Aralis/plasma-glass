@@ -21,9 +21,9 @@ change different files), and each repo's check applies the other's installed pat
 | `search/settings_index.py` | builds `search/settings-index.json` (System Settings option labels, page, tab; the Shortcuts page's Common Actions; Qt's key names) from the installed packages' source tarballs; re-run after a Plasma upgrade |
 | `search/export_model.py` | one-time PyTorch to OpenVINO export with a parity check (run by install.sh in a throwaway venv) |
 | `theme/liquid-glass/generate.py` | draws both styles (`liquid-glass`, `liquid-glass-light`) into `~/.local/share/plasma/desktoptheme/` |
-| `patches/kde-plasma/{plasma-workspace,milou,kwin}/*.patch` | Portage user patches, one per package (`plasma-workspace-tweaks.patch`, `milou-section-headers.patch`, `kwin-liquid-glass.patch`; the KWin one was `kwin-fixes.patch` until 2026-10-17) |
+| `patches/kde-plasma/{plasma-workspace,milou,kwin,plasma-desktop}/*.patch` | Portage user patches, one per package (`plasma-workspace-tweaks.patch`, `milou-section-headers.patch`, `kwin-liquid-glass.patch`, `plasma-desktop-tweaks.patch`; the KWin one was `kwin-fixes.patch` until 2026-10-17, the plasma-desktop one `plasma-desktop-shortcut-search.patch` until 2026-10-22) |
 | `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc), `krunner-shortcut.sh` (KRunner on Meta+Space, or back on Alt+Space), `plasma-glass-tune.qml` (Liquid Glass Tuning: the liquid and the dark glass, live) |
-| `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` builds a test copy, `kwin` compiles the edited KWin files (with kde-fixes' installed KWin patches in the tree), `kcm-keys` builds the Shortcuts page |
+| `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` builds a test copy, `kwin` compiles the edited KWin files (with kde-fixes' installed KWin patches in the tree), `kcm-keys` builds the Shortcuts page, `plasmashell` plasmashell (for `tools/preview/panel.sh`) |
 | `tools/check-patches.sh` | patches apply, alone and with the other user patches installed for the package (kde-fixes'); patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
 | `tools/screenprobe/screen.sh` | probes on the real screens (small, never focused, ask first): `fps` measures Qt Quick frame rate and animation speed per screen, `glass` shows the style's glass over a grey square (screenshot or by eye) |
 | `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh` (`SWITCH`: across a global theme switch), `settings.sh` (System Settings on a page with arguments), `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `panel.sh` (your panel, floating or docked, screenshot or video), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`); `record.sh` records KRunner into a video (demos); `fakeinput.c` for pointer input |
@@ -235,7 +235,22 @@ change different files), and each repo's check applies the other's installed pat
   `tools/preview/panel.sh` runs plasmashell with your layout (popup.sh's private bus);
   the activity manager there has this account's activity, not yours, so it rewrites the desktops'
   `activityId` first (or plasmashell makes a new desktop with the default wallpaper), and `COLORS` applies
-  a colour scheme (`plasma-apply-colorscheme` needs `QT_QPA_PLATFORM=offscreen`). Task manager and pager
+  a colour scheme (`plasma-apply-colorscheme` needs `QT_QPA_PLATFORM=offscreen`). Then (the user, the same
+  day: "remove the shadow when attached, keep the detached menus when attached"): PanelShadows gives a
+  panel shadow tiles on its enabled borders only, the same `widgets/panel-background` pieces docked or
+  floating, so a style can't drop them for one; `plasma-workspace-tweaks.patch` (now with `shell/`) gives it
+  none while `m_floatingness` is 0 (`shadowBorders()` in panelview.cpp). The floatingness animation writes
+  the QML property first, whose shadow-margin bindings call `updateShadows()` before PanelView's own
+  `m_floatingness` changes, so the shadow came out for the previous step and stayed; it's updated again as
+  the panel enters or leaves 0 and when the animation ends. Popups float (a `largeSpacing` gap, all borders:
+  `PopupPlasmaWindow` keeps every border whenever its margin isn't 0) when the containment has
+  `ContainmentPrefersFloatingApplets` (CompactApplet, the tray, the task manager's group dialog), which
+  Panel.qml sets only while the panel floats, or for a never-floating panel with "Floating applets";
+  `plasma-desktop-tweaks.patch` (now with `desktoppackage/`) keeps it for a floating panel docked by a window.
+  Checked with `tools/patch-dev.sh plasmashell` (plasmashell in KRunner's build tree, 30 s),
+  `PLASMASHELL=... SHELL_PACKAGE=~/.cache/plasma-glass/dev/b/plasma-desktop/desktoppackage
+  tools/preview/panel.sh` (`DOCK=1 POPUP=kickoff CROP=760`), and the rows above the docked panel (the
+  shadow darkened them from 46 to 38 over the maximized window; flat after). Task manager and pager
   highlights are still Breeze's (`widgets/tasks`, `widgets/pager`: a style's file replaces Breeze's whole,
   so glassy ones need every element, progress and group arrows too).
 - **KWin crashed at every logout** (Remember Window Positions' final save from a workspace already

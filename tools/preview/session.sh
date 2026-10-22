@@ -207,7 +207,7 @@ JS
         fi
         ;;
     panel)
-        plasmashell --no-respawn >"$WORK/app.log" 2>&1 &
+        "${PLASMASHELL:-plasmashell}" --no-respawn >"$WORK/app.log" 2>&1 &
         SHELL_PID=$!
         for _ in $(seq 100); do qdbus6 org.kde.plasmashell >/dev/null 2>&1 && break; sleep 0.1; done
         sleep 6  # panel, wallpaper and applets
@@ -224,6 +224,13 @@ JS
         }
         case "$1" in
             dock) maximize true; sleep 2 ;;
+        esac
+        if [ -n "${POPUP_ID:-}" ] && [ "$1" != record ]; then  # panel.sh's POPUP
+            qdbus6 org.kde.kglobalaccel /component/plasmashell org.kde.kglobalaccel.Component.invokeShortcut \
+                "activate widget $POPUP_ID" || echo "could not open widget $POPUP_ID" >&2
+            sleep 2
+        fi
+        case "$1" in
             record)
                 "$TOOL_PYTHON" -I "$HERE/frames.py" record "$WORK/record.mkv" "$SECONDS_CAPTURED" "PANEL $PANEL_AREA" \
                     >"$WORK/grab.log" 2>&1 &

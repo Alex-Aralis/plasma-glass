@@ -16,8 +16,9 @@ notification cruft trimmed.
   the top, a soft shadow, glassy search fields, list highlights and scrollbars, and quiet header
   bands in applet popups. The panel is the same glass, floating or docked: a rounded bar with 16 px
   corners while it floats, and flush against the screen's edge once a maximized window docks it, glass
-  still (the style turns off Plasma's adaptive transparency, which made a docked panel opaque). Everything
-  else falls back to Breeze, and colours follow your colour scheme. With the KWin patch, the dark style's
+  still (the style turns off Plasma's adaptive transparency, which made a docked panel opaque). Docked,
+  it casts no shadow, and its popups keep floating clear of it with all their corners rounded, as they do
+  from the floating panel (both with the patches). Everything else falls back to Breeze, and colours follow your colour scheme. With the KWin patch, the dark style's
   glass is frosted lightly and rounds off at the edge like a lens: what's behind bends there and parts
   a little in colour. KRunner's glass holds a liquid, simulated: it sloshes as you drag KRunner or its
   dropdown opens, and while a search runs its rim pushes into it, sending waves across that bend what's
@@ -125,7 +126,7 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 | `~/.local/bin/plasma-glass-mode`, `~/.local/share/applications/plasma-glass-mode.desktop` | Toggle Dark/Light Mode (below) |
 | `~/.local/share/plasma/look-and-feel/plasma-glass.liquid-glass{,-light}/`, `kdeglobals` `[KDE] DefaultDarkLookAndFeel`, `DefaultLightLookAndFeel` | the Liquid Glass global themes, and KDE's default dark and light ones |
 | `krunnerrc`, `kdeglobals`, `kglobalshortcutsrc` | settings from [`desktop/plasma-settings.sh`](desktop/plasma-settings.sh) |
-| `/etc/portage/patches/kde-plasma/{plasma-workspace,milou,kwin,plasma-desktop}/` | the patches (root): `plasma-workspace-tweaks.patch`, `milou-section-headers.patch`, `kwin-liquid-glass.patch`, `plasma-desktop-shortcut-search.patch`, beside kde-fixes' |
+| `/etc/portage/patches/kde-plasma/{plasma-workspace,milou,kwin,plasma-desktop}/` | the patches (root): `plasma-workspace-tweaks.patch`, `milou-section-headers.patch`, `kwin-liquid-glass.patch`, `plasma-desktop-tweaks.patch`, beside kde-fixes' |
 
 `plasma-settings.sh` sets a KDE restriction to hide KRunner's settings button. As a side effect,
 that also hides the KRunner page in System Settings. Delete `kcm_krunnersettings` from
@@ -264,6 +265,8 @@ refreshed.
     `FloatingScreen` (the monitor it was dragged to, e.g. `DP-4`; it opens there while that monitor is
     connected, otherwise on the active one like stock). No "Ctrl+F"
     tooltip on the search field
+  - the panel (plasmashell): docked, it casts no shadow, as if it were part of the screen's edge; floating,
+    it keeps its shadow (it goes as the panel touches the edge and comes back as it leaves)
   - notification popups: more padding, wider gaps between icons and text, summary and body text
     about 1.2x larger, the app name on the glass (no header band), no settings or close buttons (the
     history keeps them), no coloured stripe on critical ones, header padding fixed, pointer cursor
@@ -294,13 +297,18 @@ refreshed.
   - Window Behavior in System Settings opens on a tab given as an argument
     (`systemsettings kcm_kwinoptions --args focus`; also `titlebar-actions`, `window-actions`,
     `movement`, `advanced`), also when it's already open, so settings search lands on the option's tab
-- `plasma-desktop-shortcut-search.patch` (kde-plasma/plasma-desktop): System Settings' Shortcuts page
-  opens on an action: `systemsettings kcm_keys --args "kwin Maximize Window"` (the component's id, then
-  the action's name) puts the name in the page's search field, selects the component and opens the
-  action's keys, also when the page is already open. Stock takes only the component (and only when the
-  page opens), so settings search's shortcut results land on the shortcut. An app's launch key is asked
-  for by the app's name (`org.kde.konsole.desktop Konsole`), since the page shows it as "Launch". Opened
-  again with no arguments (a result for the page itself), it clears its search
+- `plasma-desktop-tweaks.patch` (kde-plasma/plasma-desktop; `plasma-desktop-shortcut-search.patch` until
+  2026-10-22)
+  - the panel: a floating panel that docks (a window touches it) keeps its popups floating, a gap from the
+    panel with all their borders, as they are while it floats; stock attaches them to it, square on its side.
+    A panel set not to float keeps Plasma's choice ("Floating applets" in its settings)
+  - System Settings' Shortcuts page opens on an action: `systemsettings kcm_keys --args "kwin Maximize
+    Window"` (the component's id, then the action's name) puts the name in the page's search field,
+    selects the component and opens the action's keys, also when the page is already open. Stock takes
+    only the component (and only when the page opens), so settings search's shortcut results land on the
+    shortcut. An app's launch key is asked for by the app's name (`org.kde.konsole.desktop Konsole`), since
+    the page shows it as "Launch". Opened again with no arguments (a result for the page itself), it
+    clears its search
 
 The bug fixes these patches held until 2026-10-17 (KWin's frame pacing across screens, the render GPU's
 copy for another GPU's screens, the crash at every logout, activation tokens; KSvg's colours after a style

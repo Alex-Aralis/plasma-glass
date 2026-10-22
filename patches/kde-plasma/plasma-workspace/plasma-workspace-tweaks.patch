@@ -1480,3 +1480,56 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
      PlasmaQuick::SharedQmlEngine *m_engine;
      KConfigGroup m_config;
      KConfigGroup m_stateData;
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/shell/panelview.cpp b/shell/panelview.cpp
+--- a/shell/panelview.cpp
++++ b/shell/panelview.cpp
+@@ -1754,11 +1754,18 @@
+                 if (m_floatingnessAnimation.state() != QAbstractAnimation::State::Running) {
+                     return;
+                 }
++                // plasma-glass: the shadow goes as the panel docks and comes back as it leaves (shadowBorders()); the
++                // animation sets the QML's floatingness first, whose changes update the shadow before this does
++                const bool wasDocked = m_floatingness == 0;
+                 m_floatingness = get<double>(value);
+                 positionAndResizePanel();
++                if ((m_floatingness == 0) != wasDocked) {
++                    updateShadows();
++                }
+             });
+             connect(&m_floatingnessAnimation, &QPropertyAnimation::finished, rootObject, [this]() {
+                 updateMask();
++                updateShadows();
+             });
+             connect(rootObject, SIGNAL(minPanelHeightChanged()), this, SLOT(updatePadding()));
+             connect(rootObject, SIGNAL(minPanelWidthChanged()), this, SLOT(updatePadding()));
+@@ -1871,6 +1878,12 @@
+     return m_visibilityMode == PanelView::AutoHide || m_visibilityMode == PanelView::DodgeWindows;
+ }
+ 
++// plasma-glass: a docked panel casts no shadow, as if it were part of the screen's edge; floating, it does
++static KSvg::FrameSvg::EnabledBorders shadowBorders(KSvg::FrameSvg::EnabledBorders borders, double floatingness)
++{
++    return floatingness == 0 ? KSvg::FrameSvg::NoBorder : borders;
++}
++
+ void PanelView::updateEnabledBorders()
+ {
+     if (!rootObject()) {
+@@ -1921,7 +1934,7 @@
+     }
+ 
+     if (m_enabledBorders != borders) {
+-        PanelShadows::self()->setEnabledBorders(this, borders);
++        PanelShadows::self()->setEnabledBorders(this, shadowBorders(borders, m_floatingness));
+         m_enabledBorders = borders;
+         Q_EMIT enabledBordersChanged();
+     }
+@@ -1952,7 +1965,7 @@
+                                    int(std::round(rootObject()->property("topShadowMargin").toReal())),
+                                    int(std::round(rootObject()->property("rightShadowMargin").toReal())),
+                                    int(std::round(rootObject()->property("bottomShadowMargin").toReal()))};
+-    PanelShadows::self()->addWindow(this, enabledBorders(), extraShadowPadding);
++    PanelShadows::self()->addWindow(this, shadowBorders(enabledBorders(), m_floatingness), extraShadowPadding);
+ }
+ 
+ void PanelView::updateFloating()
