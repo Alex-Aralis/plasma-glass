@@ -24,11 +24,11 @@ note() { printf '  --    %s\n' "$*"; }
 apply() { patch -p1 -f -s -g0 --no-backup-if-mismatch -d "$1" < "$2" >"$WORK/patch.log" 2>&1; }
 
 # others CATEGORY/PKG: the other user patches Portage applies to PKG with ours (kde-fixes'), from its
-# directory in /etc/portage/patches, without our own names (and kwin-fixes.patch, our kwin patch's name
-# until 2026-10-17)
+# directory in /etc/portage/patches, without our own names (and our patches' old names, which the
+# installers remove: kwin-fixes.patch until 2026-10-17, plasma-desktop-shortcut-search.patch until 2026-10-22)
 others() {
     for f in /etc/portage/patches/$1/*; do
-        case "$(basename "$f")" in kwin-fixes.patch) continue ;; esac
+        case "$(basename "$f")" in kwin-fixes.patch|plasma-desktop-shortcut-search.patch) continue ;; esac
         [ -e "$REPO/patches/$1/$(basename "$f")" ] && continue
         case "$f" in *.patch|*.diff) if [ -f "$f" ]; then echo "$f"; fi ;; esac
     done
