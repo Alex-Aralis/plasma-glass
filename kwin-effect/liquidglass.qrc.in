@@ -1,0 +1,6 @@
+<!DOCTYPE RCC><RCC version="1.0">
+<!-- a prefix of its own for each build, so a build swapped into a running KWin finds its own shaders, not
+     those of the build before it (whose library stays loaded) or the built-in blur's -->
+<qresource prefix="/plasma-glass/@PLASMA_GLASS_BUILD_ID@/">
+@SHADER_FILES@</qresource>
+</RCC>

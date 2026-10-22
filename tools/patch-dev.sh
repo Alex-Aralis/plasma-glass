@@ -41,7 +41,7 @@ DIRS_kwin="src"
 DIRS_plasma_desktop="kcms/keys desktoppackage"
 PATCH_plasma_workspace=plasma-workspace-tweaks.patch
 PATCH_milou=milou-section-headers.patch
-PATCH_kwin=kwin-liquid-glass.patch
+PATCH_kwin=kwin-window-behavior-tabs.patch
 PATCH_plasma_desktop=plasma-desktop-tweaks.patch
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
@@ -147,7 +147,7 @@ build_kwin() {
             for p in "$k/$ps"/*.patch; do patch -s -p1 -d "$src" < "$p" || die "Gentoo's $(basename "$p") does not apply"; done
         fi
         for p in /etc/portage/patches/kde-plasma/kwin/*.patch; do
-            case "$(basename "$p")" in "$PATCH_kwin"|kwin-fixes.patch) continue ;; esac  # ours, and its old name
+            case "$(basename "$p")" in "$PATCH_kwin"|kwin-fixes.patch|kwin-liquid-glass.patch) continue ;; esac  # ours, and its old names
             [ -f "$p" ] || continue
             patch -s -p1 -d "$src" < "$p" || die "$p does not apply"
         done
@@ -211,7 +211,9 @@ install_patches() {
         cat=$(var CAT "$pkg") dest="/etc/portage/patches/$(var CAT "$pkg")/$pkg"
         mkdir -p "$dest"
         # its name until 2026-10-17, when it also held the fixes now in kde-fixes
-        [ "$pkg" != kwin ] || rm -f "$dest/kwin-fixes.patch"
+        # its names before: kwin-fixes.patch until 2026-10-17, kwin-liquid-glass.patch (with the glass, a plugin
+        # of its own since: tools/kwin-effect.sh) until 2026-10-22
+        [ "$pkg" != kwin ] || rm -f "$dest/kwin-fixes.patch" "$dest/kwin-liquid-glass.patch"
         # plasma-desktop's until 2026-10-22, when it took the panel's change too
         [ "$pkg" != plasma-desktop ] || rm -f "$dest/plasma-desktop-shortcut-search.patch"
         cmp -s "$(patchfile "$pkg")" "$dest/$(var PATCH "$pkg")" || install -m 644 "$(patchfile "$pkg")" "$dest/"

@@ -1,0 +1,56 @@
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/kcms/options/main.cpp b/src/kcms/options/main.cpp
+--- a/src/kcms/options/main.cpp
++++ b/src/kcms/options/main.cpp
+@@ -24,7 +24,7 @@
+ 
+ K_PLUGIN_CLASS_WITH_JSON(KWinOptions, "kcm_kwinoptions.json")
+ 
+-KWinOptions::KWinOptions(QObject *parent, const KPluginMetaData &data)
++KWinOptions::KWinOptions(QObject *parent, const KPluginMetaData &data, const QVariantList &args)
+     : KCModule(parent, data)
+ {
+     mSettings = new KWinOptionsSettings(this);
+@@ -74,6 +74,23 @@
+         tab->addTab(mPip->widget(), i18n("&Picture-in-picture"));
+         connectKCM(mPip);
+     }
++
++    // "systemsettings kcm_kwinoptions --args focus" opens on a tab, also when the page is already open
++    selectTab(args);
++    connect(this, &KCModule::activationRequested, this, &KWinOptions::selectTab);
++}
++
++void KWinOptions::selectTab(const QVariantList &args)
++{
++    static const QStringList tabs{QStringLiteral("focus"), QStringLiteral("titlebar-actions"), QStringLiteral("window-actions"),
++                                  QStringLiteral("movement"), QStringLiteral("advanced"), QStringLiteral("pip")};
++    for (const QVariant &arg : args) {
++        const int index = tabs.indexOf(arg.toString());
++        if (index >= 0 && index < tab->count()) {
++            tab->setCurrentIndex(index);
++            return;
++        }
++    }
+ }
+ 
+ void KWinOptions::load()
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/src/kcms/options/main.h b/src/kcms/options/main.h
+--- a/src/kcms/options/main.h
++++ b/src/kcms/options/main.h
+@@ -28,7 +28,7 @@
+     Q_OBJECT
+ 
+ public:
+-    explicit KWinOptions(QObject *parent, const KPluginMetaData &data);
++    explicit KWinOptions(QObject *parent, const KPluginMetaData &data, const QVariantList &args);
+ 
+     void load() override;
+     void save() override;
+@@ -36,6 +36,7 @@
+ 
+ protected Q_SLOTS:
+     void updateUnmanagedState();
++    void selectTab(const QVariantList &args);
+ 
+ private:
+     QTabWidget *tab;

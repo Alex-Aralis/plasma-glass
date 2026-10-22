@@ -1,0 +1,9 @@
+{
+    "KPlugin": {
+        "Category": "Appearance",
+        "Description": "plasma-glass: Plasma's glass, frosted, bevelled and holding a liquid, in place of Blur",
+        "EnabledByDefault": false,
+        "License": "GPL",
+        "Name": "Liquid Glass"
+    }
+}

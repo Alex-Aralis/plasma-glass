@@ -1,0 +1,8 @@
+#!/bin/sh
+# plasma-glass: build the Liquid Glass effect from @REPO@ and swap it into the running KWin, with no relogin
+# (tools/kwin-effect.sh; installing it into KWin's plugin folder takes sudo)
+set -eu
+tool=@REPO@/tools/kwin-effect.sh
+lib=$("$tool" build)
+sudo "$tool" install "$lib"
+"$tool" reload

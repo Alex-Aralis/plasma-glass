@@ -73,6 +73,11 @@ case "$MODE" in
         if [ -n "${HOVER_INPUT:-}" ]; then  # then the pointer over a row, long enough for its tooltip
             "$FAKEINPUT" <"$HOVER_INPUT"; sleep 2
         fi
+        if [ -n "${SESSION_HOOK:-}" ]; then  # a script to run in the session now (effect.sh's swaps), before.png first
+            spectacle -b -n -f -o "$WORK/shots/before.png" >/dev/null 2>&1
+            sh "$SESSION_HOOK" >"$WORK/hook.log" 2>&1 || echo "hook failed" >>"$WORK/hook.log"
+            sleep 1
+        fi
         if [ -n "${SWITCH:-}" ]; then
             spectacle -b -n -f -o "$WORK/shots/before.png" >/dev/null 2>&1
             plasma-apply-lookandfeel --apply "${SWITCH#* }" >>"$WORK/switch.log" 2>&1

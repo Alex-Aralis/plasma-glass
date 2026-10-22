@@ -5,11 +5,14 @@
 #   sudo ./install-system.sh --help            options
 #
 # 1. Intel GPU compute runtime (OpenCL/Level Zero) so OpenVINO can run the search model on the iGPU.
-# 2. Portage user patches for kde-plasma/plasma-workspace (KRunner + notification popups),
-#    kde-plasma/milou (KRunner result rows), kde-plasma/kwin (the Liquid Glass styles' glass and
-#    KRunner's liquid; Window Behavior opening on a tab) and kde-plasma/plasma-desktop (the Shortcuts
-#    page opening on an action), then rebuilds the packages whose patch is new or changed. Portage
-#    re-applies the patches on every future update of those packages.
+# 2. Portage user patches for kde-plasma/plasma-workspace (KRunner + notification popups, the panel's
+#    shadow), kde-plasma/milou (KRunner result rows), kde-plasma/kwin (Window Behavior opening on a tab)
+#    and kde-plasma/plasma-desktop (the Shortcuts page opening on an action, the panel's popups), then
+#    rebuilds the packages whose patch is new or changed. Portage re-applies the patches on every future
+#    update of those packages.
+# 3. The Liquid Glass effect (kwin-effect/: the styles' glass and the liquid), a KWin plugin of its own in place
+#    of the built-in blur: built, put in KWin's plugin folder, and built again by Portage after every KWin
+#    update (/etc/portage/env/kde-plasma/kwin). It swaps into a running KWin with tools/kwin-effect.sh reload.
 #
 # The fixes for bugs in KDE and Qt that plasma-glass carried until 2026-10-17 (KWin's frame pacing, its
 # crash at logout and activation tokens, KSvg's colours after a style switch, Qt's resize glitches and
@@ -95,9 +98,10 @@ for atom in $pkgs; do
     dest=/etc/portage/patches/$atom
     mkdir -p "$dest"
     # names used by earlier versions of these patches (kwin-fixes.patch until 2026-10-17, with the fixes
-    # that are kde-fixes' now; plasma-desktop-shortcut-search.patch until 2026-10-22)
+    # that are kde-fixes' now; plasma-desktop-shortcut-search.patch and kwin-liquid-glass.patch, whose glass is a
+    # plugin of its own now, until 2026-10-22)
     rm -f "$dest/krunner-hide-pin.patch" "$dest/krunner-tweaks.patch" "$dest/kwin-fixes.patch" \
-        "$dest/plasma-desktop-shortcut-search.patch"
+        "$dest/plasma-desktop-shortcut-search.patch" "$dest/kwin-liquid-glass.patch"
     for p in "$REPO"/patches/$atom/*.patch; do
         cmp -s "$p" "$dest/$(basename "$p")" || install -m 644 "$p" "$dest/"
         # rebuild if the patch is newer than the installed build (new, changed, or an earlier emerge failed)
@@ -133,14 +137,28 @@ elif [ "$REBUILD" = 1 ]; then
     say "Every patched package is already built with its current patch"
 fi
 
+# --- 3. The Liquid Glass effect ------------------------------------------------------------------
+say "Liquid Glass effect (a KWin plugin of its own)"
+share=/usr/local/share/plasma-glass
+rm -rf "${share:?}/kwin-effect" && mkdir -p "$share/tools"
+cp -r "$REPO/kwin-effect" "$share/" && install -m 755 "$REPO/tools/kwin-effect.sh" "$share/tools/"
+hook=/etc/portage/env/kde-plasma/kwin
+if [ -e "$hook" ] && ! grep -q '^# plasma-glass' "$hook"; then
+    warn "$hook is someone else's: not replaced. KWin updates won't rebuild the effect (run $share/tools/kwin-effect.sh install after one)"
+else
+    install -D -m 644 "$REPO/kwin-effect/portage-hook.sh" "$hook"
+fi
+XDG_CACHE_HOME=/var/cache/plasma-glass "$share/tools/kwin-effect.sh" install || die "the Liquid Glass effect didn't build"
+
 # --- done -----------------------------------------------------------------------------------------
 render=$(ls -l /dev/dri/renderD128 2>/dev/null || true)
 cat <<EOF
 
 Done. As your normal user:
-  - restart Plasma's shell and KRunner to load the patched builds (after a KWin rebuild, log out and
-    back in instead, so the new KWin runs):
+  - restart Plasma's shell and KRunner to load the patched builds:
         systemctl --user restart plasma-plasmashell.service; kquitapp6 krunner
+  - swap the Liquid Glass effect into KWin in place of its blur (./install.sh does it, now and for later logins):
+        tools/kwin-effect.sh enable; tools/kwin-effect.sh reload
   - restart the search service so it picks up the GPU:
         systemctl --user restart embedsearch
 EOF

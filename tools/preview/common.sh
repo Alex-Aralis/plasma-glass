@@ -11,6 +11,9 @@
 #   WALLPAPER_PAN=px/s the wallpaper scrolls up and down at this speed (record.sh: content moving behind
 #                      the glass)
 #   KWIN_WAYLAND=path  a dev build of KWin as the preview's compositor (KWIN_ENV: its environment)
+#   KWIN_EFFECT=repo   the Liquid Glass effect built from this checkout (tools/kwin-effect.sh build) in place of
+#                      the built-in blur; KWIN_EFFECT=dir: the one under dir/kwin/effects/plugins. Unset, the
+#                      preview's KWin takes the installed one, as yours does, if there is one
 #   SWITCH="FROM TO"   global themes (krunner.sh): KRunner starts on FROM, then TO is applied with its
 #                      results showing, as KDE's Dark Mode switch does; OUT-before.png is just before,
 #                      e.g. SWITCH="plasma-glass.liquid-glass plasma-glass.liquid-glass-light"
@@ -65,6 +68,19 @@ prepare() {
             name=liquid-glass; [ "$STYLE" = repo-light ] && name=liquid-glass-light ;;
     esac
     kwriteconfig6 --file "$WORK/cfg/plasmarc" --group Theme --key name "$name"
+    # the Liquid Glass effect, not the built-in blur: this checkout's, one given, or the installed one
+    if [ "${KWIN_EFFECT:-}" = repo ]; then
+        lib=$(sh "$REPO/tools/kwin-effect.sh" build) || die "the Liquid Glass effect didn't build"
+        KWIN_EFFECT="$WORK/effect-repo" && rm -rf "$KWIN_EFFECT" && mkdir -p "$KWIN_EFFECT/kwin/effects/plugins"
+        ln -s "$lib" "$KWIN_EFFECT/kwin/effects/plugins/liquidglass.so"
+    fi
+    if [ -n "${KWIN_EFFECT:-}" ]; then
+        export KWIN_ENV="QT_PLUGIN_PATH=$KWIN_EFFECT ${KWIN_ENV:-}"
+    fi
+    if [ -n "${KWIN_EFFECT:-}" ] || [ -e "$(qtpaths6 --query QT_INSTALL_PLUGINS)/kwin/effects/plugins/liquidglass.so" ]; then
+        kwriteconfig6 --file "$WORK/cfg/kwinrc" --group Plugins --key blurEnabled false
+        kwriteconfig6 --file "$WORK/cfg/kwinrc" --group Plugins --key liquidglassEnabled true
+    fi
     if [ -n "${SWITCH:-}" ]; then  # the Liquid Glass global themes, installed or not
         mkdir -p "$WORK/data/plasma/look-and-feel" && cp -r "$REPO/theme/look-and-feel/." "$WORK/data/plasma/look-and-feel/"
     fi

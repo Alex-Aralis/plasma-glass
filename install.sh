@@ -146,6 +146,16 @@ if [ "$DO_STYLE" = 1 ]; then
     sed "s|@BIN@|$HOME/.local/bin/plasma-glass-mode|g" "$REPO/desktop/plasma-glass-mode.desktop.in" \
         > "$DATA/applications/plasma-glass-mode.desktop"
     kbuildsycoca6 >/dev/null 2>&1 || true
+    # the Liquid Glass effect (install-system.sh puts it in KWin's plugin folder): in place of the built-in
+    # blur from now on, swapped into the running KWin; plasma-glass-reload-kwin swaps in a new build
+    sed "s|@REPO@|$REPO|g" "$REPO/desktop/plasma-glass-reload-kwin.in" > "$HOME/.local/bin/plasma-glass-reload-kwin"
+    chmod 755 "$HOME/.local/bin/plasma-glass-reload-kwin"
+    if [ -e "$(qtpaths6 --query QT_INSTALL_PLUGINS)/kwin/effects/plugins/liquidglass.so" ]; then
+        sh "$REPO/tools/kwin-effect.sh" enable
+        sh "$REPO/tools/kwin-effect.sh" reload || warn "KWin didn't take the Liquid Glass effect now; it loads from the next login"
+    else
+        warn "the Liquid Glass effect isn't built yet (sudo ./install-system.sh): KWin keeps its plain blur until it is"
+    fi
 fi
 
 if [ "$DO_SETTINGS" = 1 ]; then
