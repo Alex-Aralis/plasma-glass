@@ -18,9 +18,11 @@
 #                                Gentoo's patchset and the other user patches in /etc/portage/patches
 #                                (kde-fixes'), to check them before the emerge (a few minutes the first time,
 #                                then seconds). The patched KWin only runs after the emerge and a relogin.
-#   tools/patch-dev.sh kcm-keys  build System Settings' Shortcuts page (kcm_keys) from the edited tree and
-#                                print the folder to run it from (about a minute the first time, then seconds):
+#   tools/patch-dev.sh kcm-keys  build System Settings' Shortcuts page (kcm_keys) and KRunner's Global Shortcuts
+#                                runner (krunner_keys) from the edited tree and print the folder to run them from
+#                                (about a minute the first time, then seconds):
 #                                    QT_PLUGIN_PATH=$(tools/patch-dev.sh kcm-keys) systemsettings kcm_keys
+#                                    KRUNNER_ENV="QT_PLUGIN_PATH=$(...)" SHORTCUTS=1 tools/preview/krunner.sh OUT.png q
 #   tools/patch-dev.sh install [PKG...]  (root) put the patches in /etc/portage/patches and rebuild the
 #                                packages whose patch changed or that weren't rebuilt since (or the PKGs named)
 #
@@ -38,7 +40,7 @@ CAT_plasma_workspace=kde-plasma CAT_milou=kde-plasma CAT_kwin=kde-plasma CAT_pla
 DIRS_plasma_workspace="krunner applets/notifications shell"
 DIRS_milou="lib"
 DIRS_kwin="src"
-DIRS_plasma_desktop="kcms/keys desktoppackage"
+DIRS_plasma_desktop="kcms/keys runners/keys desktoppackage"
 PATCH_plasma_workspace=plasma-workspace-tweaks.patch
 PATCH_milou=milou-section-headers.patch
 PATCH_kwin=kwin-window-behavior-tabs.patch
@@ -180,10 +182,11 @@ build_kwin() {
     echo "compiled: $edited" | tr '\n' ' '; echo
 }
 
-# The Shortcuts page (kcm_keys) alone, in a full plasma-desktop tree (CMake needs all of it) with the
-# edited kcms/keys copied in, configured without the X11 mouse and touchpad pages (Gentoo builds those
+# The Shortcuts page (kcm_keys) and the Global Shortcuts runner (krunner_keys) alone, in a full
+# plasma-desktop tree (CMake needs all of it) with the edited kcms/keys and runners/keys copied in, configured without the X11 mouse and touchpad pages (Gentoo builds those
 # against headers of its own) and the tablet page (libwacom). Qt finds plugins in QT_PLUGIN_PATH before
-# the installed ones, so systemsettings run with it set to the printed folder loads this build of the page.
+# the installed ones, so systemsettings run with it set to the printed folder loads this build of the page
+# (and KRunner this build of the runner).
 build_keys() {
     [ -d "$DEV/b/plasma-desktop/kcms/keys" ] || die "run setup plasma-desktop first"
     ver=$(version plasma-desktop) d="$DEV/plasma-desktop"
@@ -197,7 +200,8 @@ build_keys() {
         echo "$ver" > "$d/version"
     fi
     cp -a "$DEV/b/plasma-desktop/kcms/keys/." "$src/kcms/keys/"
-    ninja -C "$bld" kcm_keys >"$d/build.log" 2>&1 || { grep -m5 -A3 error "$d/build.log" >&2; die "build failed, see $d/build.log"; }
+    cp -a "$DEV/b/plasma-desktop/runners/keys/." "$src/runners/keys/"
+    ninja -C "$bld" kcm_keys krunner_keys >"$d/build.log" 2>&1 || { grep -m5 -A3 error "$d/build.log" >&2; die "build failed, see $d/build.log"; }
     echo "$bld/bin"
 }
 
@@ -239,5 +243,5 @@ case "${1:-}" in
     kcm-keys) build_keys ;;
     install) shift; install_patches "$@" ;;
     plasmashell) build_plasmashell ;;
-    *) sed -n '2,27p' "$0"; exit 2 ;;
+    *) sed -n '2,29p' "$0"; exit 2 ;;
 esac

@@ -25,7 +25,7 @@ change different files), and each repo's check applies the other's installed pat
 | `kwin-effect/` | the Liquid Glass effect: KWin 6.7.5's blur effect (plugins/blur) with the glass, a plugin of its own (`liquidglass.cpp`, `shaders/`; `portage-hook.sh` rebuilds it after KWin merges). The notes below from before 2026-10-22 name the patch's files: blur.cpp is liquidglass.cpp, `BlurEffect` `LiquidGlassEffect` |
 | `tools/kwin-effect.sh` | the effect: `build` (a new id each time), `install [LIB]` (root: KWin's plugin folder links `liquidglass.so` to it), `reload` (the running KWin swaps it in over D-Bus, checks `Build()`), `enable`/`disable` (kwinrc), `status` |
 | `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc), `krunner-shortcut.sh` (KRunner on Meta+Space, or back on Alt+Space), `plasma-glass-tune.qml` (Liquid Glass Tuning: the liquid and the dark glass, live) |
-| `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` builds a test copy, `kwin` compiles the edited KWin files (with kde-fixes' installed KWin patches in the tree), `kcm-keys` builds the Shortcuts page, `plasmashell` plasmashell (for `tools/preview/panel.sh`) |
+| `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` builds a test copy, `kwin` compiles the edited KWin files (with kde-fixes' installed KWin patches in the tree), `kcm-keys` builds the Shortcuts page and KRunner's Global Shortcuts runner, `plasmashell` plasmashell (for `tools/preview/panel.sh`) |
 | `tools/check-patches.sh` | patches apply, alone and with the other user patches installed for the package (kde-fixes'); patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
 | `tools/screenprobe/screen.sh` | probes on the real screens (small, never focused, ask first): `fps` measures Qt Quick frame rate and animation speed per screen, `glass` shows the style's glass over a grey square (screenshot or by eye) |
 | `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh` (`SWITCH`: across a global theme switch), `settings.sh` (System Settings on a page with arguments), `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `panel.sh` (your panel, floating or docked, screenshot or video), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`); `record.sh` records KRunner into a video (demos); `fakeinput.c` for pointer input |
@@ -745,6 +745,26 @@ change different files), and each repo's check applies the other's installed pat
     desktop with gdb: breakpoints on `KAbstractConfigModule::activationRequested` and
     `QQuickTextInput::setText`, both exported). Attach with `handle SIGINT stop print nopass`: without it
     the interrupt that ends `timeout -s INT gdb` reaches the app on detach and quits it (it did once).
+- **A shortcut's key at the row's right end** (2026-10-23, the user: "show the current main keybind for
+  shortcut dropdown items. Also right justify"): settings search's shortcut results and KRunner's Global
+  Shortcuts runner (plasma-desktop's `runners/keys`, patched) send the key after a tab in the subtext
+  ("Shortcuts › Window Management\tMeta+Q"; D-Bus runners have no other field for it), and milou's
+  ResultDelegate shows what follows the tab at the row's right end on every row, the name eliding to
+  keep room for it. Stock milou would show the tab as a space.
+  - There is no main key to ask for: the Shortcuts page lists an action's keys as a set, kglobalaccel's
+    `allShortcutInfos` returns them in no particular order ("Alt+F1, Meta" for the launcher), and
+    `kglobalshortcutsrc` holds them sorted by key code. So both pick one the same way: a key set by hand
+    (not among the defaults: the user's Meta+Q for Close Window, Meta+1 for Desktop 1) before the defaults,
+    a key every keyboard has before a lone media or launch key (Qt's codes above `Key_Direction_R`: Lock
+    Session is Meta+L, not Screensaver), then by key code (Meta before Alt+F1, Alt+Tab before Meta+Tab).
+    Common Actions keep KStandardShortcut's order in the last step, its main key first. An action with no
+    key shows none; the stock runner showed its default keys then.
+  - Preview: `SHORTCUTS=1` (the preview's KWin then serves kglobalaccel, with a copy of your
+    `kglobalshortcutsrc`) and `KRUNNER_ENV="QT_PLUGIN_PATH=$(tools/patch-dev.sh kcm-keys)"` for the dev
+    runner. The Global Shortcuts runner shows only a few of its matches (for "switch to desktop", the
+    unbound Desktops 8 and 9); "close window" has a keyed row in both groups. For record.sh, the search
+    service's results come after the window is measured (it starts cold on the first query, even when
+    started over D-Bus a second before KRunner), so record with `PAD=160` and crop to the window after.
 - **Model export:** needs `torchvision` (the processor imports Gemma 4 image code) and
   transformers 5.19 or later. Installing `sentence-transformers[image,audio]` downgraded
   transformers once.
