@@ -1047,8 +1047,9 @@ def serve():
                 first = o["by_words"] or hinted or o["score"] > best_file
                 out.append([mid, o["text"], o["icon"], 100 if first else 50,
                             (0.8 if o["by_words"] else 0.5) + 0.1 * o["score"], {
-                                # milou (as patched) shows a key after a tab beside the name, the rest at the right
-                                "subtext": Variant("s", o["where"] + (f"\t{o['key']}" if o.get("key") else "")),
+                                # milou (as patched) shows where it is at the row's right end and a shortcut's
+                                # key, after the tab, beside the name
+                                "subtext": Variant("s", f"{o['where']}\t{o.get('key', '')}"),
                                 "category": Variant("s", "System Settings"),
                                 "actions": Variant("as", []),
                             }])

@@ -91,7 +91,8 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
   each is on. They show under KRunner's "System Settings" results: up to three, those holding every
   word of the query first, then any close in meaning (`settings_results`, `settings_min_score` in the
   config). They come above the files when one holds every word of the query, the query says
-  "settings" ("settings focus stealing"), or one is closer in meaning than any file. Choosing one
+  "settings" ("settings focus stealing"), or one is closer in meaning than any file. The selected one
+  shows where it is at the row's right end ("Window Behavior › Focus"), as files do. Choosing one
   opens its page. Pages a KDE restriction hides are left out. The list is built
   from the installed packages' sources in /var/cache/distfiles by `search/settings_index.py`; re-run it
   after a Plasma upgrade. Only new labels are embedded again. Pages one machine lacks keep their
@@ -313,7 +314,8 @@ refreshed.
 - `milou-section-headers.patch`: KRunner result categories become small headers above each group
   instead of a 10-grid-unit column beside every row; result text 1.2x; a shortcut's key beside its name
   on every row (a result's subtext after a tab: settings search's shortcuts and the Global Shortcuts
-  runner's), the rest of the subtext at the row's right end, as a file's folder
+  runner's), the subtext before the tab (where it is, also with no key: every settings search result
+  has the tab) at the row's right end, as a file's folder
 - `kwin-window-behavior-tabs.patch` (kde-plasma/kwin; `kwin-liquid-glass.patch` until 2026-10-22, when the
   glass left it for the Liquid Glass effect, below): Window Behavior in System Settings opens on a tab given
   as an argument (`systemsettings kcm_kwinoptions --args focus`; also `titlebar-actions`, `window-actions`,
