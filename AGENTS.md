@@ -284,7 +284,15 @@ change different files), and each repo's check applies the other's installed pat
   (0.8 x the push width / 1.19: 41 px at the user's width 61, which left a click's crests at a quarter):
   a window only clicks stir normalizes by a third of the press's depth instead. Then it shows as soft
   patches of colour running out from the click, as KRunner's busy waves do there. Tuning: two sliders
-  (Clicks: press, width). Preview: `CLICKS="X Y, X Y" CLICK_HOLD=ms tools/preview/panel.sh OUT.mp4`
+  (Clicks: press, width). Dragging (the user, the same day: "clicking, then dragging behaves like pushing a
+  finger through the liquid"): while the button is held, every pointer move adds a sample to `click.path`
+  (time, place in the glass from its top left as pressed; the last 0.5 s), and each of the liquid's steps
+  puts the press where the pointer was at that step's middle, between the samples either side (after the
+  last, at it: steps run up to the frame's target pageflip time, a little ahead of the newest event). A
+  press moving faster than the waves (667 px/s against the user's 305) trails a Mach-like wake; on the
+  46 px panel it hits the rims at once and runs along as plane waves, visible where it crosses an edge
+  behind; through Kickoff the light foil draws a streak of colour along the path. `DRAGS="X1 Y1 X2 Y2 MS"`
+  in panel.sh (8 ms fakeinput steps). Preview: `CLICKS="X Y, X Y" CLICK_HOLD=ms tools/preview/panel.sh OUT.mp4`
   (fakeinput presses while recording; `DOCK=1`, `POPUP=kickoff` first); the pointer shows in
   `CaptureArea`'s frames, so a frame difference lights up at the cursor, not only the waves.
 - **The glass is a KWin plugin of its own** (2026-10-22, the user: relogging for every KWin change "is a

@@ -5,7 +5,9 @@
 #   tools/kwin-effect.sh build            a build of its own (a new id each time, a folder of that name) in
 #                                          ~/.cache/plasma-glass/effect; prints its liquidglass.so
 #   tools/kwin-effect.sh install [LIB]    (root) LIB (default: a new build) into STORE, linked from KWin's plugin
-#                                          folder as liquidglass.so (KWin's name for the effect); older builds go
+#                                          folder as liquidglass.so (KWin's name for the effect); older builds go.
+#                                          From a checkout, its source goes to SHARE too, so Portage's hook builds
+#                                          the same effect after a KWin update
 #   tools/kwin-effect.sh reload           (as the desktop user) KWin drops the effect it runs (Liquid Glass, or the
 #                                          built-in blur the first time) and loads Liquid Glass through the link;
 #                                          prints the build now running
@@ -22,8 +24,9 @@
 # KWIN_EFFECT_PLUGINDIR and KWIN_EFFECT_STORE move the link and the builds (the preview's swap test).
 set -eu
 REPO=$(cd "$(dirname "$0")/.." && pwd)
+SHARE=/usr/local/share/plasma-glass  # the source and this tool, for Portage's hook (install-system.sh, install)
 SRC="$REPO/kwin-effect"
-[ -d "$SRC" ] || SRC=/usr/local/share/plasma-glass/kwin-effect  # install-system.sh's copy, for Portage's hook
+[ -d "$SRC" ] || SRC="$SHARE/kwin-effect"
 BUILD="${XDG_CACHE_HOME:-$HOME/.cache}/plasma-glass/effect"
 PLUGINDIR="${KWIN_EFFECT_PLUGINDIR:-$(qtpaths6 --query QT_INSTALL_PLUGINS 2>/dev/null || echo /usr/lib64/qt6/plugins)/kwin/effects/plugins}"
 STORE="${KWIN_EFFECT_STORE:-/usr/local/lib64/plasma-glass/kwin-effect}"
@@ -57,6 +60,10 @@ install_lib() {
     # older builds: a KWin that loaded one keeps it mapped, deleted
     find "$STORE" -mindepth 1 -maxdepth 1 -type d ! -name "$id" -exec rm -r {} +
     echo "$PLUGINDIR/liquidglass.so -> $STORE/$id/liquidglass.so"
+    # what Portage's hook builds from: this source, if it's a checkout's (not the preview's scratch store)
+    if [ "$SRC" != "$SHARE/kwin-effect" ] && [ -z "${KWIN_EFFECT_STORE:-}" ]; then
+        rm -rf "${SHARE:?}/kwin-effect" && mkdir -p "$SHARE/tools" && cp -r "$SRC" "$SHARE/" && install -m 755 "$REPO/tools/kwin-effect.sh" "$SHARE/tools/"
+    fi
 }
 
 running_build() {

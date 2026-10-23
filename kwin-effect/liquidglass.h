@@ -14,6 +14,7 @@
 #include <QDBusContext>
 #include <QList>
 
+#include <deque>
 #include <functional>
 #include <optional>
 #include <unordered_map>
@@ -107,13 +108,15 @@ struct BlurEffectData
     /// and on Liquid Glass Light, the background with the waves in it, for the blur to frost
     std::unique_ptr<GLTexture> underlayTexture;
     std::unique_ptr<GLFramebuffer> underlayFramebuffer;
-    /// a click pressing on its liquid: where (logical px in the glass), when the button went down and when it
-    /// came up (s, monotonic; -1: not yet, or no click)
+    /// a click pressing on its liquid: when the button went down and when it came up (s, monotonic; -1: not
+    /// yet, or no click), and where the pointer has been since (px in the glass, from its top left as it was
+    /// pressed, `origin`), and when: the press follows it while held, like a finger drawn through the liquid
     struct
     {
-        QPointF at;
         double down = -1;
         double up = -1;
+        QPointF origin;
+        std::deque<std::pair<double, QPointF>> path;
     } click;
 };
 

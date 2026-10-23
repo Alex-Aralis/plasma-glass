@@ -9,7 +9,8 @@
 #                                           4.5) of SECONDS_CAPTURED (7); a lossless OUT.mkv stays beside it
 # CLICKS="X Y, X Y" (screen px) presses the pointer at each spot for CLICK_HOLD ms (250) and lets go, a
 # second apart, while recording (instead of the window maximizing; DOCK=1 docks the panel first, POPUP opens
-# a popup first): to record what a click does to the glass.
+# a popup first): to record what a click does to the glass. DRAGS="X1 Y1 X2 Y2 MS, ..." presses at X1 Y1,
+# drags to X2 Y2 over MS ms in 8 ms steps and lets go there.
 # POPUP=kickoff (an applet's name, org.kde.plasma.NAME, in the panel or its tray) opens that applet's popup
 # before the screenshot (raise CROP to take it in). PLASMASHELL=path runs a dev build of plasmashell
 # (tools/patch-dev.sh plasmashell), SHELL_PACKAGE=dir puts that desktop package's contents/ (an edited
@@ -72,11 +73,19 @@ export PANEL_AREA
 PANEL_AREA=$(awk -v w="$WIDTH" -v h="$HEIGHT" -v s="$SCALE" -v c="$crop" -v x="${START:-0}" -v cw="${CROP_WIDTH:-0}" \
     'BEGIN { W = int(w / s); if (cw == 0) cw = W - x; printf "{\"x\": %d, \"y\": %d, \"width\": %d, \"height\": %d}", x, int(h / s) - c, cw, c }')
 
-if [ -n "${CLICKS:-}" ]; then
+if [ -n "${CLICKS:-}" ] || [ -n "${DRAGS:-}" ]; then
     FAKEINPUT=$(fakeinput); CLICK_INPUT="$WORK/clicks.in"; export FAKEINPUT CLICK_INPUT
-    echo "$CLICKS" | tr ',' '\n' | while read -r x y; do
+    { [ -z "${CLICKS:-}" ] || echo "$CLICKS" | tr ',' '\n' | while read -r x y; do
         printf 'move %s %s\nwait 300\ndown\nwait %s\nup\nwait 700\n' "$x" "$y" "${CLICK_HOLD:-250}"
-    done >"$CLICK_INPUT"
+      done
+      [ -z "${DRAGS:-}" ] || echo "$DRAGS" | tr ',' '\n' | while read -r x1 y1 x2 y2 ms; do
+        awk -v x1="$x1" -v y1="$y1" -v x2="$x2" -v y2="$y2" -v ms="$ms" 'BEGIN {
+            printf "move %d %d\nwait 300\ndown\nwait 100\n", x1, y1
+            n = int(ms / 8); if (n < 1) n = 1; px = x1; py = y1
+            for (i = 1; i <= n; i++) { x = int(x1 + (x2 - x1) * i / n + 0.5); y = int(y1 + (y2 - y1) * i / n + 0.5)
+                printf "by %d %d\nwait 8\n", x - px, y - py; px = x; py = y }
+            printf "wait 100\nup\nwait 900\n" }'
+      done; } >"$CLICK_INPUT"
 fi
 plasmashell_bus
 case "$OUT" in

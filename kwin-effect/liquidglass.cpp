@@ -682,11 +682,22 @@ void LiquidGlassEffect::slotWindowDeleted(EffectWindow *w)
 void LiquidGlassEffect::slotMouseChanged(const QPointF &pos, const QPointF &oldpos, Qt::MouseButtons buttons, Qt::MouseButtons oldbuttons,
                                   Qt::KeyboardModifiers modifiers, Qt::KeyboardModifiers oldmodifiers)
 {
-    Q_UNUSED(oldpos)
     Q_UNUSED(modifiers)
     Q_UNUSED(oldmodifiers)
     const bool pressed = (buttons & Qt::LeftButton) && !(oldbuttons & Qt::LeftButton);
     const bool released = !(buttons & Qt::LeftButton) && (oldbuttons & Qt::LeftButton);
+    if (m_clickWindow && (buttons & Qt::LeftButton) && (oldbuttons & Qt::LeftButton) && pos != oldpos) {
+        // dragged: the press follows the pointer (off the glass, it presses on nothing), the last half second
+        // kept for the liquid's steps to place it between
+        if (auto it = m_windows.find(m_clickWindow); it != m_windows.end() && it->second.click.down >= 0) {
+            auto &path = it->second.click.path;
+            const double now = monotonicNow();
+            path.emplace_back(now, pos - it->second.click.origin);
+            while (path.size() > 2 && path[1].first < now - 0.5) {
+                path.pop_front();
+            }
+        }
+    }
     if (released && m_clickWindow) {
         // the press lets go
         if (auto it = m_windows.find(m_clickWindow); it != m_windows.end() && it->second.click.down >= 0 && it->second.click.up < 0) {
@@ -716,9 +727,10 @@ void LiquidGlassEffect::slotMouseChanged(const QPointF &pos, const QPointF &oldp
         if (!shape.contains(pos) || (liquidGlassCorners(shape, glass).isNull() && !w->isDock())) {
             return;
         }
-        data->second.click.at = pos - glass.topLeft();
         data->second.click.down = monotonicNow();
         data->second.click.up = -1;
+        data->second.click.origin = glass.topLeft();
+        data->second.click.path = {{data->second.click.down, pos - glass.topLeft()}};
         m_clickWindow = w;
         w->addRepaintFull();
         return;
@@ -1147,8 +1159,22 @@ std::optional<double> LiquidGlassEffect::runLiquid(BlurEffectData &data, const L
         if (data.click.up >= 0) {
             level *= 1 - ease(t - data.click.up);
         }
+        // where the pointer was then, between the two samples either side (held at the last one after it)
+        const auto &path = data.click.path;
+        QPointF at = path.back().second;
+        if (t <= path.front().first) {
+            at = path.front().second;
+        } else {
+            for (size_t i = 1; i < path.size(); ++i) {
+                if (path[i].first >= t) {
+                    const double f = (t - path[i - 1].first) / std::max(path[i].first - path[i - 1].first, 1e-6);
+                    at = path[i - 1].second + (path[i].second - path[i - 1].second) * f;
+                    break;
+                }
+            }
+        }
         const double pressure = m_liquid.click * 0.8 * m_liquid.speed * m_liquid.speed * m_liquid.clickWidth;
-        return QVector4D(data.click.at.x(), data.click.at.y(), m_liquid.clickWidth, pressure * level);
+        return QVector4D(at.x(), at.y(), m_liquid.clickWidth, pressure * level);
     };
 
     // what the glass's moves do over a step from t s into the span: the liquid is pushed against the

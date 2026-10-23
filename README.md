@@ -25,7 +25,8 @@ notification cruft trimmed.
   behind. The light style's glass is frosted more, and the waves run beneath the frost, lit in shards of
   colour as off an etched diffraction foil. A click presses down on the liquid of the glass it lands on,
   the panel, a popup or KRunner, like a finger on a floating pane: a dimple under the pointer while the
-  button is held, and rings that run out as it's pressed and let go. The panel's glass rounds off at its edges too, but not where
+  button is held, and rings that run out as it's pressed and let go. Drag with the button held and the
+  finger goes through the liquid, leaving a wake behind it. The panel's glass rounds off at its edges too, but not where
   it meets the screen's edge: docked, only its top edge bends what's behind.
 - **Trimmed KRunner and notifications.** KRunner opens with Meta+Space (Alt+F2 still works) and floats where you drag it (by the glass rim, or anywhere
   with Meta held, as with other windows) and remembers the spot. It is wider, and types straight onto the glass in larger text, with no input box, like Spotlight. It uses
@@ -319,7 +320,7 @@ or grows and pushed while KRunner is busy, whose waves bend what's behind the gl
 glass clear where they run, their colours parting a little more than the bevel's (see
 [Tuning](#tuning-the-glass-and-krunners-liquid-live)). Every glass surface gets the liquid where a
 click lands on it (KWin watches the pointer's button; no app asks): it presses down there while the
-button is held and lets go as it comes up. Liquid Glass Light gets frosted glass too
+button is held, follows the pointer while it's dragged, and lets go as the button comes up. Liquid Glass Light gets frosted glass too
 (strength 5), flat by default, with the waves beneath the frost: what's behind bends under them, and
 an etched diffraction foil lights up in shards of colour where they crest, all softened by the frost. Only while one of those styles is
 selected (it follows `plasmarc`, no relogin), on Plasma's own surfaces
