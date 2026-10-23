@@ -77,7 +77,7 @@ prepare() {
     if [ -n "${KWIN_EFFECT:-}" ]; then
         export KWIN_ENV="QT_PLUGIN_PATH=$KWIN_EFFECT ${KWIN_ENV:-}"
     fi
-    if [ -n "${KWIN_EFFECT:-}" ] || [ -e "$(qtpaths6 --query QT_INSTALL_PLUGINS)/kwin/effects/plugins/liquidglass.so" ]; then
+    if [ -n "${KWIN_EFFECT:-}" ] || [ -e "$(sh "$REPO/tools/kwin-effect.sh" plugindir)/liquidglass.so" ]; then
         kwriteconfig6 --file "$WORK/cfg/kwinrc" --group Plugins --key blurEnabled false
         kwriteconfig6 --file "$WORK/cfg/kwinrc" --group Plugins --key liquidglassEnabled true
     fi

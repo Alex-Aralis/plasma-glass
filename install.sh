@@ -150,7 +150,7 @@ if [ "$DO_STYLE" = 1 ]; then
     # blur from now on, swapped into the running KWin; plasma-glass-reload-kwin swaps in a new build
     sed "s|@REPO@|$REPO|g" "$REPO/desktop/plasma-glass-reload-kwin.in" > "$HOME/.local/bin/plasma-glass-reload-kwin"
     chmod 755 "$HOME/.local/bin/plasma-glass-reload-kwin"
-    if [ -e "$(qtpaths6 --query QT_INSTALL_PLUGINS)/kwin/effects/plugins/liquidglass.so" ]; then
+    if [ -e "$(sh "$REPO/tools/kwin-effect.sh" plugindir)/liquidglass.so" ]; then
         sh "$REPO/tools/kwin-effect.sh" enable
         sh "$REPO/tools/kwin-effect.sh" reload || warn "KWin didn't take the Liquid Glass effect now; it loads from the next login"
     else

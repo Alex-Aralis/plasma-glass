@@ -28,10 +28,18 @@ SHARE=/usr/local/share/plasma-glass  # the source and this tool, for Portage's h
 SRC="$REPO/kwin-effect"
 [ -d "$SRC" ] || SRC="$SHARE/kwin-effect"
 BUILD="${XDG_CACHE_HOME:-$HOME/.cache}/plasma-glass/effect"
-PLUGINDIR="${KWIN_EFFECT_PLUGINDIR:-$(qtpaths6 --query QT_INSTALL_PLUGINS 2>/dev/null || echo /usr/lib64/qt6/plugins)/kwin/effects/plugins}"
+PLUGINDIR="${KWIN_EFFECT_PLUGINDIR:-}"
 STORE="${KWIN_EFFECT_STORE:-/usr/local/lib64/plasma-glass/kwin-effect}"
 
+# Qt's plugin folder (qtpaths6 lives in Qt's own bin folder on Gentoo, off the PATH)
+qt_plugins() {
+    for q in qtpaths6 /usr/lib64/qt6/bin/qtpaths6; do
+        command -v "$q" >/dev/null 2>&1 && { "$q" --query QT_INSTALL_PLUGINS; return; }
+    done
+    echo /usr/lib64/qt6/plugins
+}
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+[ -n "$PLUGINDIR" ] || PLUGINDIR="$(qt_plugins)/kwin/effects/plugins"
 effects() { qdbus6 org.kde.KWin /Effects "org.kde.kwin.Effects.$@"; }
 
 build() {
@@ -109,5 +117,6 @@ case "${1:-}" in
     enable) enable ;;
     disable) disable ;;
     status) status ;;
+    plugindir) echo "$PLUGINDIR" ;;
     *) sed -n '2,/^set -eu/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 2 ;;
 esac
