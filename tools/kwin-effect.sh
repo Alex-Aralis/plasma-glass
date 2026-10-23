@@ -60,7 +60,9 @@ install_lib() {
 }
 
 running_build() {
-    qdbus6 org.kde.KWin /org/kde/KWin/LiquidGlass org.kde.KWin.LiquidGlass.Build 2>/dev/null || true
+    # (the built-in blur of a KWin from before 2026-10-22 has the object, but no Build)
+    out=$(qdbus6 org.kde.KWin /org/kde/KWin/LiquidGlass org.kde.KWin.LiquidGlass.Build 2>/dev/null) || out=
+    case "$out" in 20*) echo "$out" ;; esac
 }
 
 reload() {
