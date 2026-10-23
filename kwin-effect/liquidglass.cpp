@@ -1022,10 +1022,10 @@ void LiquidGlassEffect::stepLiquid(LiquidGlassLayer &layer, const QSize &cells, 
 // once it's calm.
 std::optional<double> LiquidGlassEffect::runLiquid(BlurEffectData &data, const LiquidGlassClient *client, const RectF &glass, const BorderRadius &corners, const Rect &background, GLVertexBuffer *vbo)
 {
-    // a window whose client asked for the liquid (Stir()) gets the busy pushes and the moves' sloshing; any
-    // other Liquid Glass surface only the clicks' presses
+    // a window whose client asked for the liquid (Stir()) gets the busy pushes; every Liquid Glass surface the
+    // clicks' presses, and the sloshing as it moves or grows (a popup sliding up, the panel docking)
     const bool busy = client && client->busy;
-    const double momentum = client ? m_liquid.momentum : 0;
+    const double momentum = m_liquid.momentum;
     // it renders into float textures: desktop OpenGL
     if (!m_fluidPass.shader || !m_surfacePass.shader || EglContext::currentContext()->isOpenGLES() || glass.isEmpty()) {
         return std::nullopt;
@@ -1537,7 +1537,7 @@ void LiquidGlassEffect::blur(const RenderTarget &renderTarget, const RenderViewp
     if (liquidGlass) {
         const auto client = m_liquidGlassClients.find(w->pid());
         const LiquidGlassClient *asked = client != m_liquidGlassClients.end() ? &client->second : nullptr;
-        if (asked || blurInfo.fluid || blurInfo.click.down >= 0) {
+        {
             const double lean = m_rippleLean.value_or(m_liquid.amplitude);
             if (lean > 0) {
                 if (const std::optional<double> shown = runLiquid(blurInfo, asked, blurShape.boundingRect(), bevelCorners, backgroundRect, vbo)) {

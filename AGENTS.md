@@ -292,7 +292,15 @@ change different files), and each repo's check applies the other's installed pat
   press moving faster than the waves (667 px/s against the user's 305) trails a Mach-like wake; on the
   46 px panel it hits the rims at once and runs along as plane waves, visible where it crosses an edge
   behind; through Kickoff the light foil draws a streak of colour along the path. `DRAGS="X1 Y1 X2 Y2 MS"`
-  in panel.sh (8 ms fakeinput steps). Preview: `CLICKS="X Y, X Y" CLICK_HOLD=ms tools/preview/panel.sh OUT.mp4`
+  in panel.sh (8 ms fakeinput steps). Then (the user: "add momentum to the windows when they slide up"): every
+  Liquid Glass surface runs the liquid's followers each frame now (blur() calls `runLiquid` for all of them;
+  calm, it returns at once), with KRunner's momentum: a popup sliding in (the slidingpopups effect moves it
+  by `data`'s translation, which the blur shape takes) sloshes as it stops, and so do notifications, a
+  tooltip moving between tasks and the panel docking. Kickoff over ColorfulCups with the user's tuning
+  (momentum 2, sloshSpeed 1800, sloshDamping 6): Liquid Glass Light changed 20-50k px for 1.5 s after the
+  slide, a band of foil light rolling across; the dark glass 1-3k px, at the edges behind. With slosh damping
+  6 s the liquid runs 15 s after each move (3 x sloshDamping, capped). `POPUP_AT="S S"` in panel.sh opens and
+  closes the popup mid-recording. Preview: `CLICKS="X Y, X Y" CLICK_HOLD=ms tools/preview/panel.sh OUT.mp4`
   (fakeinput presses while recording; `DOCK=1`, `POPUP=kickoff` first); the pointer shows in
   `CaptureArea`'s frames, so a frame difference lights up at the cursor, not only the waves.
 - **The glass is a KWin plugin of its own** (2026-10-22, the user: relogging for every KWin change "is a

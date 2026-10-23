@@ -12,7 +12,8 @@
 # a popup first): to record what a click does to the glass. DRAGS="X1 Y1 X2 Y2 MS, ..." presses at X1 Y1,
 # drags to X2 Y2 over MS ms in 8 ms steps and lets go there.
 # POPUP=kickoff (an applet's name, org.kde.plasma.NAME, in the panel or its tray) opens that applet's popup
-# before the screenshot (raise CROP to take it in). PLASMASHELL=path runs a dev build of plasmashell
+# before the screenshot (raise CROP to take it in); in a video, POPUP_AT="S S..." opens and closes it at those
+# seconds in instead (to record it sliding up and away). PLASMASHELL=path runs a dev build of plasmashell
 # (tools/patch-dev.sh plasmashell), SHELL_PACKAGE=dir puts that desktop package's contents/ (an edited
 # plasma-desktop desktoppackage, for Panel.qml) over the installed one.
 # WINDOW_COLOR=#eff0f1 paints the window that docks the panel (dark by default), to show a shadow on it.

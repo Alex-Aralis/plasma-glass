@@ -259,7 +259,7 @@ Kirigami.ApplicationWindow {
                 Kirigami.FormData.label: "Momentum:"
                 key: "Ripple/momentum"; fallback: 1; from: 0; to: 2; stepSize: 0.05; decimals: 2
             }
-            Hint { text: "How much the liquid sloshes when you drag KRunner, or its dropdown opens or closes: it lags behind as the glass speeds up and runs on as it stops. Works when KRunner isn't busy too. The ripples it stirs are as wide as the pushes' (Width)." }
+            Hint { text: "How much the liquid sloshes when the glass moves or grows: KRunner dragged or its dropdown opening, a popup sliding up, the panel docking. It lags behind as the glass speeds up and runs on as it stops. Works when KRunner isn't busy too. The ripples it stirs are as wide as the pushes' (Width)." }
             Tuner {
                 Kirigami.FormData.label: "Slosh speed:"
                 key: "Ripple/sloshSpeed"; fallback: 900; from: 200; to: 2000; stepSize: 50; unit: "px/s"

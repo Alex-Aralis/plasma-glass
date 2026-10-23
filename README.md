@@ -26,7 +26,8 @@ notification cruft trimmed.
   colour as off an etched diffraction foil. A click presses down on the liquid of the glass it lands on,
   the panel, a popup or KRunner, like a finger on a floating pane: a dimple under the pointer while the
   button is held, and rings that run out as it's pressed and let go. Drag with the button held and the
-  finger goes through the liquid, leaving a wake behind it. The panel's glass rounds off at its edges too, but not where
+  finger goes through the liquid, leaving a wake behind it. And every glass surface's liquid has momentum:
+  a popup sliding up sloshes it as it stops, as dragging KRunner does. The panel's glass rounds off at its edges too, but not where
   it meets the screen's edge: docked, only its top edge bends what's behind.
 - **Trimmed KRunner and notifications.** KRunner opens with Meta+Space (Alt+F2 still works) and floats where you drag it (by the glass rim, or anywhere
   with Meta held, as with other windows) and remembers the spot. It is wider, and types straight onto the glass in larger text, with no input box, like Spotlight. It uses
@@ -218,7 +219,7 @@ lines; the tuning window rewrites the file as you move its sliders):
 | | `side` | left | `left`, `right`, `top` or `bottom` |
 | | `position` | 0.333 | how far along that side the pushes land once results show (beside the search field before) |
 | | `strike` | 1 | px of the side that pushes in as one (the rest bows in less); wider starts a flatter front |
-| | `momentum` | 1 | how much dragging KRunner, or its dropdown opening or closing, sloshes the liquid (0: none); the ripples it stirs are as wide as `width` |
+| | `momentum` | 1 | how much the glass moving or growing sloshes the liquid (0: none): KRunner dragged or its dropdown opening or closing, a popup sliding up, the panel docking; the ripples it stirs are as wide as `width` |
 | | `sloshSpeed` | 900 | px/s the long waves run at: faster, and the liquid rocks back and forth quicker |
 | | `sloshDamping` | 1.5 | s for the sloshing to fall to about a third |
 | | `shore` | 8 | px the liquid's edge wanders either way, a little in from the rim (0: it follows the rim) |
