@@ -18,7 +18,7 @@ notification cruft trimmed.
   corners while it floats, and flush against the screen's edge once a maximized window docks it, glass
   still (the style turns off Plasma's adaptive transparency, which made a docked panel opaque). Docked,
   it casts no shadow, and its popups keep floating clear of it with all their corners rounded, as they do
-  from the floating panel (both with the patches). Everything else falls back to Breeze, and colours follow your colour scheme. With the KWin patch, the dark style's
+  from the floating panel (both with the patches). Everything else falls back to Breeze, and colours follow your colour scheme. With the Liquid Glass effect (a KWin plugin, see Patches), the dark style's
   glass is frosted lightly and rounds off at the edge like a lens: what's behind bends there and parts
   a little in colour. KRunner's glass holds a liquid, simulated: it sloshes as you drag KRunner or its
   dropdown opens, and while a search runs its rim pushes into it, sending waves across that bend what's
@@ -128,7 +128,9 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 | `~/.local/bin/plasma-glass-mode`, `~/.local/share/applications/plasma-glass-mode.desktop` | Toggle Dark/Light Mode (below) |
 | `~/.local/share/plasma/look-and-feel/plasma-glass.liquid-glass{,-light}/`, `kdeglobals` `[KDE] DefaultDarkLookAndFeel`, `DefaultLightLookAndFeel` | the Liquid Glass global themes, and KDE's default dark and light ones |
 | `krunnerrc`, `kdeglobals`, `kglobalshortcutsrc` | settings from [`desktop/plasma-settings.sh`](desktop/plasma-settings.sh) |
-| `/etc/portage/patches/kde-plasma/{plasma-workspace,milou,kwin,plasma-desktop}/` | the patches (root): `plasma-workspace-tweaks.patch`, `milou-section-headers.patch`, `kwin-liquid-glass.patch`, `plasma-desktop-tweaks.patch`, beside kde-fixes' |
+| `/etc/portage/patches/kde-plasma/{plasma-workspace,milou,kwin,plasma-desktop}/` | the patches (root): `plasma-workspace-tweaks.patch`, `milou-section-headers.patch`, `kwin-window-behavior-tabs.patch`, `plasma-desktop-tweaks.patch`, beside kde-fixes' |
+| `/usr/lib64/qt6/plugins/kwin/effects/plugins/liquidglass.so`, `/usr/local/lib64/plasma-glass/`, `/usr/local/share/plasma-glass/`, `/etc/portage/env/kde-plasma/kwin` | the Liquid Glass effect: KWin's link to the build in use, the build, its source and tool (for Portage's hook), the hook (root) |
+| `kwinrc` `[Plugins] blurEnabled`, `liquidglassEnabled`; `~/.local/bin/plasma-glass-reload-kwin` | the effect in place of the built-in blur; swaps a new build into the running KWin |
 
 `plasma-settings.sh` sets a KDE restriction to hide KRunner's settings button. As a side effect,
 that also hides the KRunner page in System Settings. Delete `kcm_krunnersettings` from
@@ -173,7 +175,7 @@ tools/preview/panel.sh /tmp/panel.png            # your panel, floating; DOCK=1:
 
 ### Tuning the glass and KRunner's liquid, live
 
-KRunner's glass holds a liquid (with the KWin patch): shallow water simulated on the GPU, in two layers,
+KRunner's glass holds a liquid (with the Liquid Glass effect): shallow water simulated on the GPU, in two layers,
 since on real water long waves run faster than short ones. The ripples, short and slow, come from the
 busy push: while a search runs (or the index builds), a stretch of the rim beside the search field pushes
 into the liquid and eases back out, again and again, and a light breeze raises small waves all over. The
@@ -194,7 +196,7 @@ glass's frost, the waves' refraction and diffraction beneath it, the diffraction
 saturation, and an optional bevel. Changes apply as you drag. While the window is open, KRunner's
 liquid is stirred all the time and KRunner stays open when you click elsewhere, so open KRunner
 (Meta+Space) beside it and tune. Each row has a button back to its default, and "Reset All" resets
-everything. It needs the patched KRunner and KWin (`kwin-liquid-glass.patch`, `plasma-workspace-tweaks.patch`).
+everything. It needs the patched KRunner (`plasma-workspace-tweaks.patch`) and the Liquid Glass effect.
 
 The settings live in `~/.config/plasma-glassrc`, which you can also edit by hand (plain `key=value`
 lines; the tuning window rewrites the file as you move its sliders):
@@ -278,31 +280,10 @@ refreshed.
     close on click, timeout, middle-click or swipe
 - `milou-section-headers.patch`: KRunner result categories become small headers above each group
   instead of a 10-grid-unit column beside every row; result text 1.2x
-- `kwin-liquid-glass.patch` (kde-plasma/kwin; a new KWin runs from the next login)
-  - the dark Liquid Glass style's glass, as in [liquidglass](https://github.com/ybouane/liquidglass):
-    frosted lightly all over (blur strength 2 of 15, never more than your own setting), so what's
-    behind shows through as soft shapes; and within 24 px of the edge a bevel that bends that view (seen
-    from up to 9 px further in at the very edge), turns sharp toward the rim and splits it in colour by
-    up to 2 px each way. KRunner's glass holds a liquid (it asks for one over D-Bus,
-    `org.kde.KWin.LiquidGlass.Stir`): shallow water simulated on the GPU, sloshing as the window moves
-    or grows and pushed while KRunner is busy, whose waves bend what's behind the glass the same way, the
-    glass clear where they run, their colours parting a little more than the bevel's (see
-    [Tuning](#tuning-the-glass-and-krunners-liquid-live)). Every glass surface gets the liquid where a
-    click lands on it (KWin watches the pointer's button; no app asks): it presses down there while the
-    button is held and lets go as it comes up. Liquid Glass Light gets frosted glass too
-    (strength 5), flat by default, with the waves beneath the frost: what's behind bends under them, and
-    an etched diffraction foil lights up in shards of colour where they crest, all softened by the frost. Only while one of those styles is
-    selected (it follows `plasmarc`, no relogin), on Plasma's own surfaces
-    (KRunner, popups, notifications, the panel), not on windows with title bars. The glass's corners
-    are read off each surface's shape, whatever their radius; where the glass meets the screen's edge (a
-    docked panel) it has no bevel, as it runs on past it; and on thin glass (the panel) the bevel is at
-    most 35% of its thickness, refracting proportionally less. In
-    KWin's environment, `KWIN_LIQUID_GLASS_FROST=strength`,
-    `KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness` and
-    `KWIN_LIQUID_GLASS_RIPPLE=scale,dispersion` override them (2; 24,9,2,1; 1,3, scale 0 for no waves)
-  - Window Behavior in System Settings opens on a tab given as an argument
-    (`systemsettings kcm_kwinoptions --args focus`; also `titlebar-actions`, `window-actions`,
-    `movement`, `advanced`), also when it's already open, so settings search lands on the option's tab
+- `kwin-window-behavior-tabs.patch` (kde-plasma/kwin; `kwin-liquid-glass.patch` until 2026-10-22, when the
+  glass left it for the Liquid Glass effect, below): Window Behavior in System Settings opens on a tab given
+  as an argument (`systemsettings kcm_kwinoptions --args focus`; also `titlebar-actions`, `window-actions`,
+  `movement`, `advanced`), also when it's already open, so settings search lands on the option's tab
 - `plasma-desktop-tweaks.patch` (kde-plasma/plasma-desktop; `plasma-desktop-shortcut-search.patch` until
   2026-10-22)
   - the panel: a floating panel that docks (a window touches it) keeps its popups floating, a gap from the
@@ -315,6 +296,40 @@ refreshed.
     shortcut. An app's launch key is asked for by the app's name (`org.kde.konsole.desktop Konsole`), since
     the page shows it as "Launch". Opened again with no arguments (a result for the page itself), it
     clears its search
+
+### The Liquid Glass effect
+
+`kwin-effect/` is KWin 6.7.5's blur effect with the glass in it, built as a KWin plugin of its own in place of
+the built-in blur (kwinrc `[Plugins] blurEnabled=false`, `liquidglassEnabled=true`; it reads the blur's
+settings, so System Settings' blur strength still applies). Being a plugin, a new version swaps into the
+running KWin: `plasma-glass-reload-kwin` builds it, installs it (sudo) and has KWin load it in place of the old
+one, in a second, with no relogin and no app closing (`tools/kwin-effect.sh status` says which build runs). It
+only loads into the KWin version it was built against, so `install-system.sh` adds a Portage hook
+(`/etc/portage/env/kde-plasma/kwin`) that builds it again whenever KWin is merged; if that build ever fails,
+KWin runs with no blur until it's fixed (`tools/kwin-effect.sh disable` puts the built-in blur back). What it
+draws:
+
+The dark Liquid Glass style's glass, as in [liquidglass](https://github.com/ybouane/liquidglass):
+frosted lightly all over (blur strength 2 of 15, never more than your own setting), so what's
+behind shows through as soft shapes; and within 24 px of the edge a bevel that bends that view (seen
+from up to 9 px further in at the very edge), turns sharp toward the rim and splits it in colour by
+up to 2 px each way. KRunner's glass holds a liquid (it asks for one over D-Bus,
+`org.kde.KWin.LiquidGlass.Stir`): shallow water simulated on the GPU, sloshing as the window moves
+or grows and pushed while KRunner is busy, whose waves bend what's behind the glass the same way, the
+glass clear where they run, their colours parting a little more than the bevel's (see
+[Tuning](#tuning-the-glass-and-krunners-liquid-live)). Every glass surface gets the liquid where a
+click lands on it (KWin watches the pointer's button; no app asks): it presses down there while the
+button is held and lets go as it comes up. Liquid Glass Light gets frosted glass too
+(strength 5), flat by default, with the waves beneath the frost: what's behind bends under them, and
+an etched diffraction foil lights up in shards of colour where they crest, all softened by the frost. Only while one of those styles is
+selected (it follows `plasmarc`, no relogin), on Plasma's own surfaces
+(KRunner, popups, notifications, the panel), not on windows with title bars. The glass's corners
+are read off each surface's shape, whatever their radius; where the glass meets the screen's edge (a
+docked panel) it has no bevel, as it runs on past it; and on thin glass (the panel) the bevel is at
+most 35% of its thickness, refracting proportionally less. In
+KWin's environment, `KWIN_LIQUID_GLASS_FROST=strength`,
+`KWIN_LIQUID_GLASS_BEVEL=width,refraction,dispersion,sharpness` and
+`KWIN_LIQUID_GLASS_RIPPLE=scale,dispersion` override them (2; 24,9,2,1; 1,3, scale 0 for no waves)
 
 The bug fixes these patches held until 2026-10-17 (KWin's frame pacing across screens, the render GPU's
 copy for another GPU's screens, the crash at every logout, activation tokens; KSvg's colours after a style

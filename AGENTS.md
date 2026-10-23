@@ -1,8 +1,8 @@
 # plasma-glass: notes for development
 
-Liquid Glass Plasma Styles, semantic KRunner search (EmbeddingGemma 2 on the Intel iGPU via OpenVINO)
-and Portage patches for KRunner, notification popups, milou and KWin (the glass's bevel and frost,
-KRunner's liquid, Window Behavior's tabs). Gentoo, Plasma 6.7.5, KDE Frameworks 6.30, Qt 6.11.2,
+Liquid Glass Plasma Styles, semantic KRunner search (EmbeddingGemma 2 on the Intel iGPU via OpenVINO),
+the Liquid Glass effect (a KWin plugin: the glass's bevel and frost, the liquid) and Portage patches for
+KRunner, notification popups, milou, the panel and KWin (Window Behavior's tabs). Gentoo, Plasma 6.7.5, KDE Frameworks 6.30, Qt 6.11.2,
 Wayland. User docs are in README.md; this file covers how to work on it.
 
 The fixes for KDE and Qt bugs found along the way (KWin's frame pacing, render GPU copy, crash at logout
@@ -21,7 +21,9 @@ change different files), and each repo's check applies the other's installed pat
 | `search/settings_index.py` | builds `search/settings-index.json` (System Settings option labels, page, tab; the Shortcuts page's Common Actions; Qt's key names) from the installed packages' source tarballs; re-run after a Plasma upgrade |
 | `search/export_model.py` | one-time PyTorch to OpenVINO export with a parity check (run by install.sh in a throwaway venv) |
 | `theme/liquid-glass/generate.py` | draws both styles (`liquid-glass`, `liquid-glass-light`) into `~/.local/share/plasma/desktoptheme/` |
-| `patches/kde-plasma/{plasma-workspace,milou,kwin,plasma-desktop}/*.patch` | Portage user patches, one per package (`plasma-workspace-tweaks.patch`, `milou-section-headers.patch`, `kwin-liquid-glass.patch`, `plasma-desktop-tweaks.patch`; the KWin one was `kwin-fixes.patch` until 2026-10-17, the plasma-desktop one `plasma-desktop-shortcut-search.patch` until 2026-10-22) |
+| `patches/kde-plasma/{plasma-workspace,milou,kwin,plasma-desktop}/*.patch` | Portage user patches, one per package (`plasma-workspace-tweaks.patch`, `milou-section-headers.patch`, `kwin-window-behavior-tabs.patch`, `plasma-desktop-tweaks.patch`; the KWin one was `kwin-fixes.patch` until 2026-10-17 and `kwin-liquid-glass.patch`, with the glass, until 2026-10-22; the plasma-desktop one `plasma-desktop-shortcut-search.patch` until 2026-10-22) |
+| `kwin-effect/` | the Liquid Glass effect: KWin 6.7.5's blur effect (plugins/blur) with the glass, a plugin of its own (`liquidglass.cpp`, `shaders/`; `portage-hook.sh` rebuilds it after KWin merges). The notes below from before 2026-10-22 name the patch's files: blur.cpp is liquidglass.cpp, `BlurEffect` `LiquidGlassEffect` |
+| `tools/kwin-effect.sh` | the effect: `build` (a new id each time), `install [LIB]` (root: KWin's plugin folder links `liquidglass.so` to it), `reload` (the running KWin swaps it in over D-Bus, checks `Build()`), `enable`/`disable` (kwinrc), `status` |
 | `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc), `krunner-shortcut.sh` (KRunner on Meta+Space, or back on Alt+Space), `plasma-glass-tune.qml` (Liquid Glass Tuning: the liquid and the dark glass, live) |
 | `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` builds a test copy, `kwin` compiles the edited KWin files (with kde-fixes' installed KWin patches in the tree), `kcm-keys` builds the Shortcuts page, `plasmashell` plasmashell (for `tools/preview/panel.sh`) |
 | `tools/check-patches.sh` | patches apply, alone and with the other user patches installed for the package (kde-fixes'); patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
@@ -63,6 +65,12 @@ change different files), and each repo's check applies the other's installed pat
   other in the 1.2 s cycle (`ffmpeg -i a.mkv -i b.mkv -filter_complex hstack`; drawtext labels can't hold
   a colon). To see where waves move, difference frames a few hundred ms apart; to see the liquid itself,
   read the waves texture back (`glGetTexImage` in a scratch build) and draw its slope as colour.
+- **The glass (Liquid Glass effect):** edit `kwin-effect/`, then `KWIN_EFFECT=repo tools/preview/krunner.sh ...`
+  (or panel.sh, record.sh: the preview's KWin loads this checkout's build; unset, it takes the installed one
+  if there is one, as your KWin does). On the desktop, `plasma-glass-reload-kwin` (or `tools/kwin-effect.sh
+  build`, `sudo -n tools/kwin-effect.sh install LIB`, `as-aaralis .../tools/kwin-effect.sh reload`) swaps it into
+  the running KWin in seconds; no relogin, nothing closes. `tools/preview/effect.sh` checks the swap itself
+  (built-in blur, then two builds, each confirmed by `Build()`).
 - **KWin in the preview:** after `tools/patch-dev.sh kwin`, `ninja -C ~/.cache/plasma-glass/dev/kwin/build
   kwin_wayland` links a whole KWin (2¼ min the first time on the main box, then about 12 s; effects
   like blur are built in), and `KWIN_WAYLAND=~/.cache/plasma-glass/dev/kwin/build/bin/kwin_wayland` runs
@@ -279,6 +287,36 @@ change different files), and each repo's check applies the other's installed pat
   (Clicks: press, width). Preview: `CLICKS="X Y, X Y" CLICK_HOLD=ms tools/preview/panel.sh OUT.mp4`
   (fakeinput presses while recording; `DOCK=1`, `POPUP=kickoff` first); the pointer shows in
   `CaptureArea`'s frames, so a frame difference lights up at the cursor, not only the waves.
+- **The glass is a KWin plugin of its own** (2026-10-22, the user: relogging for every KWin change "is a
+  massive time sink"; a KWin restart can't keep the apps: Firefox, Electron and GTK apps can't reconnect to
+  a new compositor, and plasmashell and KRunner didn't either). KWin 6.7 loads effects from
+  `kwin/effects/plugins` under Qt's library paths (only `/usr/lib64/qt6/plugins` for the session's KWin, no
+  QT_PLUGIN_PATH) and loads and unloads them over D-Bus (`/Effects` `loadEffect`, `unloadEffect`,
+  `isEffectLoaded`), and installs every header the blur needs (`/usr/include/kwin`, CMake `KWin::kwin`;
+  only xcb had to be linked besides). So `kwin-effect/` is the patched blur (class `LiquidGlassEffect`,
+  config class `LiquidGlassConfig`, still reading `[Effect-blur]`; logging category
+  `kwin_effect_liquidglass`), and the KWin patch went back to Window Behavior's tabs. Traps on the way:
+  KPluginMetaData takes an effect's name from its file's name (a metadata `Id` that differs only earns a
+  warning), and Qt's plugin loader resolves links to the real file and keeps every library it has loaded
+  (QLibraryStore by canonical path), so the same file never loads new code and a uniquely named file gets
+  that name as the effect's. Hence each build is `<id>/liquidglass.so` and KWin's folder holds a link,
+  `liquidglass.so`, to the one in use. Its shaders are its own resources under `:/plasma-glass/<id>/`: the
+  built-in blur's and an earlier build's (still loaded) sit at `:/effects/blur/`, and `#include "sdf.glsl"`
+  still finds KWin's `:/opengl/`. `supported()` checks `QCoreApplication::applicationVersion()` (KAboutData's
+  `KWIN_VERSION_STRING`) against the version it was built for, so a stale build after a KWin update is
+  skipped, not loaded into a different layout; Portage's hook (`/etc/portage/env/kde-plasma/kwin`
+  `post_pkg_postinst`, sourced for KWin's merges) builds it again. A swap: unload liquidglass (or the
+  built-in blur), load liquidglass from the link; clients' blur comes back by itself (KWindowEffects
+  re-requests it when the blur manager global returns; KRunner's glass came out pixel-identical), but a
+  Stir client (KRunner) is forgotten until it calls again (it does as it shows). Each swap leaves the old
+  library mapped until KWin's next start. Same pixels as the built-in (KRunner, waves off: 0 px), same cost
+  (KRunner busy over a panning wallpaper on the UHD 770: 5.09 ms GPU a frame against 5.16, both 13-16% of
+  a core). Also found: the built-in effects live in the `kwin_wayland` executable, not libkwin, and libkwin
+  came out byte-identical across builds that only changed the blur, so Portage left its inode in place
+  (the running KWin mapped the "new" file); KConfig's `kconfig_add_kcfg_files` is a macro that sets
+  `sources`, so a list of that name vanishes; moc doesn't track Q_PLUGIN_METADATA's json through
+  KWIN_EFFECT_FACTORY (a new build id rebuilds everything anyway); and `pgrep -f` matched the sampler's own
+  shell (match `/proc/PID/exe`).
 - **KWin crashed at every logout** (Remember Window Positions' final save from a workspace already
   gone) until kde-fixes' `kwin-unload-scripts-before-workspace.patch`; preview KWins crashed the same way
   at their end.
