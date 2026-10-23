@@ -22,7 +22,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
  
      required property int index
      required property var model
-@@ -42,6 +45,21 @@
+@@ -42,6 +45,27 @@
  
      displayText: model.display
  
@@ -41,10 +41,25 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
 +        return home && (path === home || path.startsWith(home + "/")) ? "~" + path.slice(home.length) : path;
 +    }
 +
++    // The subtext's first line; a shortcut's key comes after a tab in it ("Shortcuts › Window
++    // Management\tMeta+Up": the search service's shortcuts, and the Global Shortcuts runner's as patched)
++    // and shows at the row's right end on every row, as menus show their items' keys
++    readonly property var subtextParts: String(model.subtext || "").split("\n")[0].split("\t")
++    readonly property string keyText: subtextParts.length > 1 ? subtextParts[subtextParts.length - 1] : ""
++
      Accessible.role: Accessible.ListItem
      Accessible.name: displayLabel.text
      Accessible.description: {
-@@ -131,7 +149,7 @@
+@@ -49,7 +73,7 @@
+         if (!section) {
+             return "";
+         }
+-        var subtext = subtextLabel.text;
++        var subtext = [subtextLabel.text, resultDelegate.keyText].filter(t => t.length > 0).join(", ");
+         if (subtext.length > 0) {
+             return i18nd("milou", "%1, in category %2", subtext, section);
+         } else {
+@@ -131,7 +155,7 @@
              anchors.bottomMargin: Kirigami.Units.smallSpacing
              imagePath: "widgets/line"
              elementId: "horizontal-line"
@@ -53,7 +68,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
                       && !resultDelegate.isCurrent
                       && resultDelegate.index !== 0
                       && resultDelegate.ListView.view.currentIndex !== (resultDelegate.index - indexModifier)
-@@ -145,6 +163,7 @@
+@@ -145,6 +169,7 @@
                  verticalCenter: labelWrapper.verticalCenter
              }
              width: resultDelegate.categoryWidth - Kirigami.Units.largeSpacing
@@ -61,7 +76,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
              opacity: 0.75
              color: resultDelegate.down ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
              elide: Text.ElideRight
-@@ -156,13 +175,17 @@
+@@ -156,13 +181,17 @@
  
          RowLayout {
              id: labelLayout
@@ -81,7 +96,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
  
              Kirigami.Icon {
                  id: typePixmap
-@@ -177,6 +200,7 @@
+@@ -177,6 +206,7 @@
  
              PlasmaComponents3.Label {
                  id: displayLabel
@@ -89,7 +104,13 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
  
                  elide: Text.ElideMiddle
                  wrapMode: model.multiLine ? Text.WordWrap : Text.NoWrap
-@@ -191,7 +215,7 @@
+@@ -188,10 +218,13 @@
+                 // The extra spacing accounts for the right margin so the text doesn't overlap the actions
+                 Layout.rightMargin: Kirigami.Units.smallSpacing
+                 Layout.maximumWidth: labelLayout.width - typePixmap.implicitWidth
++                    // and room for a shortcut's key: all that's right of this label, so a long name can't push it out
++                    - (keyLabel.visible ? typePixmap.Layout.rightMargin + Layout.rightMargin + labelLayout.spacing * 3
++                                          + keyLabel.Layout.leftMargin + keyLabel.implicitWidth : 0)
  
                  PlasmaComponents3.ToolTip {
                      text: displayLabel.text
@@ -98,7 +119,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
                      timeout: -1
                  }
  
-@@ -200,31 +224,95 @@
+@@ -200,32 +233,110 @@
                  }
              }
  
@@ -117,19 +138,6 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
 -                text: model.isDuplicate === true || model.isDuplicate > 1 || resultDelegate.isCurrent ? String(model.subtext || "") : ""
  
 -                elide: Text.ElideMiddle
--                wrapMode: Text.NoWrap
--                maximumLineCount: 1
--                verticalAlignment: Text.AlignVCenter
--                textFormat: Text.PlainText
--
--                PlasmaComponents3.ToolTip {
--                    text: subtextLabel.text
--                    visible: subtextLabelHoverHandler.hovered && subtextLabel.truncated
--                    timeout: -1
--                }
--
--                HoverHandler {
--                    id: subtextLabelHoverHandler
 +                readonly property bool isFile: resultDelegate.filePath !== ""
 +                readonly property bool expanded: isFile && resultDelegate.hovered
 +                // how far the full folder runs past the row, panned through while it's hovered
@@ -162,7 +170,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
 +                        // SourcesModel returns number of duplicates in this property
 +                        // ResultsModel just has it as a boolean as you would expect from the name of the property
 +                        text: subtextClip.isFile || model.isDuplicate === true || model.isDuplicate > 1 || resultDelegate.isCurrent
-+                            ? String(model.subtext || "").split("\n")[0] : ""
++                            ? resultDelegate.subtextParts[0] : ""
 +
 +                        elide: Text.ElideMiddle
 +                        wrapMode: Text.NoWrap
@@ -211,10 +219,35 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
 +                            NumberAnimation { to: 0; duration: subtextClip.overflow * 1000 / 160; easing.type: Easing.InOutSine }
 +                        }
 +                    }
-                 }
++                }
++            }
++
++            PlasmaComponents3.Label {
++                id: keyLabel
++                visible: text !== ""
++                Layout.leftMargin: Kirigami.Units.largeSpacing
++                opacity: 0.75
++                font: subtextLabel.font
++                color: subtextLabel.color
++                text: resultDelegate.keyText
+                 wrapMode: Text.NoWrap
+                 maximumLineCount: 1
+                 verticalAlignment: Text.AlignVCenter
+                 textFormat: Text.PlainText
+-
+-                PlasmaComponents3.ToolTip {
+-                    text: subtextLabel.text
+-                    visible: subtextLabelHoverHandler.hovered && subtextLabel.truncated
+-                    timeout: -1
+-                }
+-
+-                HoverHandler {
+-                    id: subtextLabelHoverHandler
+-                }
              }
          }
-@@ -233,7 +321,11 @@
+ 
+@@ -233,7 +344,11 @@
              id: actionsRow
              anchors.right: parent.right
              anchors.verticalCenter: labelWrapper.verticalCenter

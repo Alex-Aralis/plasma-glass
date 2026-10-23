@@ -671,7 +671,8 @@ MODIFIERS = ((0x10000000, "Meta"), (0x04000000, "Ctrl"), (0x08000000, "Alt"), (0
 
 async def global_shortcuts(bus):
     """The actions the Shortcuts page lists besides Common Actions, from kglobalaccel (inside KWin):
-    {(component id, action name): (component name, keys as Qt key codes, whether it launches the app)}."""
+    {(component id, action name): (component name, keys and default keys as Qt key codes, whether it
+    launches the app)}."""
     from dbus_fast import Message, MessageType
 
     def call(path, interface, member):
@@ -684,9 +685,9 @@ async def global_shortcuts(bus):
     for r in await asyncio.gather(*(call(p, "org.kde.kglobalaccel.Component", "allShortcutInfos") for p in reply.body[0])):
         if r.message_type == MessageType.ERROR:
             continue
-        for action_id, action, component, component_name, _, _, keys, _ in r.body[0]:
+        for action_id, action, component, component_name, _, _, keys, defaults in r.body[0]:
             if action.strip():
-                found.setdefault((component, action), (component_name, keys, action_id == "_launch"))
+                found.setdefault((component, action), (component_name, keys, defaults, action_id == "_launch"))
     return found
 
 
@@ -734,6 +735,7 @@ class Settings:
         self.entries, self.words, self.vecs = [], [], np.zeros((0, DIM), np.float32)
         self.shortcuts = {}  # global_shortcuts() as last listed
         self.keynames = {}  # Qt key code -> QKeySequence's name, from the list
+        self.keycodes = {}  # and back
 
     def load(self, emb, pause=None, shortcuts=None, store=True):
         """SHORTCUTS: global_shortcuts(), or None to keep the last ones. STORE=False embeds new labels
@@ -747,7 +749,7 @@ class Settings:
             self.shortcuts = shortcuts
         page = data["pages"].get(SHORTCUTS_KCM)
         listed, apps = [], {}
-        for (component, action), (name, _, launch) in self.shortcuts.items() if page else ():
+        for (component, action), (name, _, _, launch) in self.shortcuts.items() if page else ():
             name = SHORTCUTS_NAMES.get(component, name)
             what = apps.setdefault(component, app_description(component))
             # an app's launch key is named after the app alone ("Konsole"), and the page shows it as
@@ -777,6 +779,7 @@ class Settings:
                  for e in entries]
         vecs = np.frombuffer(b"".join(cached[h] for h in hashes), dtype=np.float16).reshape(-1, DIM).astype(np.float32)
         self.keynames = {int(k): v for k, v in data.get("keys", {}).items()}
+        self.keycodes = {v: k for k, v in self.keynames.items()}
         self.set_keys(entries=entries)
         if missing or len(entries) != len(self.entries):
             log(f"{len(entries)} System Settings options, {len(listed)} of them global shortcuts ({len(missing)} embedded now)")
@@ -793,11 +796,22 @@ class Settings:
             name = self.keynames.get(key) or (chr(key).upper() if key < 0x110000 else "")
         return "+".join([m for bit, m in MODIFIERS if code & bit] + [name]) if name else ""
 
+    def main_key(self, keys, defaults):
+        """The key a shortcut goes by, of KEYS: one set by hand (not among DEFAULTS) before the defaults,
+        a key every keyboard has before a lone media or launch key (Lock Session is Meta+L, not
+        Screensaver), then in the defaults' order (Common Actions': KStandardShortcut's, its main first),
+        then in KEYS' order. The Shortcuts page has no main key: it lists them all."""
+        def rank(n_key):
+            n, key = n_key
+            lone_special = "+" not in key and self.keycodes.get(key, 0) > 0x01000060  # Qt's Key_Back on
+            return key in defaults, lone_special, defaults.index(key) if key in defaults else n
+        return min(enumerate(keys), key=rank)[1] if keys else ""
+
     def set_keys(self, shortcuts=None, entries=None):
-        """Writes each shortcut's keys as the Shortcuts page shows them into its "keys": the global ones'
-        from SHORTCUTS (global_shortcuts(), or the last listed), Common Actions' from kdeglobals'
-        [Shortcuts] where they were changed. Returns whether SHORTCUTS lists other actions than those
-        loaded, which needs a load()."""
+        """Writes each shortcut's keys as the Shortcuts page shows them into its "keys", and the one it
+        goes by into "key": the global ones' from SHORTCUTS (global_shortcuts(), or the last listed),
+        Common Actions' from kdeglobals' [Shortcuts] where they were changed. Returns whether SHORTCUTS
+        lists other actions than those loaded, which needs a load()."""
         changed = shortcuts is not None and shortcuts.keys() != self.shortcuts.keys()
         if shortcuts is not None and not changed:
             self.shortcuts = shortcuts
@@ -805,16 +819,21 @@ class Settings:
         mine = kde_group("kdeglobals", "Shortcuts")
         for e in self.entries if entries is None else entries:
             if "component" in e:
-                codes = shortcuts.get((e["component"], e["action"]), ("", [], False))[1]
-                keys = ", ".join(t for t in map(self.key_text, codes) if t)
-            elif "shortcut" in e and e["shortcut"] in mine:  # changed: QKeySequence::listToString's portable text
-                keys = ", ".join(k for k in mine[e["shortcut"]].split("; ") if k)
+                _, codes, default_codes, _ = shortcuts.get((e["component"], e["action"]), ("", [], [], False))
+                # kglobalaccel's are in no order over D-Bus; by key code, as it writes them (Meta before
+                # Alt+F1, Alt+Tab before Meta+Tab)
+                keys = [t for t in map(self.key_text, sorted(codes)) if t]
+                defaults = [t for t in map(self.key_text, sorted(default_codes)) if t]
             elif "shortcut" in e:
-                keys = ", ".join(t for t in map(self.key_text, e["default_keys"]) if t)
+                defaults = [t for t in map(self.key_text, e["default_keys"]) if t]
+                keys = defaults
+                if e["shortcut"] in mine:  # changed: QKeySequence::listToString's portable text
+                    keys = [k for k in mine[e["shortcut"]].split("; ") if k]
             else:
                 continue
+            e["keys"], e["key"] = ", ".join(keys), self.main_key(keys, defaults)
             # the keys' names count as words of where it is: "volume up" finds Increase Volume (Volume Up)
-            e["keys"], e["key_words"] = keys, set(re.findall(r"\w+", keys.lower()))
+            e["key_words"] = set(re.findall(r"\w+", e["keys"].lower()))
         return changed
 
     def find(self, query, qvec, max_results=3, min_score=0.74):
@@ -1028,7 +1047,8 @@ def serve():
                 first = o["by_words"] or hinted or o["score"] > best_file
                 out.append([mid, o["text"], o["icon"], 100 if first else 50,
                             (0.8 if o["by_words"] else 0.5) + 0.1 * o["score"], {
-                                "subtext": Variant("s", o["where"] + (f" · {o['keys']}" if o.get("keys") else "")),
+                                # milou (as patched) shows a key after a tab at the row's right end
+                                "subtext": Variant("s", o["where"] + (f"\t{o['key']}" if o.get("key") else "")),
                                 "category": Variant("s", "System Settings"),
                                 "actions": Variant("as", []),
                             }])
@@ -1194,7 +1214,8 @@ def main():
         settings.load(emb, shortcuts=shortcuts)
         q = " ".join(sys.argv[2:])
         for o in settings.find(q, emb.embed_query(q), max_results=10, min_score=0.3):
-            keys = f"  ({o['keys']})" if o.get("keys") else ""
+            # the key KRunner shows, then all of them when there are more
+            keys = f"  {o['key']}" + (f"  ({o['keys']})" if o["keys"] != o["key"] else "") if o.get("key") else ""
             print(f"{o['score']:.3f}{' words' if o['by_words'] else '      '}  {o['text']}{keys}\n"
                   f"              {o['where']}  [{o['kcm']}{' --args ' + repr(o['args']) if o['args'] else ''}]")
     elif cmd == "status":

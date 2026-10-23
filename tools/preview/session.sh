@@ -11,7 +11,7 @@
 #   session.sh unfold QUERY    KRunner; capture frames while results for QUERY unfold, then fold
 #   session.sh drag QUERY      KRunner with results for QUERY, then FAKEINPUT < DRAG_INPUT, while a KWin
 #                              script logs KRunner's frame geometry and output (kwin.log, "KRUNNER" lines)
-#   session.sh record QUERY    KRunner with results for QUERY, then its window recorded for
+#   session.sh record QUERY    KRunner with results for QUERY, then (HOLD s later, 3) its window recorded for
 #                              SECONDS_CAPTURED into record.mkv (frames.py record), HOVER_INPUT sent as it starts
 #   session.sh settings KCM [ARGS]  System Settings on page KCM, given ARGS (systemsettings --args), after
 #                              2 + HOLD s (4); ARGS2: then sent to the open page as KRunner's results do,
@@ -66,7 +66,7 @@ case "$MODE" in
     krunner)
         # SWITCH="FROM TO": KRunner starts on global theme FROM, and TO is applied once the results are in
         [ -z "${SWITCH:-}" ] || plasma-apply-lookandfeel --apply "${SWITCH% *}" >"$WORK/switch.log" 2>&1
-        "${KRUNNER:-krunner}" >"$WORK/app.log" 2>&1 &  # KRUNNER: a dev build (tools/patch-dev.sh krunner)
+        env ${KRUNNER_ENV:-} "${KRUNNER:-krunner}" >"$WORK/app.log" 2>&1 &  # KRUNNER: a dev build (tools/patch-dev.sh krunner)
         sleep 2
         qdbus6 org.kde.krunner /App org.kde.krunner.App.query "$1"
         sleep "${HOLD:-8}"  # let results arrive (the semantic search service can be slow while the CPU is busy)
@@ -152,7 +152,7 @@ JS
         # QUERY2: the recording starts on QUERY and this one follows QUERY2_AT s in (default 2); the
         # window is measured with its results, so the recording takes in the larger of the two
         qdbus6 org.kde.krunner /App org.kde.krunner.App.query "${QUERY2:-$1}"
-        sleep 3  # results arrive and unfold
+        sleep "${HOLD:-3}"  # results arrive and unfold
         cat >"$WORK/where.js" <<'JS'
 for (const w of workspace.windowList())
     if (String(w.resourceClass).indexOf("krunner") >= 0)

@@ -57,7 +57,8 @@ pick_wallpaper() {
 prepare() {
     rm -rf "$WORK/cfg" "$WORK/data" "$WORK/shots"
     mkdir -p "$WORK/cfg" "$WORK/data" "$WORK/shots"
-    for f in kdeglobals krunnerrc kwinrc breezerc kcminputrc plasma-glassrc; do
+    # kglobalshortcutsrc: your keys, where global shortcuts are on (session.sh)
+    for f in kdeglobals krunnerrc kwinrc breezerc kcminputrc plasma-glassrc kglobalshortcutsrc; do
         [ -f "$HOME/.config/$f" ] && cp "$HOME/.config/$f" "$WORK/cfg/"
     done
     name="$STYLE"
