@@ -99,9 +99,10 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 - **Keyboard shortcuts:** every action on System Settings' Shortcuts page is an option too: the global
   shortcuts (KWin's, Spectacle's, each app's launch key, custom commands) as KDE's shortcut service
   (kglobalaccel) lists them, and Common Actions (Copy, Find, Zoom In...). Each shows the key it goes by
-  now at the row's right end, as a menu does ("Meta+Up"; of several, one you set before the defaults, then
-  a key every keyboard has before a media or launch key: Lock Session is Meta+L, not Screensaver), and any
-  of its keys' names finds it ("volume up" finds Increase Volume). Choosing one opens the Shortcuts page with the action in its search field and
+  now beside its name ("Maximize Window  Meta+Up"; of several, one you set before the defaults, then a key
+  every keyboard has before a media or launch key: Lock Session is Meta+L, not Screensaver), and where it
+  is at the row's right end when it's selected ("Shortcuts › Window Management"); any of its keys' names
+  finds it ("volume up" finds Increase Volume). Choosing one opens the Shortcuts page with the action in its search field and
   its keys open to change (that needs the plasma-desktop patch; without it the page opens on the
   action's app). The service lists them when it starts and checks their keys as you type, at most every
   2 s, so a changed key shows at once and a new action is searchable within seconds.
@@ -310,9 +311,9 @@ refreshed.
     middle-click and click now work anywhere on them (stock lost the middle button to the body's
     scroll view, a Pane that takes every button, and nothing took clicks on the rim outside mainItem)
 - `milou-section-headers.patch`: KRunner result categories become small headers above each group
-  instead of a 10-grid-unit column beside every row; result text 1.2x; a shortcut's key at the row's
-  right end on every row (a result's subtext after a tab: settings search's shortcuts and the Global
-  Shortcuts runner's)
+  instead of a 10-grid-unit column beside every row; result text 1.2x; a shortcut's key beside its name
+  on every row (a result's subtext after a tab: settings search's shortcuts and the Global Shortcuts
+  runner's), the rest of the subtext at the row's right end, as a file's folder
 - `kwin-window-behavior-tabs.patch` (kde-plasma/kwin; `kwin-liquid-glass.patch` until 2026-10-22, when the
   glass left it for the Liquid Glass effect, below): Window Behavior in System Settings opens on a tab given
   as an argument (`systemsettings kcm_kwinoptions --args focus`; also `titlebar-actions`, `window-actions`,
@@ -329,8 +330,8 @@ refreshed.
     shortcut. An app's launch key is asked for by the app's name (`org.kde.konsole.desktop Konsole`), since
     the page shows it as "Launch". Opened again with no arguments (a result for the page itself), it
     clears its search
-  - KRunner's Global Shortcuts runner shows the key an action goes by (chosen as settings search does) at
-    the row's right end, instead of all its keys, in no order, on the selected row; an action with no key
+  - KRunner's Global Shortcuts runner shows the key an action goes by (chosen as settings search does)
+    beside its name, instead of all its keys, in no order, on the selected row; an action with no key
     shows none (stock showed its default keys then)
 
 ### The Liquid Glass effect

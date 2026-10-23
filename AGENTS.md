@@ -745,12 +745,14 @@ change different files), and each repo's check applies the other's installed pat
     desktop with gdb: breakpoints on `KAbstractConfigModule::activationRequested` and
     `QQuickTextInput::setText`, both exported). Attach with `handle SIGINT stop print nopass`: without it
     the interrupt that ends `timeout -s INT gdb` reaches the app on detach and quits it (it did once).
-- **A shortcut's key at the row's right end** (2026-10-23, the user: "show the current main keybind for
-  shortcut dropdown items. Also right justify"): settings search's shortcut results and KRunner's Global
-  Shortcuts runner (plasma-desktop's `runners/keys`, patched) send the key after a tab in the subtext
-  ("Shortcuts › Window Management\tMeta+Q"; D-Bus runners have no other field for it), and milou's
-  ResultDelegate shows what follows the tab at the row's right end on every row, the name eliding to
-  keep room for it. Stock milou would show the tab as a space.
+- **A shortcut's key beside its name** (2026-10-23, the user: "show the current main keybind for
+  shortcut dropdown items. Also right justify", then, seeing the key at the right and the path after the
+  name: "put the shortcut on the left and the path on the right"): settings search's shortcut results and
+  KRunner's Global Shortcuts runner (plasma-desktop's `runners/keys`, patched) send the key after a tab in
+  the subtext ("Shortcuts › Window Management\tMeta+Q"; D-Bus runners have no other field for it), and
+  milou's ResultDelegate shows what follows the tab right after the name on every row (the name elides to
+  keep room for it) and the rest, where it is, right-aligned like a file's folder (on the selected row, as
+  other subtexts). Stock milou would show the tab as a space.
   - There is no main key to ask for: the Shortcuts page lists an action's keys as a set, kglobalaccel's
     `allShortcutInfos` returns them in no particular order ("Alt+F1, Meta" for the launcher), and
     `kglobalshortcutsrc` holds them sorted by key code. So both pick one the same way: a key set by hand
