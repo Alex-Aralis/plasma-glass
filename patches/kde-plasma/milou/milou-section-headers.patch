@@ -22,7 +22,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
  
      required property int index
      required property var model
-@@ -42,6 +45,27 @@
+@@ -42,6 +45,28 @@
  
      displayText: model.display
  
@@ -41,16 +41,17 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
 +        return home && (path === home || path.startsWith(home + "/")) ? "~" + path.slice(home.length) : path;
 +    }
 +
-+    // The subtext's first line; a shortcut's key comes after a tab in it ("Shortcuts › Window
-+    // Management\tMeta+Up": the search service's shortcuts, and the Global Shortcuts runner's as patched)
-+    // and shows beside the name on every row, the rest (where it is) at the row's right end, as a file's folder
++    // The subtext's first line. A tab in it splits it ("Shortcuts › Window Management\tMeta+Up": the search
++    // service's System Settings results, and the Global Shortcuts runner's as patched): a shortcut's key after
++    // it shows beside the name on every row, and what's before it (where it is) at the row's right end, as a
++    // file's folder, also when there's no key
 +    readonly property var subtextParts: String(model.subtext || "").split("\n")[0].split("\t")
 +    readonly property string keyText: subtextParts.length > 1 ? subtextParts[subtextParts.length - 1] : ""
 +
      Accessible.role: Accessible.ListItem
      Accessible.name: displayLabel.text
      Accessible.description: {
-@@ -49,7 +73,7 @@
+@@ -49,7 +74,7 @@
          if (!section) {
              return "";
          }
@@ -59,7 +60,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
          if (subtext.length > 0) {
              return i18nd("milou", "%1, in category %2", subtext, section);
          } else {
-@@ -131,7 +155,7 @@
+@@ -131,7 +156,7 @@
              anchors.bottomMargin: Kirigami.Units.smallSpacing
              imagePath: "widgets/line"
              elementId: "horizontal-line"
@@ -68,7 +69,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
                       && !resultDelegate.isCurrent
                       && resultDelegate.index !== 0
                       && resultDelegate.ListView.view.currentIndex !== (resultDelegate.index - indexModifier)
-@@ -145,6 +169,7 @@
+@@ -145,6 +170,7 @@
                  verticalCenter: labelWrapper.verticalCenter
              }
              width: resultDelegate.categoryWidth - Kirigami.Units.largeSpacing
@@ -76,7 +77,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
              opacity: 0.75
              color: resultDelegate.down ? Kirigami.Theme.highlightedTextColor : Kirigami.Theme.textColor
              elide: Text.ElideRight
-@@ -156,13 +181,17 @@
+@@ -156,13 +182,17 @@
  
          RowLayout {
              id: labelLayout
@@ -96,7 +97,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
  
              Kirigami.Icon {
                  id: typePixmap
-@@ -177,6 +206,7 @@
+@@ -177,6 +207,7 @@
  
              PlasmaComponents3.Label {
                  id: displayLabel
@@ -104,7 +105,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
  
                  elide: Text.ElideMiddle
                  wrapMode: model.multiLine ? Text.WordWrap : Text.NoWrap
-@@ -188,10 +218,13 @@
+@@ -188,10 +219,13 @@
                  // The extra spacing accounts for the right margin so the text doesn't overlap the actions
                  Layout.rightMargin: Kirigami.Units.smallSpacing
                  Layout.maximumWidth: labelLayout.width - typePixmap.implicitWidth
@@ -119,7 +120,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
                      timeout: -1
                  }
  
-@@ -201,30 +234,107 @@
+@@ -201,30 +235,107 @@
              }
  
              PlasmaComponents3.Label {
@@ -184,7 +185,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
 +                        id: subtextLabel
 +                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
 +                        width: subtextClip.isFile ? Math.min(implicitWidth, subtextClip.width) : reveal.width
-+                        horizontalAlignment: subtextClip.isFile || resultDelegate.keyText !== "" ? Text.AlignRight : Text.AlignLeft
++                        horizontalAlignment: subtextClip.isFile || resultDelegate.subtextParts.length > 1 ? Text.AlignRight : Text.AlignLeft
 +                        opacity: subtextClip.expanded ? 0 : 1
 +                        // leaves faster than the folder arrives, so their differing starts barely overlap
 +                        Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutQuad } }
@@ -245,7 +246,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultDelegate.qml b/lib/Re
                  }
              }
          }
-@@ -233,7 +343,11 @@
+@@ -233,7 +344,11 @@
              id: actionsRow
              anchors.right: parent.right
              anchors.verticalCenter: labelWrapper.verticalCenter

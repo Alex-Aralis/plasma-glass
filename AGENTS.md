@@ -702,7 +702,9 @@ change different files), and each repo's check applies the other's installed pat
   the subtext ("Shortcuts › Window Management\tMeta+Q"; D-Bus runners have no other field for it), and
   milou's ResultDelegate shows what follows the tab right after the name on every row (the name elides to
   keep room for it) and the rest, where it is, right-aligned like a file's folder (on the selected row, as
-  other subtexts). Stock milou would show the tab as a space.
+  other subtexts). Every System Settings result of the service has the tab, with no key after it when
+  there is none, so all their locations sit at the right (the user, on an unbound shortcut whose location
+  stayed after the name: "this should be right justified"). Stock milou would show the tab as a space.
   - There is no main key to ask for: the Shortcuts page lists an action's keys as a set, kglobalaccel's
     `allShortcutInfos` returns them in no particular order ("Alt+F1, Meta" for the launcher), and
     `kglobalshortcutsrc` holds them sorted by key code. So both pick one the same way: a key set by hand
