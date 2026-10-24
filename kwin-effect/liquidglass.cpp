@@ -709,12 +709,14 @@ void LiquidGlassEffect::slotMouseChanged(const QPointF &pos, const QPointF &oldp
     if (!pressed || !(m_liquidGlass || m_liquidGlassLight) || m_liquid.click <= 0 || !m_fluidPass.shader || !m_bevelOnscreenPass.shader) {
         return;
     }
-    // the window the press lands on, the topmost there; it presses on the liquid if that's a Liquid Glass
-    // surface (as blur() tells one) and the press is on its glass
+    // the window the press lands on, the topmost that takes input there (as KWin picks the one the click goes
+    // to: windows that let clicks through, such as Spectacle's outline over the screen while it records a
+    // region, don't count); it presses on the liquid if that's a Liquid Glass surface (as blur() tells one)
+    // and the press is on its glass
     const QList<EffectWindow *> stack = effects->stackingOrder();
     for (auto it = stack.crbegin(); it != stack.crend(); ++it) {
         EffectWindow *w = *it;
-        if (w->isDeleted() || !w->isVisible() || w->isMinimized() || !w->isOnCurrentDesktop() || !w->frameGeometry().contains(pos)) {
+        if (w->isDeleted() || !w->isVisible() || w->isMinimized() || !w->isOnCurrentDesktop() || !w->window()->hitTest(pos)) {
             continue;
         }
         const auto data = m_windows.find(w);

@@ -264,8 +264,15 @@ change different files), and each repo's check applies the other's installed pat
 - **Clicks press on the liquid** (2026-10-22, the user: "add the fluid effect when clicking on the menu
   items. have the effect like a push down on the floating element"). KWin does it without the apps:
   `slotMouseChanged` (EffectsHandler::mouseChanged, emitted on every button change, no polling needed)
-  takes a left press, finds the topmost window under it in the stacking order, and if that's a Liquid
-  Glass surface (no KWin border radius; corners cut off its blur region, or a dock) and the press is on
+  takes a left press, finds the topmost window that takes input under it in the stacking order
+  (`Window::hitTest`, as KWin's own `InputRedirection::findToplevel` picks where a click goes: a
+  click-through window doesn't count. With the window's frame geometry instead, no click pressed while
+  Spectacle recorded a region (2026-10-24, the user: "when recording with spectacle clicks don't trigger
+  the liquid glass wave effect"): it keeps a full-screen layer-shell overlay with an empty input region on
+  every screen for the recording's dashed outline; checked in panel.sh's session with a real recording:
+  pipewire and wireplumber started before the preview's KWin, `spectacle -R r -b -o FILE`, the region
+  dragged with fakeinput and taken on release, `useReleaseToCapture=true`), and if that's a Liquid Glass
+  surface (no KWin border radius; corners cut off its blur region, or a dock) and the press is on
   its blur region, records where in the glass and when (`BlurEffectData::click`, monotonic s, the clock
   `m_frameTime` comes from); the release sets `up`. blur() runs the liquid for a window with a Stir
   client, or a click, or liquid still settling (`runLiquid` takes the client as a pointer now, null for
