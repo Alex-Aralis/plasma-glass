@@ -293,9 +293,19 @@ change different files), and each repo's check applies the other's installed pat
   patches of colour running out from the click, as KRunner's busy waves do there. Tuning: two sliders
   (Clicks: press, width). Dragging (the user, the same day: "clicking, then dragging behaves like pushing a
   finger through the liquid"): while the button is held, every pointer move adds a sample to `click.path`
-  (time, place in the glass from its top left as pressed; the last 0.5 s), and each of the liquid's steps
-  puts the press where the pointer was at that step's middle, between the samples either side (after the
-  last, at it: steps run up to the frame's target pageflip time, a little ahead of the newest event). A
+  (the event's own time, libinput's, from the effect's `InputEventSpy`; place in the glass from its top left
+  as pressed; the last 0.5 s), and each of the liquid's steps puts the press where the pointer was `lag` s
+  before that step's middle, between the samples either side. Smoother (2026-10-24, the user: it was "like a
+  series of clicks along the path", wanted "a continuous drag"): the steps run up to the frame's target
+  pageflip time, past the newest event, and the press used to wait there for the next event and then jump,
+  every frame (in the preview it stood still on 2 steps in 3 and jumped ~10 px in one; a re-run of the
+  shallow water on those paths left separate dimples at a 1300 px/s drag's head), and its samples were
+  stamped when KWin handled them, so a batch handled after a busy frame jumped at once. `lag` rises at once
+  to 2 ms past how far a frame's steps run beyond the newest event and falls back at 2% of real time, so the
+  press keeps to the path the events drew: 0-3 still steps in ~220, its speed varying about as much as the
+  preview's fake input's (8-16 ms apart). Real mice stamp evenly, so on screen it trails the cursor by a
+  report interval and 2 ms at most. After 20 ms with no event, a sample where the pointer stood is put in
+  8 ms before the next, so the press doesn't creep across the pause. A
   press moving faster than the waves (667 px/s against the user's 305) trails a Mach-like wake; on the
   46 px panel it hits the rims at once and runs along as plane waves, visible where it crosses an edge
   behind; through Kickoff the light foil draws a streak of colour along the path. `DRAGS="X1 Y1 X2 Y2 MS"`

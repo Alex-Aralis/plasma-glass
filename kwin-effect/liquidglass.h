@@ -8,6 +8,7 @@
 #pragma once
 
 #include "effect/effect.h"
+#include "input_event_spy.h"
 #include "opengl/glutils.h"
 #include "scene/item.h"
 
@@ -108,19 +109,23 @@ struct BlurEffectData
     /// and on Liquid Glass Light, the background with the waves in it, for the blur to frost
     std::unique_ptr<GLTexture> underlayTexture;
     std::unique_ptr<GLFramebuffer> underlayFramebuffer;
-    /// a click pressing on its liquid: when the button went down and when it came up (s, monotonic; -1: not
-    /// yet, or no click), and where the pointer has been since (px in the glass, from its top left as it was
-    /// pressed, `origin`), and when: the press follows it while held, like a finger drawn through the liquid
+    /// a click pressing on its liquid: when the button went down and when it came up (s, monotonic, the input
+    /// events' own times; -1: not yet, or no click), and where the pointer has been since (px in the glass,
+    /// from its top left as it was pressed, `origin`), and when: the press follows it while held, like a
+    /// finger drawn through the liquid. It trails the liquid's steps by `lag` s (-1: not measured yet), so
+    /// it stays on the path the events have drawn; `seen`: the newest event a frame has measured that by.
     struct
     {
         double down = -1;
         double up = -1;
         QPointF origin;
         std::deque<std::pair<double, QPointF>> path;
+        double lag = -1;
+        double seen = -1;
     } click;
 };
 
-class LiquidGlassEffect : public KWin::Effect, protected QDBusContext
+class LiquidGlassEffect : public KWin::Effect, public InputEventSpy, protected QDBusContext
 {
     Q_OBJECT
 
@@ -147,13 +152,15 @@ public:
 
     bool blocksDirectScanout() const override;
 
+    // plasma-glass: a press on a Liquid Glass surface presses on its liquid until the button comes up, and
+    // follows the pointer while it's held (the events' own times, as the pointer device took them)
+    void pointerMotion(PointerMotionEvent *event) override;
+    void pointerButton(PointerButtonEvent *event) override;
+
 public Q_SLOTS:
     void slotWindowAdded(KWin::EffectWindow *w);
     void slotWindowDeleted(KWin::EffectWindow *w);
     void slotViewRemoved(KWin::RenderView *view);
-    // plasma-glass: a press on a Liquid Glass surface presses on its liquid until the button comes up
-    void slotMouseChanged(const QPointF &pos, const QPointF &oldpos, Qt::MouseButtons buttons, Qt::MouseButtons oldbuttons,
-                          Qt::KeyboardModifiers modifiers, Qt::KeyboardModifiers oldmodifiers);
 #if KWIN_BUILD_X11
     void slotPropertyNotify(KWin::EffectWindow *w, long atom);
 #endif

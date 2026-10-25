@@ -24,6 +24,8 @@
 #include "core/rendertarget.h"
 #include "core/renderviewport.h"
 #include "effect/effecthandler.h"
+#include "input.h"
+#include "input_event.h"
 #include "opengl/glplatform.h"
 #include "scene/backgroundeffectitem.h"
 #include "scene/decorationitem.h"
@@ -144,6 +146,15 @@ static BorderRadius liquidGlassCorners(const RegionF &shape, const RectF &bounds
 static double monotonicNow()
 {
     return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+// An input event's time in s, as the device took it (libinput's clock is the monotonic one too), so events
+// KWin handles in a batch keep their spacing; now, if it's far off (a device that gives none)
+static double eventTime(std::chrono::microseconds timestamp)
+{
+    const double now = monotonicNow();
+    const double t = std::chrono::duration<double>(timestamp).count();
+    return std::abs(t - now) < 0.5 ? std::min(t, now) : now;
 }
 
 static double smoothStep(double a, double b, double x)
@@ -345,7 +356,7 @@ LiquidGlassEffect::LiquidGlassEffect()
 
     connect(effects, &EffectsHandler::windowAdded, this, &LiquidGlassEffect::slotWindowAdded);
     connect(effects, &EffectsHandler::windowDeleted, this, &LiquidGlassEffect::slotWindowDeleted);
-    connect(effects, &EffectsHandler::mouseChanged, this, &LiquidGlassEffect::slotMouseChanged);
+    input()->installInputEventSpy(this);
     connect(effects, &EffectsHandler::viewRemoved, this, &LiquidGlassEffect::slotViewRemoved);
 #if KWIN_BUILD_X11
     connect(effects, &EffectsHandler::propertyNotify, this, &LiquidGlassEffect::slotPropertyNotify);
@@ -679,36 +690,52 @@ void LiquidGlassEffect::slotWindowDeleted(EffectWindow *w)
     }
 }
 
-void LiquidGlassEffect::slotMouseChanged(const QPointF &pos, const QPointF &oldpos, Qt::MouseButtons buttons, Qt::MouseButtons oldbuttons,
-                                  Qt::KeyboardModifiers modifiers, Qt::KeyboardModifiers oldmodifiers)
+void LiquidGlassEffect::pointerMotion(PointerMotionEvent *event)
 {
-    Q_UNUSED(modifiers)
-    Q_UNUSED(oldmodifiers)
-    const bool pressed = (buttons & Qt::LeftButton) && !(oldbuttons & Qt::LeftButton);
-    const bool released = !(buttons & Qt::LeftButton) && (oldbuttons & Qt::LeftButton);
-    if (m_clickWindow && (buttons & Qt::LeftButton) && (oldbuttons & Qt::LeftButton) && pos != oldpos) {
-        // dragged: the press follows the pointer (off the glass, it presses on nothing), the last half second
-        // kept for the liquid's steps to place it between
-        if (auto it = m_windows.find(m_clickWindow); it != m_windows.end() && it->second.click.down >= 0) {
-            auto &path = it->second.click.path;
-            const double now = monotonicNow();
-            path.emplace_back(now, pos - it->second.click.origin);
-            while (path.size() > 2 && path[1].first < now - 0.5) {
-                path.pop_front();
-            }
-        }
+    // dragged: the press follows the pointer (off the glass, it presses on nothing), the last half second
+    // kept for the liquid's steps to place it between
+    if (!m_clickWindow || !(event->buttons & Qt::LeftButton)) {
+        return;
     }
-    if (released && m_clickWindow) {
+    const auto it = m_windows.find(m_clickWindow);
+    if (it == m_windows.end() || it->second.click.down < 0 || it->second.click.up >= 0) {
+        return;
+    }
+    auto &path = it->second.click.path;
+    const double t = std::max(eventTime(event->timestamp), path.back().first);
+    if (t - path.back().first > 0.02) {
+        // the first report after the pointer stood still: it set off only just before (a mouse reports every
+        // 8 ms or sooner while it moves), not all the while since the last
+        path.emplace_back(t - 0.008, path.back().second);
+    }
+    path.emplace_back(t, event->position - it->second.click.origin);
+    while (path.size() > 2 && path[1].first < t - 0.5) {
+        path.pop_front();
+    }
+}
+
+void LiquidGlassEffect::pointerButton(PointerButtonEvent *event)
+{
+    if (event->button != Qt::LeftButton) {
+        return;
+    }
+    const double t = eventTime(event->timestamp);
+    if (event->state == PointerButtonState::Released) {
         // the press lets go
+        if (!m_clickWindow) {
+            return;
+        }
         if (auto it = m_windows.find(m_clickWindow); it != m_windows.end() && it->second.click.down >= 0 && it->second.click.up < 0) {
-            it->second.click.up = monotonicNow();
+            it->second.click.up = std::max(t, it->second.click.path.back().first);
             m_clickWindow->addRepaintFull();
         }
         m_clickWindow = nullptr;
-    }
-    if (!pressed || !(m_liquidGlass || m_liquidGlassLight) || m_liquid.click <= 0 || !m_fluidPass.shader || !m_bevelOnscreenPass.shader) {
         return;
     }
+    if (!(m_liquidGlass || m_liquidGlassLight) || m_liquid.click <= 0 || !m_fluidPass.shader || !m_bevelOnscreenPass.shader) {
+        return;
+    }
+    const QPointF pos = event->position;
     // the window the press lands on, the topmost that takes input there (as KWin picks the one the click goes
     // to: windows that let clicks through, such as Spectacle's outline over the screen while it records a
     // region, don't count); it presses on the liquid if that's a Liquid Glass surface (as blur() tells one)
@@ -729,10 +756,13 @@ void LiquidGlassEffect::slotMouseChanged(const QPointF &pos, const QPointF &oldp
         if (!shape.contains(pos) || (liquidGlassCorners(shape, glass).isNull() && !w->isDock())) {
             return;
         }
-        data->second.click.down = monotonicNow();
-        data->second.click.up = -1;
-        data->second.click.origin = glass.topLeft();
-        data->second.click.path = {{data->second.click.down, pos - glass.topLeft()}};
+        auto &click = data->second.click;
+        click.down = t;
+        click.up = -1;
+        click.origin = glass.topLeft();
+        click.path = {{t, pos - glass.topLeft()}};
+        click.lag = -1;
+        click.seen = -1;
         m_clickWindow = w;
         w->addRepaintFull();
         return;
@@ -1064,7 +1094,7 @@ std::optional<double> LiquidGlassEffect::runLiquid(BlurEffectData &data, const L
     if (data.click.down >= 0) {
         const double pressed = data.click.up >= 0 ? data.click.up + clickIn : now;
         f.liveUntil = std::max(f.liveUntil, std::max(pressed, now) + settle);
-        if (data.click.up >= 0 && f.time > data.click.up + clickIn) {
+        if (data.click.up >= 0 && f.time - std::max(data.click.lag, 0.0) > data.click.up + clickIn) {
             data.click.down = -1; // let go: the press is over
         }
     }
@@ -1090,6 +1120,30 @@ std::optional<double> LiquidGlassEffect::runLiquid(BlurEffectData &data, const L
 
     const double span = std::min(now - f.time, 0.1); // after a stall, carry on from now
     const double start = now - span;
+    // A held click's press trails the steps by its lag: they run on to when this frame is due on screen,
+    // ahead of the newest pointer event by the compositor's own latency and up to one of the mouse's report
+    // intervals, and past that event the press could only wait there for the next one and then jump: a stop
+    // and a jump every frame, a row of dimples along a drag. Whenever the steps would run past the newest
+    // event, the lag rises at once to 2 ms more than that (each rise slows the press for a frame, so not in
+    // little steps), and otherwise it falls back slowly (the press moving 2% faster than the pointer did as
+    // it catches up), not below it; it never rises by more than the steps run, which would take the press
+    // back along the path. The press trails the cursor on screen by a report interval and 2 ms at most.
+    double lagFrom = 0;
+    double lagTo = 0;
+    if (data.click.down >= 0) {
+        auto &click = data.click;
+        const double newest = click.path.back().first;
+        if (click.lag < 0) {
+            click.lag = std::max(0.0, now - newest);
+        }
+        lagFrom = lagTo = click.lag;
+        if (newest > click.seen && span > 0) {
+            const double need = now - newest;
+            lagTo = need > lagFrom ? std::min(need + 0.002, lagFrom + span) : std::max(need, lagFrom - 0.02 * span);
+            click.seen = newest;
+        }
+        click.lag = lagTo;
+    }
     const double omega = 2 * M_PI * s_liquidFollow;
     const QVector4D cornerRadii = corners.toVector();
     QMatrix4x4 projection;
@@ -1148,8 +1202,10 @@ std::optional<double> LiquidGlassEffect::runLiquid(BlurEffectData &data, const L
         *push = QVector4D(f.pushSide, f.pushAt, m_liquid.strike / 2, speed);
     };
 
-    // the click's press at time t (s): as the busy press, it presses down by about its width at full strength
-    const auto clickAt = [&](double t) {
+    // the click's press at time t (s): as the busy press, it presses down by about its width at full strength,
+    // as the pointer was its lag before
+    const auto clickAt = [&](double step) {
+        const double t = step - (lagFrom + (lagTo - lagFrom) * (span > 0 ? (step - start) / span : 1));
         if (data.click.down < 0 || t < data.click.down) {
             return QVector4D(0, 0, 1, 0);
         }
