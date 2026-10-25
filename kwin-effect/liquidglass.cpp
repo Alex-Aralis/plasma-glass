@@ -161,6 +161,19 @@ static double eventTime(std::chrono::microseconds timestamp)
     return std::abs(t - now) < 0.5 ? std::min(t, now) : now;
 }
 
+// KWIN_LIQUID_GLASS_CLICK_LOG=dir, for tools/liquid: clicks' presses logged to dir/log (the pointer's path, the
+// tuning, each liquid step's press as fluid.frag gets it), and each frame a click presses on, its glass and its
+// ripples read back from the GPU into dir/N.f32 (a height per cell, row by row from the top); unset, nothing is
+// written or read back
+static FILE *clickLog()
+{
+    static FILE *log = [] {
+        const QByteArray dir = qgetenv("KWIN_LIQUID_GLASS_CLICK_LOG");
+        return dir.isEmpty() ? nullptr : fopen((dir + "/log").constData(), "w");
+    }();
+    return log;
+}
+
 static double smoothStep(double a, double b, double x)
 {
     const double t = std::clamp((x - a) / (b - a), 0.0, 1.0);
@@ -685,6 +698,9 @@ void LiquidGlassEffect::slotWindowDeleted(EffectWindow *w)
     if (w == m_clickWindow) {
         m_clickWindow = nullptr;
     }
+    if (auto it = m_windows.find(w); it != m_windows.end() && &it->second == m_loggedLiquid) {
+        m_loggedLiquid = nullptr;
+    }
     if (auto it = m_windows.find(w); it != m_windows.end()) {
         effects->makeOpenGLContextCurrent();
         m_windows.erase(it);
@@ -718,8 +734,14 @@ void LiquidGlassEffect::pointerMotion(PointerMotionEvent *event)
         // the first report after the pointer stood still: it set off only just before (a mouse reports every
         // 8 ms or sooner while it moves), not all the while since the last
         path.emplace_back(t - 0.008, path.back().second);
+        if (clickLog()) {
+            fprintf(clickLog(), "sample %.6f %.3f %.3f\n", path.back().first, path.back().second.x(), path.back().second.y());
+        }
     }
     path.emplace_back(t, event->position - it->second.click.origin);
+    if (clickLog()) {
+        fprintf(clickLog(), "sample %.6f %.3f %.3f\n", t, path.back().second.x(), path.back().second.y());
+    }
     while (path.size() > 2 && path[1].first < t - 0.5) {
         path.pop_front();
     }
@@ -739,6 +761,10 @@ void LiquidGlassEffect::pointerButton(PointerButtonEvent *event)
         if (auto it = m_windows.find(m_clickWindow); it != m_windows.end() && it->second.click.down >= 0 && it->second.click.up < 0) {
             it->second.click.up = std::max(t, it->second.click.path.back().first);
             m_clickWindow->addRepaintFull();
+            if (clickLog()) {
+                fprintf(clickLog(), "up %.6f\n", it->second.click.up);
+                fflush(clickLog());
+            }
         }
         m_clickWindow = nullptr;
         return;
@@ -775,6 +801,13 @@ void LiquidGlassEffect::pointerButton(PointerButtonEvent *event)
         click.lag = -1;
         click.seen = -1;
         m_clickWindow = w;
+        if (clickLog()) {
+            m_loggedLiquid = &data->second;
+            fprintf(clickLog(), "tuning speed %g damping %g reflection %g shore %g shoreScale %g floor %g floorScale %g click %g clickWidth %g\n",
+                    m_liquid.speed, m_liquid.damping, m_liquid.reflection, m_liquid.shore, m_liquid.shoreScale, m_liquid.floor,
+                    m_liquid.floorScale, m_liquid.click, m_liquid.clickWidth);
+            fprintf(clickLog(), "down %.6f %.3f %.3f\n", t, click.path.back().second.x(), click.path.back().second.y());
+        }
         w->addRepaintFull();
         return;
     }
@@ -1306,7 +1339,11 @@ std::optional<double> LiquidGlassEffect::runLiquid(BlurEffectData &data, const L
                        const QVector4D before = clickAt(start + t + dt / 2 - 0.02);
                        const double pressSpeed = click.w() > 0 && before.w() > 0 ? std::hypot(click.x() - before.x(), click.y() - before.y()) / 0.02 : 0;
                        const double outrun = smoothStep(0.5 * c, 1.5 * c, pressSpeed);
-                       m_fluidPass.shader->setUniform(m_fluidPass.clickFingerLocation, float(outrun * (1 - std::exp(-dt / s_clickFinger))));
+                       const float finger = outrun * (1 - std::exp(-dt / s_clickFinger));
+                       m_fluidPass.shader->setUniform(m_fluidPass.clickFingerLocation, finger);
+                       if (clickLog() && &data == m_loggedLiquid) {
+                           fprintf(clickLog(), "step %.6f %.6f %.3f %.3f %.3f %.3f %.6f\n", start + t + dt / 2, dt, click.x(), click.y(), click.z(), click.w(), finger);
+                       }
                        moves(t, dt, s_ripplesMomentum * momentum, f.ripplesAccel, pushTime);
                        // gusts about chopScale across, coming and going as fast as a wave crosses half of one,
                        // pressing hard enough that the waves they raise lean the glass a little
@@ -1342,6 +1379,26 @@ std::optional<double> LiquidGlassEffect::runLiquid(BlurEffectData &data, const L
         f.time = now;
     }
     GLTexture *ripples = f.ripples.textures[f.ripples.current].get();
+    if (clickLog() && data.click.down >= 0 && ripples && span > 0) {
+        // the ripples as the click left them this frame, for tools/liquid to hold its model against
+        static int frame = 0;
+        const QByteArray name = qgetenv("KWIN_LIQUID_GLASS_CLICK_LOG") + "/" + QByteArray::number(++frame).rightJustified(5, '0') + ".f32";
+        std::vector<float> state(size_t(ripples->width()) * ripples->height() * 4);
+        ripples->bind();
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, state.data());
+        ripples->unbind();
+        std::vector<float> heights(size_t(ripples->width()) * ripples->height());
+        for (size_t i = 0; i < heights.size(); ++i) {
+            heights[i] = state[i * 4];
+        }
+        if (FILE *out = fopen(name.constData(), "wb")) {
+            fwrite(heights.data(), sizeof(float), heights.size(), out);
+            fclose(out);
+        }
+        fprintf(clickLog(), "frame %d %.6f %.3f %.3f %.3f %.3f %.3f %.3f %.6f %d %d\n", frame, now, glass.width(), glass.height(), cornerRadii.x(),
+                cornerRadii.y(), cornerRadii.z(), cornerRadii.w(), seed, ripples->width(), ripples->height());
+        fflush(clickLog());
+    }
     GLTexture *swell = f.swell.textures[f.swell.current].get();
     if (!ripples) {
         return 0;

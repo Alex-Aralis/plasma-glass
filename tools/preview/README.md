@@ -36,6 +36,9 @@ redraws its blur every frame (for `record.sh`; screenshots crop to everything th
 | `fakeinput.c` | Pointer input for the virtual display (`move X Y`, `by DX DY`, `down`, `up`, `key CODE down|up`, `wait MS` on stdin), built by `common.sh`'s `fakeinput`. KWin scripts can print window geometry alongside, to measure drags. |
 | `elements.sh` | Prints each SVG element's rect exactly as Plasma measures it. Frame pieces must come out at whole-pixel sizes; a stroke on an outline adds half a pixel and leaves gaps in the frame. |
 
+For the liquid under the glass (clicks, drags), [`tools/liquid/`](../liquid/README.md) has a numpy model of it, and
+`tools/liquid/record.sh` runs `panel.sh` with the effect logging every liquid step to check the model against.
+
 Requirements: `kwin_wayland`, `spectacle`, `qml6` and `qdbus6` (all part of Plasma 6), and `ffmpeg`
 for `record.sh`. A small Pillow venv for cropping is created in `~/.cache/plasma-glass/preview/` on
 first use, and logs from each run go there too.

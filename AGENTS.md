@@ -29,6 +29,7 @@ change different files), and each repo's check applies the other's installed pat
 | `tools/check-patches.sh` | patches apply, alone and with the other user patches installed for the package (kde-fixes'); patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
 | `tools/screenprobe/screen.sh` | probes on the real screens (small, never focused, ask first): `fps` measures Qt Quick frame rate and animation speed per screen, `glass` shows the style's glass over a grey square (screenshot or by eye) |
 | `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh` (`SWITCH`: across a global theme switch), `settings.sh` (System Settings on a page with arguments), `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `panel.sh` (your panel, floating or docked, screenshot or video), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`); `record.sh` records KRunner into a video (demos); `fakeinput.c` for pointer input |
+| `tools/liquid/` | the liquid off screen: `liquid.sh` runs a numpy model of `fluid.frag`'s ripples with the user's tuning (`drag` speeds, `click`, `check`: pass/fail for the press keeping up, its trench, a plain click's rings); `record.sh DIR` logs drags across Kickoff in the preview (`KWIN_LIQUID_GLASS_CLICK_LOG`: every step, the real liquid read back each frame) and `liquid.sh compare DIR` holds the model against it. Keep `liquid.py` in step with `fluid.frag` and `runLiquid` |
 | `desktop/test-notifications.sh` | sample popups (clickable, long and scrolling, image, critical); installed as `plasma-glass-test-notifications` with a "Test Notifications" launcher |
 
 ## Dev loops
@@ -317,7 +318,10 @@ change different files), and each repo's check applies the other's installed pat
   fast drag left a ripple per step in the trench behind). It fades in from 0.5 to 1.5 x the wave speed (the
   press's speed over 20 ms), since slower the pressure keeps up (0-3 px behind) and the finger halved the
   ring a plain click sends off as it's pressed. With it the dent's front edge stays 0-5 px ahead of the
-  press at 690-1950 px/s (at rest ~12), full depth to 0.75 of it. After 20 ms with no event, a sample where the pointer stood is put in
+  press at 690-1950 px/s (at rest ~12), full depth to 0.75 of it. The numpy model used to work this out is
+  `tools/liquid/` (the user: "add the numpy testing setup to the kit"): `liquid.sh check` fails on each of
+  the dropped variants (no finger, g weighting, the finger on for a still press), and `compare` on a
+  `record.sh` log agreed with the real liquid to 0.8% of its spread. After 20 ms with no event, a sample where the pointer stood is put in
   8 ms before the next, so the press doesn't creep across the pause. A
   press moving faster than the waves (667 px/s against the user's 305) trails a Mach-like wake; on the
   46 px panel it hits the rims at once and runs along as plane waves, visible where it crosses an edge

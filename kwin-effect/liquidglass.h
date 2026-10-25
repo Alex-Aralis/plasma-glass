@@ -317,6 +317,7 @@ private:
         double clickWidth = 24; // px: how wide the press is (a Gaussian's 1/e radius)
     } m_liquid;
     EffectWindow *m_clickWindow = nullptr; // the window a held click presses on
+    const BlurEffectData *m_loggedLiquid = nullptr; // KWIN_LIQUID_GLASS_CLICK_LOG: the liquid the last click pressed on
     double m_lastMotion = -1; // s: the pointer's last move, and how long it goes between reports while it
     double m_motionInterval = 0.008; // moves (about: a moving average)
     std::unordered_map<pid_t, LiquidGlassClient> m_liquidGlassClients;
