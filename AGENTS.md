@@ -302,9 +302,12 @@ change different files), and each repo's check applies the other's installed pat
   shallow water on those paths left separate dimples at a 1300 px/s drag's head), and its samples were
   stamped when KWin handled them, so a batch handled after a busy frame jumped at once. `lag` rises at once
   to 2 ms past how far a frame's steps run beyond the newest event and falls back at 2% of real time, so the
-  press keeps to the path the events drew: 0-3 still steps in ~220, its speed varying about as much as the
-  preview's fake input's (8-16 ms apart). Real mice stamp evenly, so on screen it trails the cursor by a
-  report interval and 2 ms at most. After 20 ms with no event, a sample where the pointer stood is put in
+  press keeps to the path the events drew: its speed varies about as much as the preview's fake input's
+  (8-16 ms apart). First measured as the button goes down, before any motion, it also allows for one report
+  interval (`m_motionInterval`, a moving average of the gaps in all the pointer's motion): without that a
+  drag's first events came later than the lag allowed, and the press held and jumped a few times as it
+  started (a 4000 px/s step in a 1300 px/s drag; 1560 at most with it, and no still step once it moves).
+  Real mice stamp evenly, so on screen it trails the cursor by a report interval and 2 ms at most. After 20 ms with no event, a sample where the pointer stood is put in
   8 ms before the next, so the press doesn't creep across the pause. A
   press moving faster than the waves (667 px/s against the user's 305) trails a Mach-like wake; on the
   46 px panel it hits the rims at once and runs along as plane waves, visible where it crosses an edge

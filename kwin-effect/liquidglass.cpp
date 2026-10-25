@@ -692,6 +692,12 @@ void LiquidGlassEffect::slotWindowDeleted(EffectWindow *w)
 
 void LiquidGlassEffect::pointerMotion(PointerMotionEvent *event)
 {
+    // how often the pointer reports while it moves (a press's lag starts by allowing for one report's wait)
+    const double time = eventTime(event->timestamp);
+    if (const double gap = time - m_lastMotion; gap > 0 && gap < 0.05) {
+        m_motionInterval += (gap - m_motionInterval) * 0.1;
+    }
+    m_lastMotion = time;
     // dragged: the press follows the pointer (off the glass, it presses on nothing), the last half second
     // kept for the liquid's steps to place it between
     if (!m_clickWindow || !(event->buttons & Qt::LeftButton)) {
@@ -702,7 +708,7 @@ void LiquidGlassEffect::pointerMotion(PointerMotionEvent *event)
         return;
     }
     auto &path = it->second.click.path;
-    const double t = std::max(eventTime(event->timestamp), path.back().first);
+    const double t = std::max(time, path.back().first);
     if (t - path.back().first > 0.02) {
         // the first report after the pointer stood still: it set off only just before (a mouse reports every
         // 8 ms or sooner while it moves), not all the while since the last
@@ -1127,14 +1133,16 @@ std::optional<double> LiquidGlassEffect::runLiquid(BlurEffectData &data, const L
     // event, the lag rises at once to 2 ms more than that (each rise slows the press for a frame, so not in
     // little steps), and otherwise it falls back slowly (the press moving 2% faster than the pointer did as
     // it catches up), not below it; it never rises by more than the steps run, which would take the press
-    // back along the path. The press trails the cursor on screen by a report interval and 2 ms at most.
+    // back along the path. Measured first as the button goes down, before the pointer has moved, it allows
+    // for one of its reports' wait too, so the drag's first events don't come later than it does. The press
+    // trails the cursor on screen by a report interval and 2 ms at most.
     double lagFrom = 0;
     double lagTo = 0;
     if (data.click.down >= 0) {
         auto &click = data.click;
         const double newest = click.path.back().first;
         if (click.lag < 0) {
-            click.lag = std::max(0.0, now - newest);
+            click.lag = std::max(0.0, now - newest) + m_motionInterval + 0.002;
         }
         lagFrom = lagTo = click.lag;
         if (newest > click.seen && span > 0) {
