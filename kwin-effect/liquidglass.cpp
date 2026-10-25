@@ -122,7 +122,8 @@ static constexpr double s_ripplesMomentum = 0.15;
 static constexpr double s_liquidFollow = 3;
 // A dragged click's press is a finger too: under it the surface is pushed down to the dent its pressure holds at
 // rest, taking up this many s (the pressure alone digs it only as fast as the liquid flows away, about 30 ms at
-// the user's wave speed, so the dent trailed a press faster than the waves: 31 px behind at 1000 px/s)
+// the user's wave speed, so the dent trailed a press faster than the waves: 31 px behind at 1000 px/s), and the
+// liquid it pushes down goes out to a ring round it, as the wake (fluid.frag)
 static constexpr double s_clickFinger = 0.004;
 
 // The corners a Liquid Glass frame rounds off a blur shape, by their radii (none: it's not one). A quarter

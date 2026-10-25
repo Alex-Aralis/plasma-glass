@@ -187,6 +187,18 @@ float face(ivec2 a, ivec2 b, int axis, float v, float ha, float hb, float pa, fl
               : -pushed(3.0, p);
 }
 
+// how much a dragged click's finger pushes the surface down at cell q this step: towards the press's resting
+// dent (as deep as at the press's centre, dPress), from q's height hq as the step began (so every cell can
+// tell how much the finger pushes away), firmest at its middle (g^3: pushed as hard across its whole width, a
+// fast drag left a ripple per step in the trench behind it)
+float pushedAt(ivec2 q, float hq, float dPress)
+{
+    vec2 d = (centre(q) - click.xy) / click.z;
+    float g = exp(-dot(d, d));
+    float dent = -click.w * g / (timing.y * dPress);
+    return max(hq - dent, 0.0) * clickFinger * g * g * g;
+}
+
 // a cell's state (wet: whether it holds liquid now); if the glass has just grown over it, at the level of
 // the nearest liquid above it or to its left (up to 32 cells off: the glass grows less than that in a
 // frame), at rest
@@ -252,15 +264,35 @@ void main(void)
     h *= exp(-timing.w * dt);
     // a dragged click presses like a finger as well (clickFinger: only as it outruns the waves): under it the
     // surface goes down to the dent its pressure holds at rest at once, not only as fast as the liquid can flow
-    // away, so the dent keeps up with the pointer (the waves still run off it as before); it never lifts the
-    // surface. Firmest at
-    // its middle (g^3): pushed down as hard across its whole width, a fast drag left a ripple per step in the
-    // trench behind it
+    // away, so the dent keeps up with the pointer; it never lifts the surface. The liquid it pushes down goes
+    // out to a ring two press widths round it, as a finger pushes liquid aside, and runs off from there as the
+    // wake (taken away instead, the wake hardly showed through Liquid Glass Light's frost, and the rings a
+    // fast press sends off as it stops stood out alone)
     if (click.w != 0.0 && clickFinger > 0.0) {
-        vec2 d = (centre(c) - click.xy) / click.z;
-        float g = exp(-dot(d, d));
-        float dent = -click.w * g / (timing.y * dHere);
-        h -= max(h - dent, 0.0) * clickFinger * g * g * g;
+        float dPress = depth(click.xy);
+        h -= pushedAt(c, here.x, dPress);
+        float r = length(centre(c) - click.xy) / click.z;
+        float ring = exp(-pow((r - 2.0) / 0.6, 2.0));
+        if (ring > 1e-3) {
+            // all it pushes away this step: the cells within 1.75 press widths (g^3 is under 1e-4 past that),
+            // at most 24 a side, each sample standing for a stride x stride block
+            float reach = 1.75 * click.z;
+            int stride = max(1, int(ceil(2.0 * reach / cell / 24.0)));
+            ivec2 lo = ivec2(floor((click.xy - reach) / cell + 0.5));
+            ivec2 hi = ivec2(ceil((click.xy + reach) / cell + 0.5));
+            float pushed = 0.0;
+            for (int qy = lo.y; qy <= hi.y; qy += stride) {
+                for (int qx = lo.x; qx <= hi.x; qx += stride) {
+                    vec4 sq = fetch(ivec2(qx, qy));
+                    if (sq.w > 0.0) {
+                        pushed += pushedAt(ivec2(qx, qy), sq.x, dPress);
+                    }
+                }
+            }
+            // spread over the ring's cells (its area: 2 pi 2 0.6 sqrt(pi) radius^2)
+            float ringCells = 2.0 * 3.14159265 * 2.0 * 0.6 * 1.7724539 * click.z * click.z / (cell * cell);
+            h += pushed * float(stride * stride) * ring / ringCells;
+        }
     }
     fragColor = vec4(h, uR, vB, 1.0);
 }

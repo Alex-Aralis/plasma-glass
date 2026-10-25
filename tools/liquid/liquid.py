@@ -29,6 +29,9 @@ RIPPLES_CELL = 3.0
 LIQUID_RIM = 32.0
 LIQUID_LEVEL = 1.0 / 3.0
 CLICK_FINGER = 0.004
+# where the finger puts the liquid it pushes down: a ring this many press widths out, this many wide
+FINGER_RING = 2.0
+FINGER_RING_WIDTH = 0.6
 
 # [Ripple] keys the liquid reads: (default, low, high), as LiquidGlassEffect::reconfigure clamps them
 TUNING = {
@@ -150,8 +153,31 @@ class Liquid:
         new += dt * self.diffusion * lap / (cell * cell)
         new *= math.exp(-LIQUID_LEVEL * dt)
         if g is not None and finger > 0:
-            dent = -click[3] * g / (self.c2 * d)
-            new -= np.maximum(new - dent, 0) * finger * g ** 3
+            # the finger pushes the surface under it down towards its resting dent (from the heights as the step
+            # began, so every cell can tell how much it pushes away), and that liquid goes out to a ring round it
+            x, y, radius, pressure = click
+            i = int(round(x / cell + 0.5))
+            j = int(round(y / cell + 0.5))
+            d_press = self.depth[min(max(j, 0), self.ny - 1), min(max(i, 0), self.nx - 1)]
+            dent = -pressure * g / (self.c2 * d_press)
+            pushed = np.where(wet, np.maximum(h - dent, 0) * finger * g ** 3, 0)
+            # what it pushes away, as the shader adds it up: the cells within 1.75 press widths, at most 24 a
+            # side, each sample standing for a stride x stride block
+            reach = 1.75 * radius
+            stride = max(1, int(math.ceil(2 * reach / cell / 24)))
+            lo_x, lo_y = int(math.floor((x - reach) / cell + 0.5)), int(math.floor((y - reach) / cell + 0.5))
+            hi_x, hi_y = int(math.ceil((x + reach) / cell + 0.5)), int(math.ceil((y + reach) / cell + 0.5))
+            total = 0.0
+            for qy in range(lo_y, hi_y + 1, stride):
+                for qx in range(lo_x, hi_x + 1, stride):
+                    if 0 <= qx < self.nx and 0 <= qy < self.ny:
+                        total += pushed[qy, qx]
+            total *= stride * stride
+            r = np.hypot(self.X - x, self.Y - y) / radius
+            ring = np.exp(-((r - FINGER_RING) / FINGER_RING_WIDTH) ** 2)
+            ring = np.where(ring > 1e-3, ring, 0)
+            ring_cells = 2 * math.pi * FINGER_RING * FINGER_RING_WIDTH * math.sqrt(math.pi) * radius * radius / (cell * cell)
+            new += total * ring / ring_cells - pushed
         self.h = np.where(wet, new, 0)
         self.u = np.where(wet, u, 0)
         self.v = np.where(wet, v, 0)
@@ -259,6 +285,22 @@ def short_ripples(liquid, x, y):
     return float(slope[:, k > 0.25].sum() / total) if total > 0 else 0.0
 
 
+def blur(a, sigma):
+    k = np.arange(-3 * int(math.ceil(sigma)), 3 * int(math.ceil(sigma)) + 1)
+    g = np.exp(-k ** 2 / (2 * sigma * sigma))
+    g /= g.sum()
+    a = np.apply_along_axis(lambda row: np.convolve(row, g, mode="same"), 1, a)
+    return np.apply_along_axis(lambda col: np.convolve(col, g, mode="same"), 0, a)
+
+
+def frosted_foil(liquid):
+    """about what Liquid Glass Light's foil shows of the ripples: lit where they crest, fully from the crest
+    runLiquid normalizes a click-only surface's by (0.3 of the press's resting depth at strength 1), then
+    frosted (a 12 px blur: thin lines fade, broad crests stay)"""
+    crest = 0.3 * 0.8 * liquid.tuning["clickWidth"]
+    return blur(np.clip(liquid.h / crest, 0, 1), 12 / RIPPLES_CELL)
+
+
 def dent_report(liquid, press, t, direction):
     """Along the press's motion through its centre: how far ahead of the press the dent's front edge is (the
     farthest point at least half as deep as the press's resting dent; None: nowhere that deep), where its
@@ -280,7 +322,8 @@ def dent_report(liquid, press, t, direction):
 
 def drag(tuning, speed, finger="moving", width=700, height=560, seed=0.0, fps=240.0, picture=None):
     """a press held 0.1 s, then dragged left to right through the glass's middle at speed px/s, measured as
-    it's 100 px from the far side"""
+    it's 100 px from the far side; and how its wake shows through Liquid Glass Light's frost over the last
+    40% of the way (well clear of the ring the click sent off as it was pressed)"""
     liquid = Liquid(tuning, width, height, seed=seed)
     x0, y0, hold = 80.0, height / 2, 0.1
     travel = width - 180.0
@@ -290,8 +333,18 @@ def drag(tuning, speed, finger="moving", width=700, height=560, seed=0.0, fps=24
         return (x0 + speed * min(max(t - hold, 0.0), travel / speed), y0)
 
     press = Press(tuning, path, finger=finger)
-    run(liquid, press, until, fps)
+    wake = [0.0]
+
+    def watch(t):
+        if t > hold + 0.6 * travel / speed:
+            px = path(t)[0]
+            band = (liquid.X > x0 + 0.35 * travel) & (liquid.X < px - 30) & liquid.wet
+            if band.any():
+                wake[0] = max(wake[0], float(frosted_foil(liquid)[band].max()))
+
+    run(liquid, press, until, fps, every=watch)
     report = dent_report(liquid, press, until - 1e-4, (1.0, 0.0))
+    report["wake"] = wake[0]
     if picture:
         save_picture(liquid.h, picture, [path(until)])
     return report
@@ -327,7 +380,7 @@ def cmd_drag(args, tuning):
             picture = os.path.join(args.png, f"drag-{finger}-{speed:g}.png") if args.png else None
             r = drag(tuning, speed, finger, args.width, args.height, args.seed, args.fps, picture)
             print(f"  finger {finger:6s} {speed:6g} px/s: front edge {fmt_front(r['front'])}, deepest {r['deepest']:+5.0f} px, "
-                  f"depth {r['depth']:.2f} of resting, short ripples behind {r['ripples']:.4f}")
+                  f"depth {r['depth']:.2f} of resting, short ripples behind {r['ripples']:.4f}, wake through the frost {r['wake']:.2f}")
     return 0
 
 
@@ -355,6 +408,8 @@ def cmd_check(args, tuning):
             verdict(r["front"] is not None and r["front"] >= -3, f"{where}: the dent keeps up (front edge {fmt_front(r['front'])}, at least -3 px)")
             verdict(r["depth"] >= 0.6, f"{where}: the dent stays deep ({r['depth']:.2f} of resting, at least 0.60)")
             verdict(r["ripples"] <= 0.03, f"{where}: no ripple per step behind it (short ripples {r['ripples']:.4f}, at most 0.03)")
+            if speed >= 1300:
+                verdict(r["wake"] >= 0.5, f"{where}: its wake shows through Liquid Glass Light's frost ({r['wake']:.2f}, at least 0.50)")
     off = click(tuning, "off", seed=args.seed, fps=args.fps)
     on = click(tuning, "moving", seed=args.seed, fps=args.fps)
     for key in ("pressed", "let go"):

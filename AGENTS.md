@@ -321,7 +321,19 @@ change different files), and each repo's check applies the other's installed pat
   press at 690-1950 px/s (at rest ~12), full depth to 0.75 of it. The numpy model used to work this out is
   `tools/liquid/` (the user: "add the numpy testing setup to the kit"): `liquid.sh check` fails on each of
   the dropped variants (no finger, g weighting, the finger on for a still press), and `compare` on a
-  `record.sh` log agreed with the real liquid to 0.8% of its spread. After 20 ms with no event, a sample where the pointer stood is put in
+  `record.sh` log agreed with the real liquid to 0.8% of its spread.
+  Then (the user, with a recording on Liquid Glass Light: "when moving fast now i'm seeing big rings at the
+  stopping points instead of wakes"): a press faster than the waves sends a ring off as it stops whatever
+  presses it (13 px high 70 px ahead after 600 px at 1500 px/s, against a plain click's 1.8; the waves it sent
+  off as it stopped share a centre), but the finger had dimmed the wake that shows through the frost by a
+  third at 1500 px/s and to 0.13 at 4000 (from 0.22 with the pressure alone), since it took away the liquid
+  the pressure would have pushed into the wake. Smoothing the press's stops made the ring bigger (it
+  overshoots and pushes more), and easing the pressure off while the finger leads lost the wake. Now the
+  finger pushes the liquid aside: each cell works out what the finger pushes down there from its height as
+  the step began (`pushedAt`, the dent as deep as at the press's centre), and cells in a ring two press widths
+  round it (0.6 wide) add up all of it (the cells within 1.75 widths, at most 24 a side) and take it in.
+  Through the frost the wake is 0.80 at 1500 px/s and 0.71 at 4000 (the model), the stop ring 13.2 and 7.9 px
+  (13.7 and 6.8 before); the dent still keeps up, and the model matches the real liquid to 1.4%. After 20 ms with no event, a sample where the pointer stood is put in
   8 ms before the next, so the press doesn't creep across the pause. A
   press moving faster than the waves (667 px/s against the user's 305) trails a Mach-like wake; on the
   46 px panel it hits the rims at once and runs along as plane waves, visible where it crosses an edge
