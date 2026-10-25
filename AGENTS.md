@@ -307,7 +307,17 @@ change different files), and each repo's check applies the other's installed pat
   interval (`m_motionInterval`, a moving average of the gaps in all the pointer's motion): without that a
   drag's first events came later than the lag allowed, and the press held and jumped a few times as it
   started (a 4000 px/s step in a 1300 px/s drag; 1560 at most with it, and no still step once it moves).
-  Real mice stamp evenly, so on screen it trails the cursor by a report interval and 2 ms at most. After 20 ms with no event, a sample where the pointer stood is put in
+  Real mice stamp evenly, so on screen it trails the cursor by a report interval and 2 ms at most.
+  The dent kept trailing, though (the user: "make wave keep up with the pointer location better"): a pressure
+  digs its dent only as fast as the liquid flows away, about 30 ms at their wave speed 305 px/s, so a press
+  faster than the waves left it behind (probed in the preview's real liquid: deepest 27-32 px behind at
+  ~720 px/s, 54-61 px at ~1600, never half as deep as at rest past ~1300). A dragged press is now a finger
+  too (fluid.frag, `clickFinger`): under it the surface is pushed down to the press's resting dent with a
+  4 ms time constant (`s_clickFinger`), never lifted, weighted g^3 (firmest at its middle; weighted g, a
+  fast drag left a ripple per step in the trench behind). It fades in from 0.5 to 1.5 x the wave speed (the
+  press's speed over 20 ms), since slower the pressure keeps up (0-3 px behind) and the finger halved the
+  ring a plain click sends off as it's pressed. With it the dent's front edge stays 0-5 px ahead of the
+  press at 690-1950 px/s (at rest ~12), full depth to 0.75 of it. After 20 ms with no event, a sample where the pointer stood is put in
   8 ms before the next, so the press doesn't creep across the pause. A
   press moving faster than the waves (667 px/s against the user's 305) trails a Mach-like wake; on the
   46 px panel it hits the rims at once and runs along as plane waves, visible where it crosses an edge

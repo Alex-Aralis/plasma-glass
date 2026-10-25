@@ -242,6 +242,7 @@ private:
         int pushLocation;
         int pressLocation;
         int clickLocation;
+        int clickFingerLocation;
         int breezeLocation;
         int shoreLocation;
         int bedLocation;

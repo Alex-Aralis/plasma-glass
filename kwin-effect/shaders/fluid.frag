@@ -31,6 +31,7 @@ uniform vec4 push;         // the busy push: its side (0 left, 1 right, 2 top, 3
 uniform vec4 press;        // or a press on the surface: its centre (px), radius (px), and pressure
                            // (px^2/s^2, as c^2 times the height it would push down by)
 uniform vec4 click;        // a click's press, the same way
+uniform float clickFinger; // and how much of the way down to its resting dent it pushes the surface this step
 uniform vec3 breeze;       // how hard the breeze's gusts press (px^2/s^2; 0: none), how big they are (px),
                            // and the time in their turns (they come and go once a turn)
 uniform vec4 shore;        // the shore: how far in from the rim it runs on average and how far it wanders
@@ -249,5 +250,17 @@ void main(void)
     h += dt * timing.z * lap / (cell * cell);
     // and the level settles back to rest (what the push leaves, or a cell the glass grew over)
     h *= exp(-timing.w * dt);
+    // a dragged click presses like a finger as well (clickFinger: only as it outruns the waves): under it the
+    // surface goes down to the dent its pressure holds at rest at once, not only as fast as the liquid can flow
+    // away, so the dent keeps up with the pointer (the waves still run off it as before); it never lifts the
+    // surface. Firmest at
+    // its middle (g^3): pushed down as hard across its whole width, a fast drag left a ripple per step in the
+    // trench behind it
+    if (click.w != 0.0 && clickFinger > 0.0) {
+        vec2 d = (centre(c) - click.xy) / click.z;
+        float g = exp(-dot(d, d));
+        float dent = -click.w * g / (timing.y * dHere);
+        h -= max(h - dent, 0.0) * clickFinger * g * g * g;
+    }
     fragColor = vec4(h, uR, vB, 1.0);
 }

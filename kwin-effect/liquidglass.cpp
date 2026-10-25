@@ -120,6 +120,10 @@ static constexpr double s_liquidLevel = 1.0 / 3.0;
 static constexpr double s_swellMomentum = 30;
 static constexpr double s_ripplesMomentum = 0.15;
 static constexpr double s_liquidFollow = 3;
+// A dragged click's press is a finger too: under it the surface is pushed down to the dent its pressure holds at
+// rest, taking up this many s (the pressure alone digs it only as fast as the liquid flows away, about 30 ms at
+// the user's wave speed, so the dent trailed a press faster than the waves: 31 px behind at 1000 px/s)
+static constexpr double s_clickFinger = 0.004;
 
 // The corners a Liquid Glass frame rounds off a blur shape, by their radii (none: it's not one). A quarter
 // circle of radius r leaves r² (1 - π/4) of the square it's in out of the shape, so what the shape leaves
@@ -260,6 +264,7 @@ LiquidGlassEffect::LiquidGlassEffect()
         m_fluidPass.pushLocation = m_fluidPass.shader->uniformLocation("push");
         m_fluidPass.pressLocation = m_fluidPass.shader->uniformLocation("press");
         m_fluidPass.clickLocation = m_fluidPass.shader->uniformLocation("click");
+        m_fluidPass.clickFingerLocation = m_fluidPass.shader->uniformLocation("clickFinger");
         m_fluidPass.breezeLocation = m_fluidPass.shader->uniformLocation("breeze");
         m_fluidPass.shoreLocation = m_fluidPass.shader->uniformLocation("shore");
         m_fluidPass.bedLocation = m_fluidPass.shader->uniformLocation("bed");
@@ -1294,7 +1299,14 @@ std::optional<double> LiquidGlassEffect::runLiquid(BlurEffectData &data, const L
                        pushAt(start + t + dt / 2, &push, &press);
                        m_fluidPass.shader->setUniform(m_fluidPass.pushLocation, push);
                        m_fluidPass.shader->setUniform(m_fluidPass.pressLocation, press);
-                       m_fluidPass.shader->setUniform(m_fluidPass.clickLocation, clickAt(start + t + dt / 2));
+                       const QVector4D click = clickAt(start + t + dt / 2);
+                       m_fluidPass.shader->setUniform(m_fluidPass.clickLocation, click);
+                       // the finger only as the press outruns the waves (slower, the pressure keeps up by itself,
+                       // and the finger would soak up the ring a click sends off as it's pressed)
+                       const QVector4D before = clickAt(start + t + dt / 2 - 0.02);
+                       const double pressSpeed = click.w() > 0 && before.w() > 0 ? std::hypot(click.x() - before.x(), click.y() - before.y()) / 0.02 : 0;
+                       const double outrun = smoothStep(0.5 * c, 1.5 * c, pressSpeed);
+                       m_fluidPass.shader->setUniform(m_fluidPass.clickFingerLocation, float(outrun * (1 - std::exp(-dt / s_clickFinger))));
                        moves(t, dt, s_ripplesMomentum * momentum, f.ripplesAccel, pushTime);
                        // gusts about chopScale across, coming and going as fast as a wave crosses half of one,
                        // pressing hard enough that the waves they raise lean the glass a little
@@ -1312,6 +1324,7 @@ std::optional<double> LiquidGlassEffect::runLiquid(BlurEffectData &data, const L
                            m_fluidPass.shader->setUniform(m_fluidPass.pushLocation, QVector4D(-1, 0, 0, 0));
                            m_fluidPass.shader->setUniform(m_fluidPass.pressLocation, QVector4D(0, 0, 1, 0));
                            m_fluidPass.shader->setUniform(m_fluidPass.clickLocation, QVector4D(0, 0, 1, 0));
+                           m_fluidPass.shader->setUniform(m_fluidPass.clickFingerLocation, 0.0f);
                            m_fluidPass.shader->setUniform(m_fluidPass.breezeLocation, QVector3D(0, 1, 0));
                            // its waves at least ~0.15 s long, so broad at its speed
                            moves(t, dt, s_swellMomentum * momentum, f.swellAccel, std::max(0.15, m_liquid.width / (0.38 * cs)));
