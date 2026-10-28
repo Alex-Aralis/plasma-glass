@@ -279,9 +279,10 @@ refreshed.
     it keeps its shadow (it goes as the panel touches the edge and comes back as it leaves)
   - notification popups: no header row. A 48 px icon on the left: the notification's picture (avatars
     and photos get rounded corners), else the app's icon, else a bell; a picture wears the app's icon
-    as a badge on its corner. The title (1.5x, 15 pt) has the sender across from it, quiet: the web
-    page for a browser's notification (calendar.google.com), else the app's name, and the time once
-    the popup is a minute old. The body (1.3x, 13 pt) sits under the title. Popups are 1.25x Plasma's
+    as a badge on its corner. The title (1.5x, 15 pt) runs the full width, its first line leaving room
+    for the sender across from it, quiet: the web page for a browser's notification
+    (calendar.google.com), else the app's name, and the time once the popup is a minute old. The body
+    (1.3x, 13 pt) sits under the title, eight whole lines at most before it scrolls. Popups are 1.25x Plasma's
     width (445 px at scale 1), so lines keep their length. More padding. The glass is frosted more
     under the text, a white haze; with extra content (a screenshot, buttons, a transfer's progress)
     the frost ends 16 px under the text and the content sits 16 px below that, on the clearer glass,

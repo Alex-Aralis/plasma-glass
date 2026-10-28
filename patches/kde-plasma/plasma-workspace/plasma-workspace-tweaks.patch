@@ -241,7 +241,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
 --- a/applets/notifications/delegates/DelegatePopup.qml
 +++ b/applets/notifications/delegates/DelegatePopup.qml
-@@ -7,132 +7,143 @@
+@@ -7,132 +7,168 @@
  
  import QtQuick
  import QtQuick.Layouts
@@ -306,24 +306,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 -        // HACK PlasmoidHeading is a QQC2 Control which accepts left mouse button by default,
 -        // which breaks the popup default action mouse handler, cf. QTBUG-89785
 -        Component.onCompleted: Notifications.InputDisabler.makeTransparentForInput(this)
--
--        contentItem: Components.NotificationHeader {
--            modelInterface: delegateRoot.modelInterface
--        }
--    }
--
--    // Horizontal timeout indicator
-     Item {
--        Layout.fillWidth: true
--        Layout.row: 1
--        Layout.columnSpan: delegateRoot.__firstColumn + 2
--        // Hug the top, left, and right
--        Layout.topMargin: -((delegateRoot.rowSpacing * 2) + height)
--        Layout.leftMargin: -delegateRoot.modelInterface.popupLeftPadding
--        Layout.rightMargin: -delegateRoot.modelInterface.popupRightPadding
--        implicitHeight: 2
--        implicitWidth: -1
--        visible: !criticalNotificationIndicator.visible && Notifications.Globals.notificationSettings.showPopupTimeout
++    Item {
 +        id: iconColumn
 +        Layout.row: 0
 +        Layout.column: 0
@@ -333,14 +316,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +        implicitWidth: delegateRoot.iconSize
 +        implicitHeight: delegateRoot.iconSize
  
--        Rectangle {
--            readonly property real completionFraction: {
--                if (delegateRoot.modelInterface.timeout === 0) {
--                    return 0
+-        contentItem: Components.NotificationHeader {
 +        Components.Icon {
 +            id: icon
 +            anchors.fill: parent
-+            modelInterface: delegateRoot.modelInterface
+             modelInterface: delegateRoot.modelInterface
 +            // pictures get the glass's rounded corners; themed icons stay as drawn
 +            roundToIconSize: !delegateRoot.iconIsImage
 +            layer.enabled: delegateRoot.iconIsImage
@@ -349,17 +329,10 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +                    width: icon.width
 +                    height: icon.height
 +                    radius: Math.round(icon.width * 0.22)
-                 }
--
--                return delegateRoot.modelInterface.remainingTime / delegateRoot.modelInterface.timeout
-             }
++                }
++            }
 +        }
- 
--            height: parent.height
--            width: Math.round(parent.width * completionFraction)
--            anchors.left: parent.left
--
--            color: Kirigami.Theme.highlightColor
++
 +        // the app's icon: in the notification's place when it has none, else a badge on its corner
 +        Kirigami.Icon {
 +            id: appIcon
@@ -374,9 +347,73 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +            height: width
 +            source: delegateRoot.modelInterface.applicationIconSource
 +            visible: valid
++        }
++
++        // neither: a bell, so every popup in the stack lines up
++        Kirigami.Icon {
++            anchors.fill: parent
++            source: "preferences-desktop-notification-bell"
++            visible: !icon.visible && !appIcon.visible
+         }
+     }
+ 
+-    // Horizontal timeout indicator
++    // The title runs the full width; only its first line leaves room for the sender, across from it
+     Item {
++        Layout.row: 0
++        Layout.column: delegateRoot.textColumn
++        Layout.columnSpan: 2 - delegateRoot.textColumn
+         Layout.fillWidth: true
+-        Layout.row: 1
+-        Layout.columnSpan: delegateRoot.__firstColumn + 2
+-        // Hug the top, left, and right
+-        Layout.topMargin: -((delegateRoot.rowSpacing * 2) + height)
+-        Layout.leftMargin: -delegateRoot.modelInterface.popupLeftPadding
+-        Layout.rightMargin: -delegateRoot.modelInterface.popupRightPadding
+-        implicitHeight: 2
+-        implicitWidth: -1
+-        visible: !criticalNotificationIndicator.visible && Notifications.Globals.notificationSettings.showPopupTimeout
++        implicitHeight: Math.max(summary.visible ? summary.implicitHeight : 0, sender.y + sender.implicitHeight)
+ 
+-        Rectangle {
+-            readonly property real completionFraction: {
+-                if (delegateRoot.modelInterface.timeout === 0) {
+-                    return 0
+-                }
+-
+-                return delegateRoot.modelInterface.remainingTime / delegateRoot.modelInterface.timeout
++        Components.Summary {
++            id: summary
++            anchors {
++                left: parent.left
++                right: parent.right
++                top: parent.top
+             }
++            font.pointSize: Kirigami.Theme.defaultFont.pointSize * delegateRoot.titleScale
++            modelInterface: delegateRoot.modelInterface
+ 
+-            height: parent.height
+-            width: Math.round(parent.width * completionFraction)
+-            anchors.left: parent.left
++            onLineLaidOut: line => {
++                if (line.number === 0) {
++                    const room = sender.width + Kirigami.Units.largeSpacing;
++                    line.width -= room;
++                    if (Application.layoutDirection === Qt.RightToLeft) {
++                        line.x += room;
++                    }
++                }
++            }
+ 
+-            color: Kirigami.Theme.highlightColor
++            KQuickControlsAddons.MouseEventListener {
++                anchors.fill: parent
++                visible: delegateRoot.modelInterface.hasDefaultAction && !delegateRoot.hasBodyText
++                onClicked: delegateRoot.modelInterface.defaultActionInvoked();
++            }
          }
 -    }
- 
+-
 -    Rectangle {
 -        id: criticalNotificationIndicator
 -        Layout.fillHeight: true
@@ -390,47 +427,48 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 -        height: parent.height
 -        color: Kirigami.Theme.neutralTextColor
 -        visible: delegateRoot.modelInterface.urgency === NotificationManager.Notifications.CriticalUrgency
-+        // neither: a bell, so every popup in the stack lines up
-+        Kirigami.Icon {
-+            anchors.fill: parent
-+            source: "preferences-desktop-notification-bell"
-+            visible: !icon.visible && !appIcon.visible
-+        }
-     }
+-    }
  
 -    Components.Summary {
 -        id: summary
 -        // Base layout intentionally has no row spacing, so add top padding here when needed
 -        Layout.topMargin: delegateRoot.hasBodyText || icon.visible ? Kirigami.Units.smallSpacing : 0
-+    RowLayout {
-+        Layout.row: 0
-+        Layout.column: delegateRoot.textColumn
-+        Layout.columnSpan: 2 - delegateRoot.textColumn
-         Layout.fillWidth: true
+-        Layout.fillWidth: true
 -        Layout.row: 2
 -        Layout.column: delegateRoot.__firstColumn
 -        Layout.columnSpan: icon.visible ? 1 : 2
 -        modelInterface: delegateRoot.modelInterface
-+        spacing: Kirigami.Units.largeSpacing
++        // who sent it, quiet: the app's name, or the web page's for a browser's notification (the badge
++        // on the icon already shows the browser), then how long ago once it's a minute old
++        RowLayout {
++            id: sender
++            anchors {
++                right: parent.right
++                top: parent.top
++                topMargin: summary.visible ? Math.max(0, Math.round((summary.metrics.height - senderName.height) / 2)) : 0
++            }
++            spacing: Kirigami.Units.largeSpacing
++            // the title's first line is laid out around it, possibly before it had its width
++            onWidthChanged: summary.forceLayout()
++
++            PlasmaComponents3.Label {
++                id: senderName
++                Layout.maximumWidth: delegateRoot.width * 0.4
++                opacity: 0.6
++                elide: Text.ElideRight
++                textFormat: Text.PlainText
++                text: delegateRoot.modelInterface.originName || delegateRoot.modelInterface.applicationName
++            }
  
 -        KQuickControlsAddons.MouseEventListener {
 -            anchors.fill: parent
 -            visible: delegateRoot.modelInterface.hasDefaultAction && !delegateRoot.hasBodyText
 -            onClicked: delegateRoot.modelInterface.defaultActionInvoked();
-+        Components.Summary {
-+            id: summary
-+            Layout.fillWidth: true
-+            Layout.alignment: Qt.AlignTop
-+            font.pointSize: Kirigami.Theme.defaultFont.pointSize * delegateRoot.titleScale
-+            modelInterface: delegateRoot.modelInterface
-+
-+            KQuickControlsAddons.MouseEventListener {
-+                anchors.fill: parent
-+                visible: delegateRoot.modelInterface.hasDefaultAction && !delegateRoot.hasBodyText
-+                onClicked: delegateRoot.modelInterface.defaultActionInvoked();
++            Components.HeadingButtons {
++                modelInterface: delegateRoot.modelInterface
 +            }
          }
--    }
+     }
  
 -    Components.Icon {
 -        id: icon
@@ -440,24 +478,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 -        Layout.column: delegateRoot.__firstColumn + 1
 -        Layout.rowSpan: 2
 -        modelInterface: delegateRoot.modelInterface
-+        // who sent it, quiet, across from the title: the app's name, or the web page's for a browser's
-+        // notification (the badge on the icon already shows the browser)
-+        PlasmaComponents3.Label {
-+            Layout.alignment: Qt.AlignTop | Qt.AlignRight
-+            Layout.topMargin: summary.visible ? Math.round((summary.metrics.height - height) / 2) : 0
-+            Layout.maximumWidth: delegateRoot.width * 0.4
-+            opacity: 0.6
-+            elide: Text.ElideRight
-+            textFormat: Text.PlainText
-+            text: delegateRoot.modelInterface.originName || delegateRoot.modelInterface.applicationName
-+        }
-+
-+        Components.HeadingButtons {
-+            Layout.alignment: Qt.AlignTop
-+            modelInterface: delegateRoot.modelInterface
-+        }
-     }
- 
+-    }
+-
      KQuickControlsAddons.MouseEventListener {
 -        // Base layout intentionally has no row spacing, so add top padding here when needed
 -        Layout.topMargin: summary.visible ? 0 : Kirigami.Units.smallSpacing
@@ -471,11 +493,24 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 -        Layout.column: delegateRoot.__firstColumn
 -        Layout.columnSpan: icon.visible ? 1 : 2
 -        Layout.maximumHeight: Kirigami.Units.gridUnit * delegateRoot.modelInterface.maximumLineCount
-+        Layout.maximumHeight: Kirigami.Units.gridUnit * delegateRoot.bodyScale * delegateRoot.modelInterface.maximumLineCount
++        // as many whole lines as a popup shows (at 1.3x a line is taller than 1.3 grid units)
++        Layout.maximumHeight: Math.ceil(bodyMetrics.lineSpacing) * delegateRoot.modelInterface.maximumLineCount
          // The body doesn't need to influence the implicit width in any way, this avoids a binding loop
          implicitWidth: -1
          implicitHeight: scroll.implicitHeight
-@@ -153,6 +164,7 @@
+@@ -142,6 +178,11 @@
+                 delegateRoot.modelInterface.defaultActionInvoked();
+             }
+         }
++        FontMetrics {
++            id: bodyMetrics
++            font: bodyLabel.font
++        }
++
+         PlasmaComponents3.ScrollView {
+             id: scroll
+             anchors.fill: parent
+@@ -153,6 +194,7 @@
  
              Components.Body {
                  id: bodyLabel
@@ -483,7 +518,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
                  width: scroll.width - scroll.PlasmaComponents3.ScrollBar.vertical.width
                  modelInterface: delegateRoot.modelInterface
                  Accessible.ignored: true // ignore HTML body in favor of Accessible.description on delegateRoot
-@@ -162,12 +174,13 @@
+@@ -162,12 +204,13 @@
  
      Components.FooterLoader {
          id: footerLoader
