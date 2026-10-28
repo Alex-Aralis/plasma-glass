@@ -278,8 +278,8 @@ refreshed.
   - the panel (plasmashell): docked, it casts no shadow, as if it were part of the screen's edge; floating,
     it keeps its shadow (it goes as the panel touches the edge and comes back as it leaves)
   - notification popups: no header row. A 48 px icon on the left: the notification's picture (avatars
-    and photos get rounded corners), else the app's icon, else a bell; a picture wears the app's icon
-    as a badge on its corner. The title (1.5x, 15 pt) runs the full width, its first line leaving room
+    and photos get rounded corners), else the app's icon; with neither, no icon, and the text starts
+    at the left. A picture wears the app's icon as a badge on its corner. The title (1.5x, 15 pt) runs the full width, its first line leaving room
     for the sender across from it, quiet: the web page for a browser's notification
     (calendar.google.com), else the app's name, and the time once the popup is a minute old. The body
     (1.3x, 13 pt) sits under the title, eight whole lines at most before it scrolls. Popups are 1.25x Plasma's

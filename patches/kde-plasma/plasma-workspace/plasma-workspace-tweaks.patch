@@ -269,7 +269,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
 --- a/applets/notifications/delegates/DelegatePopup.qml
 +++ b/applets/notifications/delegates/DelegatePopup.qml
-@@ -7,132 +7,167 @@
+@@ -7,132 +7,162 @@
  
  import QtQuick
  import QtQuick.Layouts
@@ -342,6 +342,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +        Layout.topMargin: Kirigami.Units.smallSpacing / 2
 +        implicitWidth: delegateRoot.iconSize
 +        implicitHeight: delegateRoot.iconSize
++        // without the notification's icon or the app's, no column: the text starts at the left
++        visible: icon.valid || appIcon.valid
  
 -        contentItem: Components.NotificationHeader {
 +        Components.Icon {
@@ -374,13 +376,6 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +            height: width
 +            source: delegateRoot.modelInterface.applicationIconSource
 +            visible: valid
-+        }
-+
-+        // neither: a bell, so every popup in the stack lines up
-+        Kirigami.Icon {
-+            anchors.fill: parent
-+            source: "preferences-desktop-notification-bell"
-+            visible: !icon.visible && !appIcon.visible
          }
      }
  
@@ -400,14 +395,14 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 -        implicitHeight: 2
 -        implicitWidth: -1
 -        visible: !criticalNotificationIndicator.visible && Notifications.Globals.notificationSettings.showPopupTimeout
-+        implicitHeight: Math.max(summary.visible ? summary.implicitHeight : 0, sender.y + sender.implicitHeight)
- 
+-
 -        Rectangle {
 -            readonly property real completionFraction: {
 -                if (delegateRoot.modelInterface.timeout === 0) {
 -                    return 0
 -                }
--
++        implicitHeight: Math.max(summary.visible ? summary.implicitHeight : 0, sender.y + sender.implicitHeight)
+ 
 -                return delegateRoot.modelInterface.remainingTime / delegateRoot.modelInterface.timeout
 +        Components.Summary {
 +            id: summary
@@ -440,7 +435,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +            }
          }
 -    }
--
+ 
 -    Rectangle {
 -        id: criticalNotificationIndicator
 -        Layout.fillHeight: true
@@ -455,7 +450,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 -        color: Kirigami.Theme.neutralTextColor
 -        visible: delegateRoot.modelInterface.urgency === NotificationManager.Notifications.CriticalUrgency
 -    }
- 
+-
 -    Components.Summary {
 -        id: summary
 -        // Base layout intentionally has no row spacing, so add top padding here when needed
@@ -525,7 +520,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
          // The body doesn't need to influence the implicit width in any way, this avoids a binding loop
          implicitWidth: -1
          implicitHeight: scroll.implicitHeight
-@@ -142,6 +177,11 @@
+@@ -142,6 +172,11 @@
                  delegateRoot.modelInterface.defaultActionInvoked();
              }
          }
@@ -537,7 +532,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
          PlasmaComponents3.ScrollView {
              id: scroll
              anchors.fill: parent
-@@ -153,6 +193,7 @@
+@@ -153,6 +188,7 @@
  
              Components.Body {
                  id: bodyLabel
@@ -545,7 +540,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
                  width: scroll.width - scroll.PlasmaComponents3.ScrollBar.vertical.width
                  modelInterface: delegateRoot.modelInterface
                  Accessible.ignored: true // ignore HTML body in favor of Accessible.description on delegateRoot
-@@ -162,12 +203,13 @@
+@@ -162,12 +198,13 @@
  
      Components.FooterLoader {
          id: footerLoader
