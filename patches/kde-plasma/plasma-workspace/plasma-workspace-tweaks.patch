@@ -167,7 +167,33 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
          // Activate default action when dragging a file over the notification.
          DropArea {
              id: activateDefaultActionDropArea
-@@ -121,10 +246,11 @@
+@@ -118,13 +243,37 @@
+             onTriggered: notificationItem.modelInterface.defaultActionInvoked()
+         }
+ 
++        // mainItem stops at the frame's margins: out there on the glass's rim, a click opens the popup and a
++        // middle-click closes it, as on the rest of it (inside, the delegate's own handlers have them)
++        MouseArea {
++            x: -notificationPopup.leftPadding
++            y: -notificationPopup.topPadding
++            width: notificationPopup.width
++            height: notificationPopup.height
++            acceptedButtons: Qt.LeftButton | Qt.MiddleButton
++            onPressed: mouse => {
++                mouse.accepted = mouse.x < notificationPopup.leftPadding || mouse.x >= width - notificationPopup.rightPadding
++                    || mouse.y < notificationPopup.topPadding || mouse.y >= height - notificationPopup.bottomPadding;
++            }
++            onClicked: mouse => {
++                if (mouse.button === Qt.MiddleButton) {
++                    if (notificationItem.modelInterface.closable) {
++                        notificationItem.modelInterface.closeClicked();
++                    }
++                } else if (notificationPopup.modelInterface.hasDefaultAction) {
++                    notificationItem.modelInterface.defaultActionInvoked();
++                }
++            }
++        }
++
          DraggableDelegate {
              anchors {
                  fill: parent
@@ -182,21 +208,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
              hoverEnabled: true
              draggable: notificationItem.modelInterface.notificationType != NotificationManager.Notifications.JobType
              onDismissRequested: NotificationsApplet.Globals.popupNotificationsModel.close(NotificationsApplet.Globals.popupNotificationsModel.index(notificationItem.modelInterface.index, 0))
-@@ -149,6 +275,11 @@
-                 }
-             }
+@@ -199,12 +348,13 @@
  
-+            // pointing hand over the whole popup when clicking it opens something
-+            HoverHandler {
-+                cursorShape: notificationPopup.modelInterface.hasDefaultAction ? Qt.PointingHandCursor : Qt.ArrowCursor
-+            }
-+
-             LayoutMirroring.enabled: Application.layoutDirection === Qt.RightToLeft
-             LayoutMirroring.childrenInherit: true
- 
-@@ -201,10 +332,11 @@
+                 modelInterface {
                      maximumLineCount: 8
-                     bodyCursorShape: modelInterface.hasDefaultAction ? Qt.PointingHandCursor : 0
+-                    bodyCursorShape: modelInterface.hasDefaultAction ? Qt.PointingHandCursor : 0
++                    bodyCursorShape: Qt.PointingHandCursor
  
 -                    popupLeftPadding: notificationPopup.leftPadding
 -                    popupTopPadding: notificationPopup.topPadding
@@ -210,6 +227,35 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
  
                      // When notification is updated, restart hide timer
                      onTimeChanged: {
+@@ -216,13 +366,23 @@
+ 
+                     closable: true
+ 
+-                    onBodyClicked: {
+-                        if (modelInterface.hasDefaultAction) {
+-                            notificationItem.modelInterface.defaultActionInvoked();
+-                        }
+-                    }
++                    // No onBodyClicked: a click on the body opens the popup from its body area
++                    // (DelegatePopup.qml). With selection off, the label's own click would open it twice
+                 }
+             }
+         }
++
++        // The pointing hand over the whole popup, the rim too, from on top of everything, as buttons, the
++        // scroll bar and the body's scroll view (a Pane) set arrows of their own; none over a reply field, so
++        // it shows its I-beam. It takes no buttons and no hover (a hovered HoverHandler up here would keep
++        // hover from everything below it)
++        MouseArea {
++            x: -notificationPopup.leftPadding
++            y: -notificationPopup.topPadding
++            width: notificationPopup.width
++            height: notificationPopup.height
++            acceptedButtons: Qt.NoButton
++            cursorShape: notificationItem.modelInterface.replyFieldHovered ? undefined : Qt.PointingHandCursor
++        }
+     }
+ }
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/HeadingButtons.qml b/applets/notifications/components/HeadingButtons.qml
 --- a/applets/notifications/components/HeadingButtons.qml
 +++ b/applets/notifications/components/HeadingButtons.qml
@@ -250,6 +296,18 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
  
      smooth: true
  
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/ModelInterface.qml b/applets/notifications/components/ModelInterface.qml
+--- a/applets/notifications/components/ModelInterface.qml
++++ b/applets/notifications/components/ModelInterface.qml
+@@ -65,6 +65,8 @@
+     property string replySubmitButtonText
+     property string replySubmitButtonIconName
+     property bool replying: false
++    // the pointer is over the reply field (NotificationPopup.qml leaves it its I-beam)
++    property bool replyFieldHovered: false
+     property bool hasPendingReply: false
+ 
+     property int popupLeftPadding: 0
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/NotificationHeader.qml b/applets/notifications/components/NotificationHeader.qml
 --- a/applets/notifications/components/NotificationHeader.qml
 +++ b/applets/notifications/components/NotificationHeader.qml
@@ -263,6 +321,22 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
  
      Kirigami.Icon {
          id: applicationIconItem
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/NotificationReplyField.qml b/applets/notifications/components/NotificationReplyField.qml
+--- a/applets/notifications/components/NotificationReplyField.qml
++++ b/applets/notifications/components/NotificationReplyField.qml
+@@ -32,6 +32,12 @@
+         property: "hasPendingReply"
+         value: replyTextField.text !== ""
+     }
++
++    Binding {
++        target: replyRow.modelInterface
++        property: "replyFieldHovered"
++        value: replyTextField.hovered
++    }
+     PlasmaComponents3.TextField {
+         id: replyTextField
+         Layout.fillWidth: true
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/ThumbnailStrip.qml b/applets/notifications/components/ThumbnailStrip.qml
 --- a/applets/notifications/components/ThumbnailStrip.qml
 +++ b/applets/notifications/components/ThumbnailStrip.qml
@@ -334,7 +408,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
 --- a/applets/notifications/delegates/DelegatePopup.qml
 +++ b/applets/notifications/delegates/DelegatePopup.qml
-@@ -7,167 +7,316 @@
+@@ -7,167 +7,325 @@
  
  import QtQuick
  import QtQuick.Layouts
@@ -614,6 +688,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 -        implicitHeight: scroll.implicitHeight
 +        implicitHeight: scroll.implicitHeight - scrollAbove - scrollBelow
          visible: delegateRoot.hasBodyText
+-        onClicked: {
+-            if (delegateRoot.modelInterface.hasDefaultAction && !delegateRoot.hoveredLink) {
 +        // Below the cut the body scrolls through the whole section, from the cut down to the glass's
 +        // bottom edge, or to the edge of a shelf of buttons below it: the scroll view reaches that far,
 +        // and room as tall at either end of what it scrolls keeps the text where it's laid out. To the
@@ -654,8 +730,15 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +                scrollBarTimer.restart();
 +            }
 +        }
-         onClicked: {
-             if (delegateRoot.modelInterface.hasDefaultAction && !delegateRoot.hoveredLink) {
++        // The scroll view is a Pane, which takes every button, so a middle-click on the body never
++        // reaches the popup's TapHandler: it's caught here on its way in, and closes the popup
++        acceptedButtons: Qt.LeftButton | Qt.MiddleButton
++        onClicked: mouse => {
++            if (mouse.button === Qt.MiddleButton) {
++                if (delegateRoot.modelInterface.closable) {
++                    delegateRoot.modelInterface.closeClicked();
++                }
++            } else if (delegateRoot.modelInterface.hasDefaultAction && !delegateRoot.hoveredLink) {
                  delegateRoot.modelInterface.defaultActionInvoked();
              }
          }
@@ -716,6 +799,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +                    font.pointSize: Kirigami.Theme.defaultFont.pointSize * delegateRoot.bodyScale
 +                    width: parent.width
 +                    modelInterface: delegateRoot.modelInterface
++                    // the popup is one thing to click: no selecting its text
++                    selectByMouse: false
 +                    Accessible.ignored: true // ignore HTML body in favor of Accessible.description on delegateRoot
 +                }
 +

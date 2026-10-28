@@ -301,8 +301,11 @@ refreshed.
     the controls (20 px) as the glass's bottom edge is below them, so they sit in its middle.
     A screenshot shows as a rounded picture, 160 px tall, under the text (stock's blurred band slid up
     over the second line). No settings or close buttons (the history keeps them), no countdown bar,
-    no coloured stripe on critical ones, pointer cursor over the whole popup when it's clickable (over
-    its text it takes kde-fixes' fix). Popups still close on click, timeout, middle-click or swipe
+    no coloured stripe on critical ones. The pointing hand over the whole popup, its text, buttons,
+    pictures and the glass's rim too (an I-beam only over a reply field), and its text can't be selected:
+    the popup is one thing to click. Popups still close on click, timeout, middle-click or swipe;
+    middle-click and click now work anywhere on them (stock lost the middle button to the body's
+    scroll view, a Pane that takes every button, and nothing took clicks on the rim outside mainItem)
 - `milou-section-headers.patch`: KRunner result categories become small headers above each group
   instead of a 10-grid-unit column beside every row; result text 1.2x
 - `kwin-window-behavior-tabs.patch` (kde-plasma/kwin; `kwin-liquid-glass.patch` until 2026-10-22, when the
