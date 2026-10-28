@@ -36,7 +36,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
  
          acceptedButtons: Qt.AllButtons
          hoverEnabled: true
-@@ -76,6 +80,55 @@
+@@ -76,6 +80,73 @@
              }
          }
  
@@ -75,12 +75,30 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
 +        // a very light shadow under the frost's edge, as if the frosted part lay over the rest
 +        Rectangle {
 +            id: cutShadow
-+            readonly property real strength: notificationItem.darkGlass ? 0.16 : 0.06
++            readonly property real strength: notificationItem.darkGlass ? 0.11 : 0.04
 +            x: headerFrost.x
 +            y: headerFrost.y + headerFrost.height
 +            width: headerFrost.width
 +            height: Kirigami.Units.largeSpacing + 2
 +            visible: headerFrost.sectioned
++            // it fades out toward the glass's sides instead of running into them
++            readonly property real sideFade: Kirigami.Units.gridUnit * 2.5 / Math.max(width, 1)
++            layer.enabled: visible
++            layer.effect: OpacityMask {
++                maskSource: Rectangle {
++                    width: cutShadow.width
++                    height: cutShadow.height
++                    gradient: Gradient {
++                        orientation: Gradient.Horizontal
++                        GradientStop { position: 0; color: Qt.rgba(0, 0, 0, 0) }
++                        GradientStop { position: cutShadow.sideFade * 0.5; color: Qt.rgba(0, 0, 0, 0.35) }
++                        GradientStop { position: cutShadow.sideFade; color: Qt.rgba(0, 0, 0, 1) }
++                        GradientStop { position: 1 - cutShadow.sideFade; color: Qt.rgba(0, 0, 0, 1) }
++                        GradientStop { position: 1 - cutShadow.sideFade * 0.5; color: Qt.rgba(0, 0, 0, 0.35) }
++                        GradientStop { position: 1; color: Qt.rgba(0, 0, 0, 0) }
++                    }
++                }
++            }
 +            gradient: Gradient {
 +                GradientStop { position: 0; color: Qt.rgba(0, 0, 0, cutShadow.strength) }
 +                GradientStop { position: 0.3; color: Qt.rgba(0, 0, 0, cutShadow.strength * 0.5) }
@@ -92,7 +110,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
          // Activate default action when dragging a file over the notification.
          DropArea {
              id: activateDefaultActionDropArea
-@@ -121,10 +174,11 @@
+@@ -121,10 +192,11 @@
          DraggableDelegate {
              anchors {
                  fill: parent
@@ -107,7 +125,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
              hoverEnabled: true
              draggable: notificationItem.modelInterface.notificationType != NotificationManager.Notifications.JobType
              onDismissRequested: NotificationsApplet.Globals.popupNotificationsModel.close(NotificationsApplet.Globals.popupNotificationsModel.index(notificationItem.modelInterface.index, 0))
-@@ -149,6 +203,11 @@
+@@ -149,6 +221,11 @@
                  }
              }
  
@@ -119,7 +137,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
              LayoutMirroring.enabled: Application.layoutDirection === Qt.RightToLeft
              LayoutMirroring.childrenInherit: true
  
-@@ -201,10 +260,11 @@
+@@ -201,10 +278,11 @@
                      maximumLineCount: 8
                      bodyCursorShape: modelInterface.hasDefaultAction ? Qt.PointingHandCursor : 0
  

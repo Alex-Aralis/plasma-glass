@@ -286,8 +286,8 @@ refreshed.
     width (445 px at scale 1), so lines keep their length. More padding. The glass is frosted more
     under the text, a white haze; with extra content (a screenshot, buttons, a transfer's progress)
     the frost ends 16 px under the text and the content sits 16 px below that, on the clearer glass,
-    under a very light shadow from the frost's edge (black at 6% on the light glass, 16% on the dark,
-    easing out over 10 px).
+    under a very light shadow from the frost's edge (black at 4% on the light glass, 11% on the dark,
+    easing out over 10 px down and over the last 45 px toward the glass's sides).
     A screenshot shows as a rounded picture, 160 px tall, under the text (stock's blurred band slid up
     over the second line). No settings or close buttons (the history keeps them), no countdown bar,
     no coloured stripe on critical ones, pointer cursor over the whole popup when it's clickable (over
