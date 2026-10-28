@@ -289,9 +289,10 @@ refreshed.
     body) sits below a cut 16 px under the text, 16 px further down, on glass frosted less: the popup
     draws the style's glass itself, as it is above the cut and at half strength below (KWin's blur is
     the same), under a very light shadow from the cut (black at 4% on the light glass, 11% on the dark,
-    easing out over 10 px). Controls (buttons, a reply field, a transfer's progress) stay on frosted
-    glass: right under the text, or after content on a frosted shelf at the bottom, its edge 12 px
-    below the content and 12 px above the controls.
+    easing out over 10 px). Controls (buttons, a reply field, a transfer's progress) sit on a shelf
+    set off from what's above them: under the text, below a cut on the glass frosted less; after
+    content, on a frosted shelf at the bottom. Its edge is 12 px below what's above, the controls 12 px
+    below the edge.
     A screenshot shows as a rounded picture, 160 px tall, under the text (stock's blurred band slid up
     over the second line). No settings or close buttons (the history keeps them), no countdown bar,
     no coloured stripe on critical ones, pointer cursor over the whole popup when it's clickable (over
