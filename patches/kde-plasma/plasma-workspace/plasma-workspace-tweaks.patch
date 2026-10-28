@@ -1,7 +1,15 @@
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/NotificationPopup.qml b/applets/notifications/NotificationPopup.qml
 --- a/applets/notifications/NotificationPopup.qml
 +++ b/applets/notifications/NotificationPopup.qml
-@@ -20,6 +20,8 @@
+@@ -6,6 +6,7 @@
+ 
+ import QtQuick
+ import QtQuick.Layouts
++import Qt5Compat.GraphicalEffects
+ 
+ import org.kde.kquickcontrolsaddons as KQuickAddons
+ import org.kde.kirigami as Kirigami
+@@ -20,11 +21,14 @@
  
      property int popupWidth
      property bool showPopupTimeout
@@ -10,7 +18,14 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
  
      // Maximum width the popup can take to not break out of the screen geometry.
      readonly property int availableWidth: NotificationsApplet.Globals.screenRect.width - NotificationsApplet.Globals.popupEdgeDistance * 2 - leftPadding - rightPadding
-@@ -61,8 +63,8 @@
+ 
+-    readonly property int minimumContentWidth: popupWidth
++    // wider than stock, for the larger text
++    readonly property int minimumContentWidth: Math.round(popupWidth * 1.25)
+     readonly property int maximumContentWidth: Math.min((availableWidth > 0 ? availableWidth : Number.MAX_VALUE), popupWidth * 3)
+ 
+     property alias modelInterface: notificationItem.modelInterface
+@@ -61,8 +65,8 @@
          id: focusListener
          property bool wantsFocus: false
  
@@ -21,13 +36,50 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
  
          acceptedButtons: Qt.AllButtons
          hoverEnabled: true
-@@ -121,10 +123,13 @@
+@@ -76,6 +80,38 @@
+             }
+         }
+ 
++        // The glass is frosted more under the text: a white haze over the whole popup, or, with extra
++        // content (a screenshot, buttons, a transfer's progress), from the top edge to just under the text,
++        // so that sits on the clearer glass, with no line between them. Drawn out to the window's edges and
++        // rounded like the glass's corners.
++        Item {
++            id: headerFrost
++            readonly property bool sectioned: notificationItem.hasExtraContent
++            readonly property int radius: notificationItem.glassRadius
++            x: -notificationPopup.leftPadding
++            y: -notificationPopup.topPadding
++            width: focusListener.width + notificationPopup.leftPadding + notificationPopup.rightPadding
++            height: sectioned ? notificationPopup.topPadding + notificationPopup.extraPadding + notificationItem.frostBottom
++                              : focusListener.height + notificationPopup.topPadding + notificationPopup.bottomPadding
++            layer.enabled: true
++            layer.effect: OpacityMask {
++                maskSource: Rectangle {
++                    width: headerFrost.width
++                    height: headerFrost.height
++                    topLeftRadius: headerFrost.radius
++                    topRightRadius: headerFrost.radius
++                    bottomLeftRadius: headerFrost.sectioned ? 0 : headerFrost.radius
++                    bottomRightRadius: headerFrost.sectioned ? 0 : headerFrost.radius
++                }
++            }
++
++            Rectangle {
++                anchors.fill: parent
++                color: "white"
++                opacity: notificationItem.darkGlass ? 0.1 : 0.3
++            }
++        }
++
+         // Activate default action when dragging a file over the notification.
+         DropArea {
+             id: activateDefaultActionDropArea
+@@ -121,10 +157,11 @@
          DraggableDelegate {
              anchors {
                  fill: parent
 -                topMargin: notificationPopup.modelInterface.closable || notificationPopup.modelInterface.dismissable || notificationPopup.modelInterface.configurable ? -notificationPopup.topPadding : 0
-+                // only the minimize button is shown in popups now; pull the header up only when it is
-+                topMargin: notificationPopup.modelInterface.dismissable ? -notificationPopup.topPadding : 0
              }
 -            leftPadding: 0
 -            rightPadding: 0
@@ -38,7 +90,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
              hoverEnabled: true
              draggable: notificationItem.modelInterface.notificationType != NotificationManager.Notifications.JobType
              onDismissRequested: NotificationsApplet.Globals.popupNotificationsModel.close(NotificationsApplet.Globals.popupNotificationsModel.index(notificationItem.modelInterface.index, 0))
-@@ -149,6 +154,11 @@
+@@ -149,6 +186,11 @@
                  }
              }
  
@@ -50,7 +102,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
              LayoutMirroring.enabled: Application.layoutDirection === Qt.RightToLeft
              LayoutMirroring.childrenInherit: true
  
-@@ -201,10 +211,11 @@
+@@ -201,10 +243,11 @@
                      maximumLineCount: 8
                      bodyCursorShape: modelInterface.hasDefaultAction ? Qt.PointingHandCursor : 0
  
@@ -101,66 +153,337 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
  
      Kirigami.Icon {
          id: applicationIconItem
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/ThumbnailStrip.qml b/applets/notifications/components/ThumbnailStrip.qml
+--- a/applets/notifications/components/ThumbnailStrip.qml
++++ b/applets/notifications/components/ThumbnailStrip.qml
+@@ -32,7 +32,7 @@
+     readonly property alias dragging: dragArea.dragging
+ 
+     // Fix for BUG:462399
+-    implicitHeight: Kirigami.Units.iconSizes.enormous
++    implicitHeight: Math.round(Kirigami.Units.iconSizes.enormous * 1.25)
+ 
+     Notifications.FileMenu {
+         id: fileMenu
+@@ -53,24 +53,10 @@
+         size: Qt.size(Notifications.Globals.popupWidth, Notifications.Globals.popupWidth)
+     }
+ 
+-    KQCAddons.QPixmapItem {
++    // the picture sits in the glass with rounded corners, without a blurred band behind it
++    Item {
+         id: previewBackground
+-        anchors {
+-            fill: parent
+-            leftMargin: -thumbnailArea.modelInterface.popupLeftPadding
+-            topMargin: -thumbnailArea.modelInterface.popupTopPadding
+-            rightMargin: -thumbnailArea.modelInterface.popupRightPadding
+-            bottomMargin: -thumbnailArea.modelInterface.popupBottomPadding
+-        }
+-        fillMode: Image.PreserveAspectCrop
+-        layer.enabled: true
+-        opacity: 0.25
+-        pixmap: thumbnailer.pixmap
+-        layer.effect: FastBlur {
+-            source: previewBackground
+-            anchors.fill: previewBackground
+-            radius: 30
+-        }
++        anchors.fill: parent
+     }
+ 
+     DraggableFileArea {
+@@ -93,13 +79,22 @@
+ 
+     KQCAddons.QPixmapItem {
+         id: previewPixmap
+-        anchors {
+-            fill: previewBackground
+-            margins: Kirigami.Units.smallSpacing
+-        }
++        // as large as fits, at the picture's own shape (a file without a preview gets the whole strip)
++        readonly property real fitWidth: Math.min(parent.width, parent.height * thumbnailer.ratio)
++        anchors.centerIn: parent
++        width: thumbnailer.hasPreview ? Math.round(fitWidth) : parent.width
++        height: thumbnailer.hasPreview ? Math.round(fitWidth / thumbnailer.ratio) : parent.height
+         pixmap: thumbnailer.pixmap
+         smooth: true
+-        fillMode: Image.PreserveAspectFit
++        fillMode: Image.PreserveAspectCrop
++        layer.enabled: thumbnailer.hasPreview
++        layer.effect: OpacityMask {
++            maskSource: Rectangle {
++                width: previewPixmap.width
++                height: previewPixmap.height
++                radius: Kirigami.Units.cornerRadius * 2
++            }
++        }
+ 
+         Kirigami.Icon {
+             id: previewIcon
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
 --- a/applets/notifications/delegates/DelegatePopup.qml
 +++ b/applets/notifications/delegates/DelegatePopup.qml
-@@ -22,6 +22,9 @@
+@@ -7,132 +7,143 @@
+ 
+ import QtQuick
+ import QtQuick.Layouts
++import Qt5Compat.GraphicalEffects
+ 
+ import org.kde.plasma.components as PlasmaComponents3
+-import org.kde.plasma.extras as PlasmaExtras
+ import org.kde.kirigami as Kirigami
+ import org.kde.kquickcontrolsaddons as KQuickControlsAddons
+ 
+-import org.kde.notificationmanager as NotificationManager
+-import plasma.applet.org.kde.plasma.notifications as Notifications
+-
+ import "../components" as Components
+ 
+-
++// The icon first: one big icon on the left (the notification's picture, or the app's icon when it
++// has none; a picture wears the app's icon as a badge), the title with the sender's name across from
++// it, the body under the title. No header row, no countdown bar, no stripe on critical ones.
  BaseDelegate {
      id: delegateRoot
  
-+    // more space between the notification's icon/image and its text
-+    columnSpacing: Kirigami.Units.largeSpacing
++    readonly property real titleScale: 1.5
++    readonly property real bodyScale: 1.3
++    readonly property int iconSize: Kirigami.Units.iconSizes.large
++    // a picture (avatar, photo) rather than a themed icon
++    readonly property bool iconIsImage: !!modelInterface.icon && typeof modelInterface.icon !== "string"
++    readonly property int textColumn: iconColumn.visible ? 1 : 0
++    // The popup frosts its glass more under the text (NotificationPopup.qml). With extra content (a
++    // screenshot, buttons, a transfer's progress) the frost stops sectionGap under the text and the
++    // content starts as far below, on the clearer glass. glassRadius is generate.py's R.
++    readonly property int sectionGap: Kirigami.Units.largeSpacing * 2
++    readonly property bool hasExtraContent: footerLoader.visible
++    readonly property real frostBottom: footerLoader.y - sectionGap
++    readonly property int glassRadius: 26
++    readonly property bool darkGlass: Kirigami.ColorUtils.brightnessForColor(Kirigami.Theme.backgroundColor) === Kirigami.ColorUtils.Dark
++
++    columns: 2
++    columnSpacing: Math.round(Kirigami.Units.gridUnit * 0.75)
 +
      Layout.preferredWidth: (footerLoader.item as Item)?.implicitWidth ?? -1
  
      body: bodyLabel
-@@ -31,11 +34,13 @@
+     icon: icon
+     footer: footerLoader.item as Item
+-    columns: 3
  
      Accessible.role: Accessible.Notification
  
 -    readonly property int __firstColumn: modelInterface.urgency === NotificationManager.Notifications.CriticalUrgency ? 1 : 0
-+    // no stripe column for critical notifications (the stripe is hidden below)
-+    readonly property int __firstColumn: 0
+-
+-    PlasmaExtras.PlasmoidHeading {
+-        id: heading
+-        topInset: 0
+-        Layout.fillWidth: true
+-        Layout.columnSpan: delegateRoot.__firstColumn + 2
+-        bottomPadding: 0
+-        // We want the close button borders to touch popup borders
+-        leftPadding: Layout.mirrored ? -delegateRoot.modelInterface.popupLeftPadding : 0
+-        rightPadding: Layout.mirrored ? 0 : -delegateRoot.modelInterface.popupRightPadding
+-
+-        // HACK PlasmoidHeading is a QQC2 Control which accepts left mouse button by default,
+-        // which breaks the popup default action mouse handler, cf. QTBUG-89785
+-        Component.onCompleted: Notifications.InputDisabler.makeTransparentForInput(this)
+-
+-        contentItem: Components.NotificationHeader {
+-            modelInterface: delegateRoot.modelInterface
+-        }
+-    }
+-
+-    // Horizontal timeout indicator
+     Item {
+-        Layout.fillWidth: true
+-        Layout.row: 1
+-        Layout.columnSpan: delegateRoot.__firstColumn + 2
+-        // Hug the top, left, and right
+-        Layout.topMargin: -((delegateRoot.rowSpacing * 2) + height)
+-        Layout.leftMargin: -delegateRoot.modelInterface.popupLeftPadding
+-        Layout.rightMargin: -delegateRoot.modelInterface.popupRightPadding
+-        implicitHeight: 2
+-        implicitWidth: -1
+-        visible: !criticalNotificationIndicator.visible && Notifications.Globals.notificationSettings.showPopupTimeout
++        id: iconColumn
++        Layout.row: 0
++        Layout.column: 0
++        Layout.rowSpan: 2
++        Layout.alignment: Qt.AlignTop
++        Layout.topMargin: Kirigami.Units.smallSpacing / 2
++        implicitWidth: delegateRoot.iconSize
++        implicitHeight: delegateRoot.iconSize
  
-     PlasmaExtras.PlasmoidHeading {
-         id: heading
-         topInset: 0
-+        background.visible: false // the app name sits on the glass, no header band or line
-         Layout.fillWidth: true
-         Layout.columnSpan: delegateRoot.__firstColumn + 2
-         bottomPadding: 0
-@@ -94,11 +99,13 @@
-         implicitWidth: 4
-         height: parent.height
-         color: Kirigami.Theme.neutralTextColor
+-        Rectangle {
+-            readonly property real completionFraction: {
+-                if (delegateRoot.modelInterface.timeout === 0) {
+-                    return 0
++        Components.Icon {
++            id: icon
++            anchors.fill: parent
++            modelInterface: delegateRoot.modelInterface
++            // pictures get the glass's rounded corners; themed icons stay as drawn
++            roundToIconSize: !delegateRoot.iconIsImage
++            layer.enabled: delegateRoot.iconIsImage
++            layer.effect: OpacityMask {
++                maskSource: Rectangle {
++                    width: icon.width
++                    height: icon.height
++                    radius: Math.round(icon.width * 0.22)
+                 }
+-
+-                return delegateRoot.modelInterface.remainingTime / delegateRoot.modelInterface.timeout
+             }
++        }
+ 
+-            height: parent.height
+-            width: Math.round(parent.width * completionFraction)
+-            anchors.left: parent.left
+-
+-            color: Kirigami.Theme.highlightColor
++        // the app's icon: in the notification's place when it has none, else a badge on its corner
++        Kirigami.Icon {
++            id: appIcon
++            readonly property bool badge: icon.visible
++            anchors {
++                right: parent.right
++                bottom: parent.bottom
++                rightMargin: badge ? -Kirigami.Units.smallSpacing : 0
++                bottomMargin: badge ? -Kirigami.Units.smallSpacing : 0
++            }
++            width: badge ? Kirigami.Units.iconSizes.smallMedium : parent.width
++            height: width
++            source: delegateRoot.modelInterface.applicationIconSource
++            visible: valid
+         }
+-    }
+ 
+-    Rectangle {
+-        id: criticalNotificationIndicator
+-        Layout.fillHeight: true
+-        Layout.leftMargin: Layout.mirrored ? 0 : -delegateRoot.modelInterface.popupLeftPadding
+-        Layout.rightMargin: Layout.mirrored ? -delegateRoot.modelInterface.popupRightPadding : 0
+-        Layout.topMargin: -delegateRoot.rowSpacing
+-        Layout.bottomMargin: -delegateRoot.rowSpacing
+-        Layout.rowSpan: 3
+-
+-        implicitWidth: 4
+-        height: parent.height
+-        color: Kirigami.Theme.neutralTextColor
 -        visible: delegateRoot.modelInterface.urgency === NotificationManager.Notifications.CriticalUrgency
-+        // no coloured stripe down the edge of critical popups: their icon and staying open say enough
-+        visible: false
++        // neither: a bell, so every popup in the stack lines up
++        Kirigami.Icon {
++            anchors.fill: parent
++            source: "preferences-desktop-notification-bell"
++            visible: !icon.visible && !appIcon.visible
++        }
      }
  
-     Components.Summary {
-         id: summary
-+        font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.3 // larger than stock (level 4 is about 1.1)
-         // Base layout intentionally has no row spacing, so add top padding here when needed
-         Layout.topMargin: delegateRoot.hasBodyText || icon.visible ? Kirigami.Units.smallSpacing : 0
+-    Components.Summary {
+-        id: summary
+-        // Base layout intentionally has no row spacing, so add top padding here when needed
+-        Layout.topMargin: delegateRoot.hasBodyText || icon.visible ? Kirigami.Units.smallSpacing : 0
++    RowLayout {
++        Layout.row: 0
++        Layout.column: delegateRoot.textColumn
++        Layout.columnSpan: 2 - delegateRoot.textColumn
          Layout.fillWidth: true
-@@ -132,7 +139,7 @@
-         Layout.row: summary.visible ? 3 : 2
-         Layout.column: delegateRoot.__firstColumn
-         Layout.columnSpan: icon.visible ? 1 : 2
+-        Layout.row: 2
+-        Layout.column: delegateRoot.__firstColumn
+-        Layout.columnSpan: icon.visible ? 1 : 2
+-        modelInterface: delegateRoot.modelInterface
++        spacing: Kirigami.Units.largeSpacing
+ 
+-        KQuickControlsAddons.MouseEventListener {
+-            anchors.fill: parent
+-            visible: delegateRoot.modelInterface.hasDefaultAction && !delegateRoot.hasBodyText
+-            onClicked: delegateRoot.modelInterface.defaultActionInvoked();
++        Components.Summary {
++            id: summary
++            Layout.fillWidth: true
++            Layout.alignment: Qt.AlignTop
++            font.pointSize: Kirigami.Theme.defaultFont.pointSize * delegateRoot.titleScale
++            modelInterface: delegateRoot.modelInterface
++
++            KQuickControlsAddons.MouseEventListener {
++                anchors.fill: parent
++                visible: delegateRoot.modelInterface.hasDefaultAction && !delegateRoot.hasBodyText
++                onClicked: delegateRoot.modelInterface.defaultActionInvoked();
++            }
+         }
+-    }
+ 
+-    Components.Icon {
+-        id: icon
+-        // Base layout intentionally has no row spacing, so add top padding here
+-        Layout.topMargin: Kirigami.Units.smallSpacing
+-        Layout.row: 2
+-        Layout.column: delegateRoot.__firstColumn + 1
+-        Layout.rowSpan: 2
+-        modelInterface: delegateRoot.modelInterface
++        // who sent it, quiet, across from the title: the app's name, or the web page's for a browser's
++        // notification (the badge on the icon already shows the browser)
++        PlasmaComponents3.Label {
++            Layout.alignment: Qt.AlignTop | Qt.AlignRight
++            Layout.topMargin: summary.visible ? Math.round((summary.metrics.height - height) / 2) : 0
++            Layout.maximumWidth: delegateRoot.width * 0.4
++            opacity: 0.6
++            elide: Text.ElideRight
++            textFormat: Text.PlainText
++            text: delegateRoot.modelInterface.originName || delegateRoot.modelInterface.applicationName
++        }
++
++        Components.HeadingButtons {
++            Layout.alignment: Qt.AlignTop
++            modelInterface: delegateRoot.modelInterface
++        }
+     }
+ 
+     KQuickControlsAddons.MouseEventListener {
+-        // Base layout intentionally has no row spacing, so add top padding here when needed
+-        Layout.topMargin: summary.visible ? 0 : Kirigami.Units.smallSpacing
++        Layout.row: 1
++        Layout.column: delegateRoot.textColumn
++        Layout.columnSpan: 2 - delegateRoot.textColumn
++        Layout.topMargin: Kirigami.Units.smallSpacing / 2
+         Layout.fillWidth: true
+         Layout.fillHeight: true
+-        Layout.row: summary.visible ? 3 : 2
+-        Layout.column: delegateRoot.__firstColumn
+-        Layout.columnSpan: icon.visible ? 1 : 2
 -        Layout.maximumHeight: Kirigami.Units.gridUnit * delegateRoot.modelInterface.maximumLineCount
-+        Layout.maximumHeight: Kirigami.Units.gridUnit * 1.2 * delegateRoot.modelInterface.maximumLineCount // as many lines, at the larger size
++        Layout.maximumHeight: Kirigami.Units.gridUnit * delegateRoot.bodyScale * delegateRoot.modelInterface.maximumLineCount
          // The body doesn't need to influence the implicit width in any way, this avoids a binding loop
          implicitWidth: -1
          implicitHeight: scroll.implicitHeight
-@@ -153,6 +160,7 @@
+@@ -153,6 +164,7 @@
  
              Components.Body {
                  id: bodyLabel
-+                font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.2 // larger than stock
++                font.pointSize: Kirigami.Theme.defaultFont.pointSize * delegateRoot.bodyScale
                  width: scroll.width - scroll.PlasmaComponents3.ScrollBar.vertical.width
                  modelInterface: delegateRoot.modelInterface
                  Accessible.ignored: true // ignore HTML body in favor of Accessible.description on delegateRoot
+@@ -162,12 +174,13 @@
+ 
+     Components.FooterLoader {
+         id: footerLoader
+-        Layout.fillWidth: true
+-        Layout.row: 4
+-        Layout.column: delegateRoot.__firstColumn
++        Layout.row: 2
++        Layout.column: 0
+         Layout.columnSpan: 2
++        // under the text, the frost's end, then as much again down to the content
++        Layout.topMargin: delegateRoot.sectionGap * 2
++        Layout.fillWidth: true
+         modelInterface: delegateRoot.modelInterface
+         iconContainerItem: icon
+     }
+ }
+-
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/CMakeLists.txt b/krunner/CMakeLists.txt
 --- a/krunner/CMakeLists.txt
 +++ b/krunner/CMakeLists.txt

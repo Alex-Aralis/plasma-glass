@@ -33,9 +33,11 @@ notification cruft trimmed.
   with Meta held, as with other windows) and remembers the spot. It is wider, and types straight onto the glass in larger text, with no input box, like Spotlight. It uses
   compact section headers and has no help, settings, pin or clear buttons. Files show where they are on
   every row, right-aligned, not just on the selected one; hovering one unrolls that into its full folder
-  (panning along when it's too long). Notification popups lose
-  their settings and close buttons and the countdown bar, and show a pointer when clicking them
-  opens something.
+  (panning along when it's too long). Notification popups lead with a big icon, the notification's
+  picture or else the app's icon (a picture wears the app's icon as a badge), with the title and body
+  in larger text beside it and the sender's name across from the title. Their text sits on frosted glass;
+  a screenshot or buttons below it sit on the clearer glass. They lose their settings and close
+  buttons and the countdown bar, and show a pointer when clicking them opens something.
 
 ## Install
 
@@ -275,11 +277,18 @@ refreshed.
     tooltip on the search field
   - the panel (plasmashell): docked, it casts no shadow, as if it were part of the screen's edge; floating,
     it keeps its shadow (it goes as the panel touches the edge and comes back as it leaves)
-  - notification popups: more padding, wider gaps between icons and text, summary and body text
-    about 1.2x larger, the app name on the glass (no header band), no settings or close buttons (the
-    history keeps them), no coloured stripe on critical ones, header padding fixed, pointer cursor
-    over the whole popup when it's clickable (over its text it takes kde-fixes' fix). Popups still
-    close on click, timeout, middle-click or swipe
+  - notification popups: no header row. A 48 px icon on the left: the notification's picture (avatars
+    and photos get rounded corners), else the app's icon, else a bell; a picture wears the app's icon
+    as a badge on its corner. The title (1.5x, 15 pt) has the sender across from it, quiet: the web
+    page for a browser's notification (calendar.google.com), else the app's name, and the time once
+    the popup is a minute old. The body (1.3x, 13 pt) sits under the title. Popups are 1.25x Plasma's
+    width (445 px at scale 1), so lines keep their length. More padding. The glass is frosted more
+    under the text, a white haze; with extra content (a screenshot, buttons, a transfer's progress)
+    the frost ends 16 px under the text and the content sits 16 px below that, on the clearer glass.
+    A screenshot shows as a rounded picture, 160 px tall, under the text (stock's blurred band slid up
+    over the second line). No settings or close buttons (the history keeps them), no countdown bar,
+    no coloured stripe on critical ones, pointer cursor over the whole popup when it's clickable (over
+    its text it takes kde-fixes' fix). Popups still close on click, timeout, middle-click or swipe
 - `milou-section-headers.patch`: KRunner result categories become small headers above each group
   instead of a 10-grid-unit column beside every row; result text 1.2x
 - `kwin-window-behavior-tabs.patch` (kde-plasma/kwin; `kwin-liquid-glass.patch` until 2026-10-22, when the
