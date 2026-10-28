@@ -334,7 +334,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
 --- a/applets/notifications/delegates/DelegatePopup.qml
 +++ b/applets/notifications/delegates/DelegatePopup.qml
-@@ -7,167 +7,267 @@
+@@ -7,167 +7,316 @@
  
  import QtQuick
  import QtQuick.Layouts
@@ -616,13 +616,43 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
          visible: delegateRoot.hasBodyText
 +        // Below the cut the body scrolls through the whole section, from the cut down to the glass's
 +        // bottom edge, or to the edge of a shelf of buttons below it: the scroll view reaches that far,
-+        // and room as tall at either end of what it scrolls keeps the text where it's laid out
++        // and room as tall at either end of what it scrolls keeps the text where it's laid out. To the
++        // right it reaches over the glass's margin, where its scroll bar is, so the text keeps the
++        // same margin on both sides
 +        readonly property int scrollAbove: delegateRoot.longBody ? delegateRoot.sectionGap : 0
 +        readonly property int scrollBelow: {
 +            if (!delegateRoot.longBody || delegateRoot.pictureFooter) {
 +                return 0;
 +            }
 +            return delegateRoot.controlsFooter ? delegateRoot.shelfGap : delegateRoot.modelInterface.popupBottomPadding;
++        }
++        readonly property int scrollRight: delegateRoot.longBody ? delegateRoot.modelInterface.popupRightPadding : 0
++        // The scroll bar shows from when the text scrolls until it's been still for a moment, and for
++        // as long as the pointer is on it. By the text's position: a mouse wheel scrolls it without
++        // making the Flickable move, so the bar's own active doesn't follow a wheel
++        property real scrollBarOpacity: scrollBarTimer.running ? 1 : 0
++        Behavior on scrollBarOpacity {
++            NumberAnimation {
++                duration: Kirigami.Units.longDuration
++                easing.type: Easing.OutCubic
++            }
++        }
++        Timer {
++            id: scrollBarTimer
++            interval: 600
++            repeat: true
++            onTriggered: {
++                const bar = scroll.PlasmaComponents3.ScrollBar.vertical;
++                if (!bar.hovered && !bar.pressed) {
++                    stop();
++                }
++            }
++        }
++        Connections {
++            target: scroll.contentItem
++            function onContentYChanged() {
++                scrollBarTimer.restart();
++            }
 +        }
          onClicked: {
              if (delegateRoot.modelInterface.hasDefaultAction && !delegateRoot.hoveredLink) {
@@ -638,22 +668,43 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
              id: scroll
 -            anchors.fill: parent
 +            anchors {
-+                fill: parent
++                top: parent.top
++                bottom: parent.bottom
 +                topMargin: -bodyArea.scrollAbove
 +                bottomMargin: -bodyArea.scrollBelow
 +            }
++            width: parent.width + bodyArea.scrollRight
++            // the scroll bar is over the margin, not beside the text
++            leftPadding: 0
++            rightPadding: 0
              contentWidth: bodyLabel.width
  
-             // This avoids a binding loop
+-            // This avoids a binding loop
++            // The bar's handle runs down the middle of the margin: from as far below the cut as it is from
++            // the glass's side, to as far above a shelf's edge, or to where the text ends above the glass's
++            // bottom edge (as clear of its rounded corner). The margin is outside this delegate, so the bar
++            // is the popup's child, not the scroll view's: Qt (6.11) can miss that a child reaches past
++            // its parent and then gives it no hover or clicks out there
++            readonly property int scrollBarGap: Math.round((bodyArea.scrollRight - PlasmaComponents3.ScrollBar.vertical.availableWidth) / 2)
++            readonly property int scrollBarEnd: delegateRoot.longBody && !delegateRoot.pictureFooter && !delegateRoot.controlsFooter
++                ? delegateRoot.modelInterface.popupBottomPadding : scrollBarGap
++            PlasmaComponents3.ScrollBar.vertical.parent: delegateRoot.parent
++            PlasmaComponents3.ScrollBar.vertical.x: delegateRoot.x + bodyArea.x + x + width - bodyArea.scrollRight + scrollBarGap - PlasmaComponents3.ScrollBar.vertical.leftPadding
++            PlasmaComponents3.ScrollBar.vertical.y: delegateRoot.y + bodyArea.y + y + scrollBarGap - PlasmaComponents3.ScrollBar.vertical.topPadding
++            PlasmaComponents3.ScrollBar.vertical.height: height - scrollBarGap - scrollBarEnd + PlasmaComponents3.ScrollBar.vertical.topPadding + PlasmaComponents3.ScrollBar.vertical.bottomPadding
++            PlasmaComponents3.ScrollBar.vertical.opacity: bodyArea.scrollBarOpacity
++            // This avoids a binding loop. Hidden, the pointer goes through it
              PlasmaComponents3.ScrollBar.vertical.visible: delegateRoot.modelInterface.maximumLineCount > 0 && bodyLabel.implicitHeight > parent.Layout.maximumHeight
++                && bodyArea.scrollBarOpacity > 0
              PlasmaComponents3.ScrollBar.horizontal.visible: false
  
 -            Components.Body {
 -                id: bodyLabel
-+            Column {
-                 width: scroll.width - scroll.PlasmaComponents3.ScrollBar.vertical.width
+-                width: scroll.width - scroll.PlasmaComponents3.ScrollBar.vertical.width
 -                modelInterface: delegateRoot.modelInterface
 -                Accessible.ignored: true // ignore HTML body in favor of Accessible.description on delegateRoot
++            Column {
++                width: scroll.width - bodyArea.scrollRight
 +
 +                Item {
 +                    width: 1
