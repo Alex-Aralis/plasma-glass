@@ -286,10 +286,12 @@ refreshed.
     (1.3x, 13 pt) sits under the title; a body of more than three lines there goes below the cut
     instead, the full width, eight whole lines at most before it scrolls. Popups are 1.25x Plasma's
     width (445 px at scale 1), so lines keep their length. More padding. Content (a screenshot, a long
-    body) sits below a cut 16 px under the text, 16 px further down, on glass frosted less: the popup
-    draws the style's glass itself, as it is above the cut and at half strength below (KWin's blur is
-    the same), under a very light shadow from the cut (black at 4% on the light glass, 11% on the dark,
-    easing out over 10 px). Controls (buttons, a reply field, a transfer's progress) sit on a shelf
+    body) sits below a cut 16 px under the text, 16 px further down. On the light glass the part below
+    the cut is frosted less: the popup draws the style's glass itself, as it is above the cut and at
+    half strength below (KWin's blur is the same). On the dark glass, where that left the parts too
+    alike, the frosted parts get more frost instead, a white haze at 10% (over the whole popup when it
+    has no cut). A very light shadow falls from the cut (black at 4% on the light glass, 11% on the
+    dark, easing out over 10 px). Controls (buttons, a reply field, a transfer's progress) sit on a shelf
     set off from what's above them: under the text, below a cut on the glass frosted less; after
     content, on a frosted shelf at the bottom. Its edge is 12 px below what's above, the controls 12 px
     below the edge.

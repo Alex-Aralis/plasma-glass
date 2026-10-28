@@ -13,21 +13,26 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
  
  import org.kde.notificationmanager as NotificationManager
  import plasma.applet.org.kde.plasma.notifications as NotificationsApplet
-@@ -20,11 +22,36 @@
+@@ -20,11 +22,41 @@
  
      property int popupWidth
      property bool showPopupTimeout
 +    // extra room inside the glass, on top of the dialog margins every Plasma popup shares
 +    readonly property int extraPadding: Kirigami.Units.largeSpacing
 +
-+    // Extra content (a screenshot, buttons, a long body) sits below a cut, on glass frosted less. A popup
-+    // with a cut draws its glass itself (see focusListener), the style's dialogs/background twice: as it
-+    // is above the cut, at shelfFrost of its strength below (its fill, rim and glow; KWin's blur is the
-+    // same). PlasmaWindow's own background item, the content item's other child beside mainItem, is then
-+    // only hidden: its mask still gives KWin the blur's shape. (A layer on it re-rendered it, and sent
-+    // that mask, without end.)
++    // Extra content (a screenshot, buttons, a long body) sits below a cut. The parts are set apart two
++    // ways. On light glass the part below the cut is frosted less: the popup draws its glass itself (see
++    // focusListener), the style's dialogs/background clipped in parts, as it is above the cut (and on a
++    // frosted shelf of buttons), at shelfFrost of its strength below (its fill, rim and glow; KWin's blur
++    // is the same). PlasmaWindow's own background item, the content item's other child beside mainItem,
++    // is then only hidden: its mask still gives KWin the blur's shape. (A layer on it re-rendered it, and
++    // sent that mask, without end.) On dark glass that left the parts too alike, so the frosted parts get
++    // more frost instead: a white haze (addedFrost), over the whole popup when it has no cut.
 +    readonly property real shelfFrost: 0.5
++    readonly property real addedFrost: 0.1
++    readonly property int glassRadius: 26 // generate.py's R: the glass's corners
 +    readonly property bool sectioned: notificationItem.hasExtraContent
++    readonly property bool ownGlass: sectioned && !notificationItem.darkGlass
 +    readonly property real cutY: topPadding + extraPadding + notificationItem.frostBottom // in the window
 +    // controls after the content sit on a frosted shelf at the bottom, from here down (in the window)
 +    readonly property real shelfY: notificationItem.hasControlsShelf ? topPadding + extraPadding + notificationItem.shelfTop : height
@@ -35,11 +40,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
 +    function showOwnBackground(): void {
 +        for (const child of contentItem.children) {
 +            if (child !== mainItem) {
-+                child.opacity = sectioned ? 0 : 1;
++                child.opacity = ownGlass ? 0 : 1;
 +            }
 +        }
 +    }
-+    onSectionedChanged: showOwnBackground()
++    onOwnGlassChanged: showOwnBackground()
 +    Component.onCompleted: showOwnBackground()
  
      // Maximum width the popup can take to not break out of the screen geometry.
@@ -51,7 +56,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
      readonly property int maximumContentWidth: Math.min((availableWidth > 0 ? availableWidth : Number.MAX_VALUE), popupWidth * 3)
  
      property alias modelInterface: notificationItem.modelInterface
-@@ -61,8 +88,8 @@
+@@ -61,8 +93,8 @@
          id: focusListener
          property bool wantsFocus: false
  
@@ -62,18 +67,18 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
  
          acceptedButtons: Qt.AllButtons
          hoverEnabled: true
-@@ -76,6 +103,75 @@
+@@ -76,6 +108,99 @@
              }
          }
  
-+        // the glass of a popup with a cut: the frame as it is above the cut, frosted less below it, and as
-+        // it is again on the shelf of controls at the bottom, if there is one
++        // light glass with a cut: the frame as it is above the cut, frosted less below it, and as it is
++        // again on the shelf of controls at the bottom, if there is one
 +        Item {
 +            x: -notificationPopup.leftPadding
 +            y: -notificationPopup.topPadding
 +            width: notificationPopup.width
 +            height: notificationPopup.height
-+            visible: notificationPopup.sectioned
++            visible: notificationPopup.ownGlass
 +
 +            Item {
 +                width: parent.width
@@ -118,6 +123,30 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
 +            }
 +        }
 +
++        // dark glass: more frost on the frosted parts, all of a popup without a cut
++        Rectangle {
++            x: -notificationPopup.leftPadding
++            y: -notificationPopup.topPadding
++            width: notificationPopup.width
++            height: notificationPopup.sectioned ? notificationPopup.cutY : notificationPopup.height
++            visible: notificationItem.darkGlass
++            color: Qt.rgba(1, 1, 1, notificationPopup.addedFrost)
++            topLeftRadius: notificationPopup.glassRadius
++            topRightRadius: notificationPopup.glassRadius
++            bottomLeftRadius: notificationPopup.sectioned ? 0 : notificationPopup.glassRadius
++            bottomRightRadius: notificationPopup.sectioned ? 0 : notificationPopup.glassRadius
++        }
++        Rectangle {
++            x: -notificationPopup.leftPadding
++            y: notificationPopup.shelfY - notificationPopup.topPadding
++            width: notificationPopup.width
++            height: notificationPopup.height - notificationPopup.shelfY
++            visible: notificationItem.darkGlass && notificationItem.hasControlsShelf
++            color: Qt.rgba(1, 1, 1, notificationPopup.addedFrost)
++            bottomLeftRadius: notificationPopup.glassRadius
++            bottomRightRadius: notificationPopup.glassRadius
++        }
++
 +        // a very light shadow under the cut, as if the part above lay over the clearer glass below
 +        Rectangle {
 +            id: cutShadow
@@ -138,7 +167,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
          // Activate default action when dragging a file over the notification.
          DropArea {
              id: activateDefaultActionDropArea
-@@ -121,10 +217,11 @@
+@@ -121,10 +246,11 @@
          DraggableDelegate {
              anchors {
                  fill: parent
@@ -153,7 +182,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
              hoverEnabled: true
              draggable: notificationItem.modelInterface.notificationType != NotificationManager.Notifications.JobType
              onDismissRequested: NotificationsApplet.Globals.popupNotificationsModel.close(NotificationsApplet.Globals.popupNotificationsModel.index(notificationItem.modelInterface.index, 0))
-@@ -149,6 +246,11 @@
+@@ -149,6 +275,11 @@
                  }
              }
  
@@ -165,7 +194,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
              LayoutMirroring.enabled: Application.layoutDirection === Qt.RightToLeft
              LayoutMirroring.childrenInherit: true
  
-@@ -201,10 +303,11 @@
+@@ -201,10 +332,11 @@
                      maximumLineCount: 8
                      bodyCursorShape: modelInterface.hasDefaultAction ? Qt.PointingHandCursor : 0
  
