@@ -503,7 +503,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
 --- a/applets/notifications/delegates/DelegatePopup.qml
 +++ b/applets/notifications/delegates/DelegatePopup.qml
-@@ -7,167 +7,387 @@
+@@ -7,167 +7,334 @@
  
  import QtQuick
  import QtQuick.Layouts
@@ -557,17 +557,6 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +        + (hasBodyText && !longBody ? bodyArea.implicitHeight + Kirigami.Units.smallSpacing / 2 : 0)
 +    readonly property real shelfTop: footerLoader.y - shelfInset
 +    readonly property bool darkGlass: Kirigami.ColorUtils.brightnessForColor(Kirigami.Theme.backgroundColor) === Kirigami.ColorUtils.Dark
-+
-+    // the server's markup for a body as plain text: a few tags (a <br/> for each line break) and entities
-+    function plainText(markup: string): string {
-+        return markup.replace(/<\?xml[^>]*\?>/, "")
-+            .replace(/<br\s*\/?>/g, "\n")
-+            .replace(/<[^>]*>/g, "")
-+            .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&(apos|#39);/g, "'")
-+            .replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCodePoint(parseInt(hex, 16)))
-+            .replace(/&#([0-9]+);/g, (match, dec) => String.fromCodePoint(Number(dec)))
-+            .replace(/&amp;/g, "&");
-+    }
 +
 +    columns: 2
 +    columnSpacing: Math.round(Kirigami.Units.gridUnit * 0.75)
@@ -758,11 +747,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 -            anchors.fill: parent
 -            visible: delegateRoot.modelInterface.hasDefaultAction && !delegateRoot.hasBodyText
 -            onClicked: delegateRoot.modelInterface.defaultActionInvoked();
--        }
--    }
 +            Components.HeadingButtons {
 +                modelInterface: delegateRoot.modelInterface
 +            }
+         }
+     }
  
 -    Components.Icon {
 -        id: icon
@@ -772,50 +761,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 -        Layout.column: delegateRoot.__firstColumn + 1
 -        Layout.rowSpan: 2
 -        modelInterface: delegateRoot.modelInterface
-+            // copies the body (or, without one, the title) as plain text, since it can't be selected; a
-+            // check mark for a moment says it did
-+            PlasmaComponents3.ToolButton {
-+                id: copyButton
-+                property bool copied: false
-+                visible: delegateRoot.hasBodyText || summary.visible
-+                // as quiet as the name beside it until it's pointed at
-+                opacity: hovered || copied ? 1 : 0.6
-+                // no taller than the title's first line, which the row is centred on (the theme's frame
-+                // would make it 30 px)
-+                Layout.preferredWidth: Kirigami.Units.iconSizes.small + 2 * Kirigami.Units.smallSpacing
-+                Layout.preferredHeight: Layout.preferredWidth
-+                icon.name: copied ? "checkmark-symbolic" : "edit-copy-symbolic"
-+                display: PlasmaComponents3.AbstractButton.IconOnly
-+                text: copied ? i18nd("plasma_applet_org.kde.plasma.notifications", "Copied")
-+                             : i18nd("plasma_applet_org.kde.plasma.notifications", "Copy text")
-+
-+                onClicked: {
-+                    clipboard.content = delegateRoot.hasBodyText ? delegateRoot.plainText(delegateRoot.modelInterface.body) : summary.text;
-+                    copied = true;
-+                    copiedTimer.restart();
-+                }
-+
-+                KQuickControlsAddons.Clipboard {
-+                    id: clipboard
-+                }
-+
-+                Timer {
-+                    id: copiedTimer
-+                    interval: 1500
-+                    onTriggered: copyButton.copied = false
-+                }
-+
-+                PlasmaComponents3.ToolTip {
-+                    text: copyButton.text
-+                }
-+
-+                HoverHandler {
-+                    cursorShape: Qt.PointingHandCursor
-+                }
-+            }
-+        }
-     }
- 
+-    }
+-
      KQuickControlsAddons.MouseEventListener {
 -        // Base layout intentionally has no row spacing, so add top padding here when needed
 -        Layout.topMargin: summary.visible ? 0 : Kirigami.Units.smallSpacing

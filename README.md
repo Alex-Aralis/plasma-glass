@@ -303,9 +303,8 @@ refreshed.
     over the second line). No settings or close buttons (the history keeps them), no countdown bar,
     no coloured stripe on critical ones. The arrow over the popup, the pointing hand only over its
     buttons and links (a screenshot keeps Plasma's open hand, as it can be dragged out). Its text can't
-    be selected; a copy button beside the app's name copies it (the body, or the title without one) as
-    plain text, and shows a check mark for a moment. Paragraphs in the body are set apart by half a
-    line, once kde-fixes keeps the blank line between them (stock's server folds it into a line break).
+    be selected (the history's still can). Paragraphs in the body are set apart by half a line, once
+    kde-fixes keeps the blank line between them (stock's server folds it into a line break).
     Popups still close on click, timeout, middle-click or swipe;
     middle-click and click now work anywhere on them (stock lost the middle button to the body's
     scroll view, a Pane that takes every button, and nothing took clicks on the rim outside mainItem)
