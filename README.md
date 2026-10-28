@@ -33,9 +33,9 @@ notification cruft trimmed.
   with Meta held, as with other windows) and remembers the spot. It is wider, and types straight onto the glass in larger text, with no input box, like Spotlight. It uses
   compact section headers and has no help, settings, pin or clear buttons. Files show where they are on
   every row, right-aligned, not just on the selected one; hovering one unrolls that into its full folder
-  (panning along when it's too long). Notification popups lead with a big icon, the notification's
-  picture or else the app's icon (a picture wears the app's icon as a badge), with the title and body
-  in larger text beside it and the sender's name across from the title. Their text sits on frosted glass;
+  (panning along when it's too long). Notification popups lead with the notification's own icon or
+  picture, big, with the title and body in larger text beside it and the app's small icon and name
+  across from the title. Their text sits on frosted glass;
   a screenshot or buttons below it sit on the clearer glass. They lose their settings and close
   buttons and the countdown bar, and show a pointer when clicking them opens something.
 
@@ -277,12 +277,12 @@ refreshed.
     tooltip on the search field
   - the panel (plasmashell): docked, it casts no shadow, as if it were part of the screen's edge; floating,
     it keeps its shadow (it goes as the panel touches the edge and comes back as it leaves)
-  - notification popups: no header row. A 48 px icon on the left: the notification's picture (avatars
-    and photos get rounded corners), else the app's icon; with neither, no icon, and the text starts
-    at the left. An icon the icon theme doesn't have counts as none, instead of the theme's blank
-    "unknown" page. A picture wears the app's icon as a badge on its corner. The title (1.5x, 15 pt) runs the full width, its first line leaving room
-    for the sender across from it, quiet: the web page for a browser's notification
-    (calendar.google.com), else the app's name, and the time once the popup is a minute old. The body
+  - notification popups: no header row. A 48 px icon on the left: the notification's own icon or picture
+    (avatars and photos get rounded corners); with none, no icon, and the text starts at the left. An
+    icon the icon theme doesn't have counts as none, instead of the theme's blank "unknown" page. The
+    title (1.5x, 15 pt) runs the full width, its first line leaving room for the sender across from
+    it: the app's small icon, then quietly the web page for a browser's notification
+    (calendar.google.com) or else the app's name, and the time once the popup is a minute old. The body
     (1.3x, 13 pt) sits under the title; a body of more than three lines there goes below the cut
     instead, the full width, eight whole lines at most before it scrolls. Popups are 1.25x Plasma's
     width (445 px at scale 1), so lines keep their length. More padding. Content (a screenshot, a long

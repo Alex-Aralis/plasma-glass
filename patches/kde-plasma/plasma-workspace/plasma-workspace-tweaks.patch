@@ -235,7 +235,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/Icon.qml b/applets/notifications/components/Icon.qml
 --- a/applets/notifications/components/Icon.qml
 +++ b/applets/notifications/components/Icon.qml
-@@ -23,8 +23,12 @@
+@@ -23,8 +23,13 @@
      implicitHeight: Kirigami.Units.iconSizes.large
  
      source: modelInterface.icon !== modelInterface.applicationIconSource ? modelInterface.icon : null
@@ -243,9 +243,10 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
 +    // (appointment-soon, say, which Breeze has only as appointment-soon-symbolic)
 +    readonly property bool found: valid && status !== Kirigami.Icon.Error
 +    fallback: ""
++    readonly property bool jobIconShown: (jobIconLoader.item as JobIconItem)?.shown ?? false
      // don't show two identical icons
 -    visible: valid || ((jobIconLoader.item as JobIconItem)?.shown ?? false)
-+    visible: found || ((jobIconLoader.item as JobIconItem)?.shown ?? false)
++    visible: found || jobIconShown
  
      smooth: true
  
@@ -333,7 +334,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
 --- a/applets/notifications/delegates/DelegatePopup.qml
 +++ b/applets/notifications/delegates/DelegatePopup.qml
-@@ -7,132 +7,194 @@
+@@ -7,132 +7,184 @@
  
  import QtQuick
  import QtQuick.Layouts
@@ -350,9 +351,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
  import "../components" as Components
  
 -
-+// The icon first: one big icon on the left (the notification's picture, or the app's icon when it
-+// has none; a picture wears the app's icon as a badge), the title with the sender's name across from
-+// it, the body under the title. No header row, no countdown bar, no stripe on critical ones.
++// The icon first: the notification's own icon or picture, big, on the left (with none, the text starts
++// at the left), the title with the app's small icon and name across from it, the body under the title.
++// No header row, no countdown bar, no stripe on critical ones.
  BaseDelegate {
      id: delegateRoot
  
@@ -420,9 +421,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +        Layout.topMargin: Kirigami.Units.smallSpacing / 2
 +        implicitWidth: delegateRoot.iconSize
 +        implicitHeight: delegateRoot.iconSize
-+        // without the notification's icon or the app's (none given, or not in the icon theme), no column:
-+        // the text starts at the left
-+        visible: icon.found || appIcon.found
++        // the notification's own icon only (the app's is at the top right); without one (none given, or
++        // not in the icon theme), no column: the text starts at the left
++        visible: icon.found || icon.jobIconShown
  
 -        contentItem: Components.NotificationHeader {
 +        Components.Icon {
@@ -439,24 +440,6 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +                    radius: Math.round(icon.width * 0.22)
 +                }
 +            }
-+        }
-+
-+        // the app's icon: in the notification's place when it has none, else a badge on its corner
-+        Kirigami.Icon {
-+            id: appIcon
-+            readonly property bool badge: icon.visible
-+            anchors {
-+                right: parent.right
-+                bottom: parent.bottom
-+                rightMargin: badge ? -Kirigami.Units.smallSpacing : 0
-+                bottomMargin: badge ? -Kirigami.Units.smallSpacing : 0
-+            }
-+            width: badge ? Kirigami.Units.iconSizes.smallMedium : parent.width
-+            height: width
-+            source: delegateRoot.modelInterface.applicationIconSource
-+            readonly property bool found: valid && status !== Kirigami.Icon.Error
-+            fallback: ""
-+            visible: found
          }
      }
  
@@ -544,18 +527,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 -        color: Kirigami.Theme.neutralTextColor
 -        visible: delegateRoot.modelInterface.urgency === NotificationManager.Notifications.CriticalUrgency
 -    }
--
--    Components.Summary {
--        id: summary
--        // Base layout intentionally has no row spacing, so add top padding here when needed
--        Layout.topMargin: delegateRoot.hasBodyText || icon.visible ? Kirigami.Units.smallSpacing : 0
--        Layout.fillWidth: true
--        Layout.row: 2
--        Layout.column: delegateRoot.__firstColumn
--        Layout.columnSpan: icon.visible ? 1 : 2
--        modelInterface: delegateRoot.modelInterface
-+        // who sent it, quiet: the app's name, or the web page's for a browser's notification (the badge
-+        // on the icon already shows the browser), then how long ago once it's a minute old
++        // who sent it: the app's small icon, then quietly its name, or the web page's for a browser's
++        // notification (the icon shows the browser), then how long ago once it's a minute old
 +        RowLayout {
 +            id: sender
 +            anchors {
@@ -567,6 +540,23 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +            // the title's first line is laid out around it, possibly before it had its width
 +            onWidthChanged: summary.forceLayout()
 +
++            Kirigami.Icon {
++                Layout.preferredWidth: Kirigami.Units.iconSizes.small
++                Layout.preferredHeight: Kirigami.Units.iconSizes.small
++                source: delegateRoot.modelInterface.applicationIconSource
++                fallback: ""
++                visible: valid && status !== Kirigami.Icon.Error
++            }
+ 
+-    Components.Summary {
+-        id: summary
+-        // Base layout intentionally has no row spacing, so add top padding here when needed
+-        Layout.topMargin: delegateRoot.hasBodyText || icon.visible ? Kirigami.Units.smallSpacing : 0
+-        Layout.fillWidth: true
+-        Layout.row: 2
+-        Layout.column: delegateRoot.__firstColumn
+-        Layout.columnSpan: icon.visible ? 1 : 2
+-        modelInterface: delegateRoot.modelInterface
 +            PlasmaComponents3.Label {
 +                id: senderName
 +                Layout.maximumWidth: delegateRoot.width * 0.4
@@ -615,7 +605,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
          // The body doesn't need to influence the implicit width in any way, this avoids a binding loop
          implicitWidth: -1
          implicitHeight: scroll.implicitHeight
-@@ -142,6 +204,11 @@
+@@ -142,6 +194,11 @@
                  delegateRoot.modelInterface.defaultActionInvoked();
              }
          }
@@ -627,7 +617,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
          PlasmaComponents3.ScrollView {
              id: scroll
              anchors.fill: parent
-@@ -153,6 +220,7 @@
+@@ -153,6 +210,7 @@
  
              Components.Body {
                  id: bodyLabel
@@ -635,7 +625,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
                  width: scroll.width - scroll.PlasmaComponents3.ScrollBar.vertical.width
                  modelInterface: delegateRoot.modelInterface
                  Accessible.ignored: true // ignore HTML body in favor of Accessible.description on delegateRoot
-@@ -162,12 +230,19 @@
+@@ -162,12 +220,19 @@
  
      Components.FooterLoader {
          id: footerLoader
