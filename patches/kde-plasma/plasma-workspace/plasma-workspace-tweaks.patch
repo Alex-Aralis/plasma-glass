@@ -334,7 +334,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
 --- a/applets/notifications/delegates/DelegatePopup.qml
 +++ b/applets/notifications/delegates/DelegatePopup.qml
-@@ -7,167 +7,260 @@
+@@ -7,167 +7,267 @@
  
  import QtQuick
  import QtQuick.Layouts
@@ -382,6 +382,10 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +    readonly property bool hasExtraContent: hasContent || controlsFooter
 +    readonly property real frostBottom: hasContent ? (longBody ? bodyArea.y : footerLoader.y) - sectionGap : footerLoader.y - shelfInset
 +    readonly property bool hasControlsShelf: hasContent && controlsFooter
++    // The sender's icon and the text beside it (the title, and the body when it isn't below the cut)
++    // are centred on each other: a taller text block moves the icon down, a taller icon the text
++    readonly property real headerTextHeight: titleBlock.implicitHeight
++        + (hasBodyText && !longBody ? bodyArea.implicitHeight + Kirigami.Units.smallSpacing / 2 : 0)
 +    readonly property real shelfTop: footerLoader.y - shelfInset
 +    readonly property bool darkGlass: Kirigami.ColorUtils.brightnessForColor(Kirigami.Theme.backgroundColor) === Kirigami.ColorUtils.Dark
 +
@@ -418,7 +422,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +        Layout.column: 0
 +        Layout.rowSpan: 2
 +        Layout.alignment: Qt.AlignTop
-+        Layout.topMargin: Kirigami.Units.smallSpacing / 2
++        Layout.topMargin: Math.max(0, Math.round((delegateRoot.headerTextHeight - delegateRoot.iconSize) / 2))
 +        implicitWidth: delegateRoot.iconSize
 +        implicitHeight: delegateRoot.iconSize
 +        // the notification's own icon only (the app's is at the top right); without one (none given, or
@@ -446,6 +450,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 -    // Horizontal timeout indicator
 +    // The title runs the full width; only its first line leaves room for the sender, across from it
      Item {
++        id: titleBlock
++        Layout.alignment: Qt.AlignTop
++        Layout.topMargin: iconColumn.visible ? Math.max(0, Math.round((delegateRoot.iconSize - delegateRoot.headerTextHeight) / 2)) : 0
 +        Layout.row: 0
 +        Layout.column: delegateRoot.textColumn
 +        Layout.columnSpan: 2 - delegateRoot.textColumn

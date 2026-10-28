@@ -278,7 +278,8 @@ refreshed.
   - the panel (plasmashell): docked, it casts no shadow, as if it were part of the screen's edge; floating,
     it keeps its shadow (it goes as the panel touches the edge and comes back as it leaves)
   - notification popups: no header row. A 48 px icon on the left: the notification's own icon or picture
-    (avatars and photos get rounded corners); with none, no icon, and the text starts at the left. An
+    (avatars and photos get rounded corners), centred on the text beside it (or that text on the icon,
+    when the icon is taller); with none, no icon, and the text starts at the left. An
     icon the icon theme doesn't have counts as none, instead of the theme's blank "unknown" page. The
     title (1.5x, 15 pt) runs the full width, its first line leaving room for the sender across from
     it: the app's small icon, then quietly the web page for a browser's notification
