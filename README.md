@@ -301,9 +301,12 @@ refreshed.
     the controls (20 px) as the glass's bottom edge is below them, so they sit in its middle.
     A screenshot shows as a rounded picture, 160 px tall, under the text (stock's blurred band slid up
     over the second line). No settings or close buttons (the history keeps them), no countdown bar,
-    no coloured stripe on critical ones. The pointing hand over the whole popup, its text, buttons,
-    pictures and the glass's rim too (an I-beam only over a reply field), and its text can't be selected:
-    the popup is one thing to click. Popups still close on click, timeout, middle-click or swipe;
+    no coloured stripe on critical ones. The arrow over the popup, the pointing hand only over its
+    buttons and links (a screenshot keeps Plasma's open hand, as it can be dragged out). Its text can't
+    be selected; a copy button beside the app's name copies it (the body, or the title without one) as
+    plain text, and shows a check mark for a moment. Paragraphs in the body are set apart by half a
+    line, once kde-fixes keeps the blank line between them (stock's server folds it into a line break).
+    Popups still close on click, timeout, middle-click or swipe;
     middle-click and click now work anywhere on them (stock lost the middle button to the body's
     scroll view, a Pane that takes every button, and nothing took clicks on the rim outside mainItem)
 - `milou-section-headers.patch`: KRunner result categories become small headers above each group

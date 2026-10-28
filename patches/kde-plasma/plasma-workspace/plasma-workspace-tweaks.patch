@@ -208,12 +208,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
              hoverEnabled: true
              draggable: notificationItem.modelInterface.notificationType != NotificationManager.Notifications.JobType
              onDismissRequested: NotificationsApplet.Globals.popupNotificationsModel.close(NotificationsApplet.Globals.popupNotificationsModel.index(notificationItem.modelInterface.index, 0))
-@@ -199,12 +348,13 @@
- 
-                 modelInterface {
+@@ -201,10 +350,11 @@
                      maximumLineCount: 8
--                    bodyCursorShape: modelInterface.hasDefaultAction ? Qt.PointingHandCursor : 0
-+                    bodyCursorShape: Qt.PointingHandCursor
+                     bodyCursorShape: modelInterface.hasDefaultAction ? Qt.PointingHandCursor : 0
  
 -                    popupLeftPadding: notificationPopup.leftPadding
 -                    popupTopPadding: notificationPopup.topPadding
@@ -227,7 +224,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
  
                      // When notification is updated, restart hide timer
                      onTimeChanged: {
-@@ -216,13 +366,23 @@
+@@ -216,11 +366,8 @@
  
                      closable: true
  
@@ -241,21 +238,36 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
                  }
              }
          }
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/ActionContainer.qml b/applets/notifications/components/ActionContainer.qml
+--- a/applets/notifications/components/ActionContainer.qml
++++ b/applets/notifications/components/ActionContainer.qml
+@@ -127,6 +127,10 @@
+ 
+                     actionContainer.modelInterface.actionInvoked(actionName);
+                 }
 +
-+        // The pointing hand over the whole popup, the rim too, from on top of everything, as buttons, the
-+        // scroll bar and the body's scroll view (a Pane) set arrows of their own; none over a reply field, so
-+        // it shows its I-beam. It takes no buttons and no hover (a hovered HoverHandler up here would keep
-+        // hover from everything below it)
-+        MouseArea {
-+            x: -notificationPopup.leftPadding
-+            y: -notificationPopup.topPadding
-+            width: notificationPopup.width
-+            height: notificationPopup.height
-+            acceptedButtons: Qt.NoButton
-+            cursorShape: notificationItem.modelInterface.replyFieldHovered ? undefined : Qt.PointingHandCursor
-+        }
++                HoverHandler {
++                    cursorShape: Qt.PointingHandCursor
++                }
+             }
+         }
      }
- }
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/Body.qml b/applets/notifications/components/Body.qml
+--- a/applets/notifications/components/Body.qml
++++ b/applets/notifications/components/Body.qml
+@@ -29,7 +29,11 @@
+     // HACK RichText does not allow to specify link color and since LineEdit
+     // does not support StyledText, we have to inject some CSS to force the color,
+     // cf. QTBUG-81463 and to some extent QTBUG-80354
+-    text: "<style>a { color: " + Kirigami.Theme.linkColor + "; }</style>" + modelInterface.body
++    // A paragraph break (the server keeps a blank line between paragraphs as two <br/>s) is a short line
++    // at half the text's size rather than a whole empty one; its second <br/> takes that size too, or the
++    // line would be as tall as the text's
++    text: "<style>a { color: " + Kirigami.Theme.linkColor + "; }</style>"
++        + modelInterface.body.replace(/<br\/><br\/>/g, "<br/><span style=\"font-size: " + font.pointSize / 2 + "pt\">&#160;<br/></span>")
+ 
+     // Selectable only when we are in desktop mode
+     selectByMouse: !Kirigami.Settings.tabletMode
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/HeadingButtons.qml b/applets/notifications/components/HeadingButtons.qml
 --- a/applets/notifications/components/HeadingButtons.qml
 +++ b/applets/notifications/components/HeadingButtons.qml
@@ -269,7 +281,26 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
  
          display: PlasmaComponents3.AbstractButton.IconOnly
          text: headingButtons.modelInterface.configureActionLabel || i18nd("plasma_applet_org.kde.plasma.notifications", "Configure")
-@@ -177,7 +178,7 @@
+@@ -155,6 +156,10 @@
+         PlasmaComponents3.ToolTip {
+             text: configureButton.text
+         }
++
++        HoverHandler {
++            cursorShape: Qt.PointingHandCursor
++        }
+     }
+ 
+     PlasmaComponents3.ToolButton {
+@@ -173,11 +178,15 @@
+         PlasmaComponents3.ToolTip {
+             text: dismissButton.text
+         }
++
++        HoverHandler {
++            cursorShape: Qt.PointingHandCursor
++        }
+     }
  
      PlasmaComponents3.ToolButton {
          id: closeButton
@@ -278,6 +309,16 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
          icon.name: "window-close"
  
          display: PlasmaComponents3.AbstractButton.IconOnly
+@@ -190,5 +199,9 @@
+             id: closeButtonToolTip
+             text: headingButtons.modelInterface.closeButtonToolTip || i18nd("plasma_applet_org.kde.plasma.notifications", "Close")
+         }
++
++        HoverHandler {
++            cursorShape: Qt.PointingHandCursor
++        }
+     }
+ }
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/Icon.qml b/applets/notifications/components/Icon.qml
 --- a/applets/notifications/components/Icon.qml
 +++ b/applets/notifications/components/Icon.qml
@@ -296,18 +337,64 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
  
      smooth: true
  
-diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/ModelInterface.qml b/applets/notifications/components/ModelInterface.qml
---- a/applets/notifications/components/ModelInterface.qml
-+++ b/applets/notifications/components/ModelInterface.qml
-@@ -65,6 +65,8 @@
-     property string replySubmitButtonText
-     property string replySubmitButtonIconName
-     property bool replying: false
-+    // the pointer is over the reply field (NotificationPopup.qml leaves it its I-beam)
-+    property bool replyFieldHovered: false
-     property bool hasPendingReply: false
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/JobItem.qml b/applets/notifications/components/JobItem.qml
+--- a/applets/notifications/components/JobItem.qml
++++ b/applets/notifications/components/JobItem.qml
+@@ -59,6 +59,10 @@
+             visible: checkable
  
-     property int popupLeftPadding: 0
+             Accessible.onPressAction: if (checkable) toggle()
++
++            HoverHandler {
++                cursorShape: Qt.PointingHandCursor
++            }
+         }
+ 
+         Item { Layout.fillWidth: true }
+@@ -79,6 +83,10 @@
+                          : i18ndc("plasma_applet_org.kde.plasma.notifications", "Pause running job", "Pause")
+             onClicked: paused ? jobItem.modelInterface.resumeJobClicked()
+                               : jobItem.modelInterface.suspendJobClicked()
++
++            HoverHandler {
++                cursorShape: Qt.PointingHandCursor
++            }
+         }
+ 
+         PlasmaComponents3.Button {
+@@ -92,6 +100,10 @@
+             icon.name: "dialog-cancel-symbolic"
+             text: i18ndc("plasma_applet_org.kde.plasma.notifications", "Cancel running job", "Cancel")
+             onClicked: jobItem.modelInterface.killJobClicked()
++
++            HoverHandler {
++                cursorShape: Qt.PointingHandCursor
++            }
+         }
+     }
+ 
+@@ -144,6 +156,10 @@
+                 url: jobItem.modelInterface.jobDetails.effectiveDestUrl
+                 onActionTriggered: action => jobItem.modelInterface.fileActionInvoked(action)
+             }
++
++            HoverHandler {
++                cursorShape: Qt.PointingHandCursor
++            }
+         }
+ 
+         PlasmaComponents3.Button {
+@@ -174,6 +190,10 @@
+                     }
+                 }
+             ]
++
++            HoverHandler {
++                cursorShape: Qt.PointingHandCursor
++            }
+         }
+     }
+ 
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/NotificationHeader.qml b/applets/notifications/components/NotificationHeader.qml
 --- a/applets/notifications/components/NotificationHeader.qml
 +++ b/applets/notifications/components/NotificationHeader.qml
@@ -324,19 +411,16 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/NotificationReplyField.qml b/applets/notifications/components/NotificationReplyField.qml
 --- a/applets/notifications/components/NotificationReplyField.qml
 +++ b/applets/notifications/components/NotificationReplyField.qml
-@@ -32,6 +32,12 @@
-         property: "hasPendingReply"
-         value: replyTextField.text !== ""
-     }
+@@ -66,5 +66,9 @@
+               || i18ndc("plasma_applet_org.kde.plasma.notifications", "@action:button", "Send")
+         enabled: replyTextField.length > 0
+         onClicked: replyRow.modelInterface.replied(replyTextField.text)
 +
-+    Binding {
-+        target: replyRow.modelInterface
-+        property: "replyFieldHovered"
-+        value: replyTextField.hovered
-+    }
-     PlasmaComponents3.TextField {
-         id: replyTextField
-         Layout.fillWidth: true
++        HoverHandler {
++            cursorShape: Qt.PointingHandCursor
++        }
+     }
+ }
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/components/ThumbnailStrip.qml b/applets/notifications/components/ThumbnailStrip.qml
 --- a/applets/notifications/components/ThumbnailStrip.qml
 +++ b/applets/notifications/components/ThumbnailStrip.qml
@@ -405,10 +489,21 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
  
          Kirigami.Icon {
              id: previewIcon
+@@ -158,6 +153,10 @@
+                     id: tooltip
+                     text: i18nd("plasma_applet_org.kde.plasma.notifications", "More Options…")
+                 }
++
++                HoverHandler {
++                    cursorShape: Qt.PointingHandCursor
++                }
+             }
+         }
+     }
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
 --- a/applets/notifications/delegates/DelegatePopup.qml
 +++ b/applets/notifications/delegates/DelegatePopup.qml
-@@ -7,167 +7,325 @@
+@@ -7,167 +7,387 @@
  
  import QtQuick
  import QtQuick.Layouts
@@ -462,6 +557,17 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +        + (hasBodyText && !longBody ? bodyArea.implicitHeight + Kirigami.Units.smallSpacing / 2 : 0)
 +    readonly property real shelfTop: footerLoader.y - shelfInset
 +    readonly property bool darkGlass: Kirigami.ColorUtils.brightnessForColor(Kirigami.Theme.backgroundColor) === Kirigami.ColorUtils.Dark
++
++    // the server's markup for a body as plain text: a few tags (a <br/> for each line break) and entities
++    function plainText(markup: string): string {
++        return markup.replace(/<\?xml[^>]*\?>/, "")
++            .replace(/<br\s*\/?>/g, "\n")
++            .replace(/<[^>]*>/g, "")
++            .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&(apos|#39);/g, "'")
++            .replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCodePoint(parseInt(hex, 16)))
++            .replace(/&#([0-9]+);/g, (match, dec) => String.fromCodePoint(Number(dec)))
++            .replace(/&amp;/g, "&");
++    }
 +
 +    columns: 2
 +    columnSpacing: Math.round(Kirigami.Units.gridUnit * 0.75)
@@ -549,7 +655,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 -                }
 +        // The body's lines beside the icon decide whether it goes below the cut, measured apart from the
 +        // body itself, whose width depends on where it goes. Transparent rather than hidden, since a
-+        // hidden Text doesn't lay itself out; here, outside the grid, it takes no room.
++        // hidden Text doesn't lay itself out; here, outside the grid, it takes no room. Lines of text
++        // only: without the gaps between paragraphs
 +        Text {
 +            id: bodyMeasure
 +            opacity: 0
@@ -558,7 +665,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +            font: bodyLabel.font
 +            textFormat: Text.RichText
 +            wrapMode: Text.Wrap
-+            text: bodyLabel.text
++            text: delegateRoot.modelInterface.body.replace(/<br\/><br\/>/g, "<br/>")
 +        }
  
 -                return delegateRoot.modelInterface.remainingTime / delegateRoot.modelInterface.timeout
@@ -615,7 +722,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +            anchors {
 +                right: parent.right
 +                top: parent.top
-+                topMargin: summary.visible ? Math.max(0, Math.round((summary.metrics.height - senderName.height) / 2)) : 0
++                topMargin: summary.visible ? Math.max(0, Math.round((summary.metrics.height - sender.height) / 2)) : 0
 +            }
 +            spacing: Kirigami.Units.largeSpacing
 +            // the title's first line is laid out around it, possibly before it had its width
@@ -651,11 +758,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 -            anchors.fill: parent
 -            visible: delegateRoot.modelInterface.hasDefaultAction && !delegateRoot.hasBodyText
 -            onClicked: delegateRoot.modelInterface.defaultActionInvoked();
+-        }
+-    }
 +            Components.HeadingButtons {
 +                modelInterface: delegateRoot.modelInterface
 +            }
-         }
-     }
  
 -    Components.Icon {
 -        id: icon
@@ -665,8 +772,50 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 -        Layout.column: delegateRoot.__firstColumn + 1
 -        Layout.rowSpan: 2
 -        modelInterface: delegateRoot.modelInterface
--    }
--
++            // copies the body (or, without one, the title) as plain text, since it can't be selected; a
++            // check mark for a moment says it did
++            PlasmaComponents3.ToolButton {
++                id: copyButton
++                property bool copied: false
++                visible: delegateRoot.hasBodyText || summary.visible
++                // as quiet as the name beside it until it's pointed at
++                opacity: hovered || copied ? 1 : 0.6
++                // no taller than the title's first line, which the row is centred on (the theme's frame
++                // would make it 30 px)
++                Layout.preferredWidth: Kirigami.Units.iconSizes.small + 2 * Kirigami.Units.smallSpacing
++                Layout.preferredHeight: Layout.preferredWidth
++                icon.name: copied ? "checkmark-symbolic" : "edit-copy-symbolic"
++                display: PlasmaComponents3.AbstractButton.IconOnly
++                text: copied ? i18nd("plasma_applet_org.kde.plasma.notifications", "Copied")
++                             : i18nd("plasma_applet_org.kde.plasma.notifications", "Copy text")
++
++                onClicked: {
++                    clipboard.content = delegateRoot.hasBodyText ? delegateRoot.plainText(delegateRoot.modelInterface.body) : summary.text;
++                    copied = true;
++                    copiedTimer.restart();
++                }
++
++                KQuickControlsAddons.Clipboard {
++                    id: clipboard
++                }
++
++                Timer {
++                    id: copiedTimer
++                    interval: 1500
++                    onTriggered: copyButton.copied = false
++                }
++
++                PlasmaComponents3.ToolTip {
++                    text: copyButton.text
++                }
++
++                HoverHandler {
++                    cursorShape: Qt.PointingHandCursor
++                }
++            }
++        }
+     }
+ 
      KQuickControlsAddons.MouseEventListener {
 -        // Base layout intentionally has no row spacing, so add top padding here when needed
 -        Layout.topMargin: summary.visible ? 0 : Kirigami.Units.smallSpacing
@@ -802,6 +951,14 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +                    // the popup is one thing to click: no selecting its text
 +                    selectByMouse: false
 +                    Accessible.ignored: true // ignore HTML body in favor of Accessible.description on delegateRoot
++
++                    // the arrow over the text (not the label's I-beam, as it can't be selected), the pointing
++                    // hand over its links; it takes no buttons and no hover
++                    MouseArea {
++                        anchors.fill: parent
++                        acceptedButtons: Qt.NoButton
++                        cursorShape: bodyLabel.hoveredLink ? Qt.PointingHandCursor : Qt.ArrowCursor
++                    }
 +                }
 +
 +                Item {
