@@ -334,7 +334,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
 --- a/applets/notifications/delegates/DelegatePopup.qml
 +++ b/applets/notifications/delegates/DelegatePopup.qml
-@@ -7,132 +7,184 @@
+@@ -7,167 +7,260 @@
  
  import QtQuick
  import QtQuick.Layouts
@@ -604,8 +604,21 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +        Layout.maximumHeight: Math.ceil(bodyMetrics.lineSpacing) * delegateRoot.modelInterface.maximumLineCount
          // The body doesn't need to influence the implicit width in any way, this avoids a binding loop
          implicitWidth: -1
-         implicitHeight: scroll.implicitHeight
-@@ -142,6 +194,11 @@
+-        implicitHeight: scroll.implicitHeight
++        implicitHeight: scroll.implicitHeight - scrollAbove - scrollBelow
+         visible: delegateRoot.hasBodyText
++        // Below the cut the body scrolls through the whole section, from the cut down to the glass's
++        // bottom edge, or to the edge of a shelf of buttons below it: the scroll view reaches that far,
++        // and room as tall at either end of what it scrolls keeps the text where it's laid out
++        readonly property int scrollAbove: delegateRoot.longBody ? delegateRoot.sectionGap : 0
++        readonly property int scrollBelow: {
++            if (!delegateRoot.longBody || delegateRoot.pictureFooter) {
++                return 0;
++            }
++            return delegateRoot.controlsFooter ? delegateRoot.shelfGap : delegateRoot.modelInterface.popupBottomPadding;
++        }
+         onClicked: {
+             if (delegateRoot.modelInterface.hasDefaultAction && !delegateRoot.hoveredLink) {
                  delegateRoot.modelInterface.defaultActionInvoked();
              }
          }
@@ -616,16 +629,45 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +
          PlasmaComponents3.ScrollView {
              id: scroll
-             anchors.fill: parent
-@@ -153,6 +210,7 @@
+-            anchors.fill: parent
++            anchors {
++                fill: parent
++                topMargin: -bodyArea.scrollAbove
++                bottomMargin: -bodyArea.scrollBelow
++            }
+             contentWidth: bodyLabel.width
  
-             Components.Body {
-                 id: bodyLabel
-+                font.pointSize: Kirigami.Theme.defaultFont.pointSize * delegateRoot.bodyScale
+             // This avoids a binding loop
+             PlasmaComponents3.ScrollBar.vertical.visible: delegateRoot.modelInterface.maximumLineCount > 0 && bodyLabel.implicitHeight > parent.Layout.maximumHeight
+             PlasmaComponents3.ScrollBar.horizontal.visible: false
+ 
+-            Components.Body {
+-                id: bodyLabel
++            Column {
                  width: scroll.width - scroll.PlasmaComponents3.ScrollBar.vertical.width
-                 modelInterface: delegateRoot.modelInterface
-                 Accessible.ignored: true // ignore HTML body in favor of Accessible.description on delegateRoot
-@@ -162,12 +220,19 @@
+-                modelInterface: delegateRoot.modelInterface
+-                Accessible.ignored: true // ignore HTML body in favor of Accessible.description on delegateRoot
++
++                Item {
++                    width: 1
++                    height: bodyArea.scrollAbove
++                }
++
++                Components.Body {
++                    id: bodyLabel
++                    font.pointSize: Kirigami.Theme.defaultFont.pointSize * delegateRoot.bodyScale
++                    width: parent.width
++                    modelInterface: delegateRoot.modelInterface
++                    Accessible.ignored: true // ignore HTML body in favor of Accessible.description on delegateRoot
++                }
++
++                Item {
++                    width: 1
++                    height: bodyArea.scrollBelow
++                }
+             }
+         }
+     }
  
      Components.FooterLoader {
          id: footerLoader

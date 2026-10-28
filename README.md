@@ -284,7 +284,8 @@ refreshed.
     it: the app's small icon, then quietly the web page for a browser's notification
     (calendar.google.com) or else the app's name, and the time once the popup is a minute old. The body
     (1.3x, 13 pt) sits under the title; a body of more than three lines there goes below the cut
-    instead, the full width, eight whole lines at most before it scrolls. Popups are 1.25x Plasma's
+    instead, the full width, eight whole lines at most before it scrolls, through the whole section:
+    from the cut down to the glass's bottom edge (or a shelf of buttons). Popups are 1.25x Plasma's
     width (445 px at scale 1), so lines keep their length. More padding. Content (a screenshot, a long
     body) sits below a cut 16 px under the text, 16 px further down. On the light glass the part below
     the cut is frosted less: the popup draws the style's glass itself, as it is above the cut and at
