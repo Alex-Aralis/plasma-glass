@@ -282,9 +282,10 @@ refreshed.
     at the left. A picture wears the app's icon as a badge on its corner. The title (1.5x, 15 pt) runs the full width, its first line leaving room
     for the sender across from it, quiet: the web page for a browser's notification
     (calendar.google.com), else the app's name, and the time once the popup is a minute old. The body
-    (1.3x, 13 pt) sits under the title, eight whole lines at most before it scrolls. Popups are 1.25x Plasma's
+    (1.3x, 13 pt) sits under the title; a body of more than three lines there goes below the cut
+    instead, the full width, eight whole lines at most before it scrolls. Popups are 1.25x Plasma's
     width (445 px at scale 1), so lines keep their length. More padding. Extra content (a screenshot,
-    buttons, a transfer's progress) sits below a cut 16 px under the text, 16 px further down, on
+    buttons, a transfer's progress, a long body) sits below a cut 16 px under the text, 16 px further down, on
     glass frosted less: the popup draws the style's glass itself, as it is above the cut and at half
     strength below (KWin's blur is the same), under a very light shadow from the cut (black at 4% on
     the light glass, 11% on the dark, easing out over 10 px).

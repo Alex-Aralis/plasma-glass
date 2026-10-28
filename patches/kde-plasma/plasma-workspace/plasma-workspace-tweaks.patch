@@ -269,7 +269,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
 --- a/applets/notifications/delegates/DelegatePopup.qml
 +++ b/applets/notifications/delegates/DelegatePopup.qml
-@@ -7,132 +7,162 @@
+@@ -7,132 +7,181 @@
  
  import QtQuick
  import QtQuick.Layouts
@@ -298,12 +298,16 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +    // a picture (avatar, photo) rather than a themed icon
 +    readonly property bool iconIsImage: !!modelInterface.icon && typeof modelInterface.icon !== "string"
 +    readonly property int textColumn: iconColumn.visible ? 1 : 0
-+    // Extra content (a screenshot, buttons, a transfer's progress) sits below a cut, on glass frosted
-+    // less (NotificationPopup.qml). The cut is sectionGap under the header's text, the content as far
++    // Extra content sits below a cut, on glass frosted less (NotificationPopup.qml): a screenshot,
++    // buttons, a transfer's progress, or a body of more than shelfAfterLines lines beside the icon,
++    // which then runs the full width. The cut is sectionGap under the header's text, the content as far
 +    // below it.
 +    readonly property int sectionGap: Kirigami.Units.largeSpacing * 2
-+    readonly property bool hasExtraContent: footerLoader.visible
-+    readonly property real frostBottom: footerLoader.y - sectionGap
++    readonly property int shelfAfterLines: 3
++    // (by height: Text has no lineCount for rich text)
++    readonly property bool longBody: hasBodyText && bodyMeasure.implicitHeight > bodyMetrics.lineSpacing * (shelfAfterLines + 0.5)
++    readonly property bool hasExtraContent: longBody || footerLoader.visible
++    readonly property real frostBottom: (longBody ? bodyArea.y : footerLoader.y) - sectionGap
 +    readonly property bool darkGlass: Kirigami.ColorUtils.brightnessForColor(Kirigami.Theme.backgroundColor) === Kirigami.ColorUtils.Dark
 +
 +    columns: 2
@@ -395,13 +399,26 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 -        implicitHeight: 2
 -        implicitWidth: -1
 -        visible: !criticalNotificationIndicator.visible && Notifications.Globals.notificationSettings.showPopupTimeout
--
++        implicitHeight: Math.max(summary.visible ? summary.implicitHeight : 0, sender.y + sender.implicitHeight)
+ 
 -        Rectangle {
 -            readonly property real completionFraction: {
 -                if (delegateRoot.modelInterface.timeout === 0) {
 -                    return 0
 -                }
-+        implicitHeight: Math.max(summary.visible ? summary.implicitHeight : 0, sender.y + sender.implicitHeight)
++        // The body's lines beside the icon decide whether it goes below the cut, measured apart from the
++        // body itself, whose width depends on where it goes. Transparent rather than hidden, since a
++        // hidden Text doesn't lay itself out; here, outside the grid, it takes no room.
++        Text {
++            id: bodyMeasure
++            opacity: 0
++            enabled: false
++            width: parent.width
++            font: bodyLabel.font
++            textFormat: Text.RichText
++            wrapMode: Text.Wrap
++            text: bodyLabel.text
++        }
  
 -                return delegateRoot.modelInterface.remainingTime / delegateRoot.modelInterface.timeout
 +        Components.Summary {
@@ -505,10 +522,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
      KQuickControlsAddons.MouseEventListener {
 -        // Base layout intentionally has no row spacing, so add top padding here when needed
 -        Layout.topMargin: summary.visible ? 0 : Kirigami.Units.smallSpacing
-+        Layout.row: 1
-+        Layout.column: delegateRoot.textColumn
-+        Layout.columnSpan: 2 - delegateRoot.textColumn
-+        Layout.topMargin: Kirigami.Units.smallSpacing / 2
++        id: bodyArea
++        Layout.row: delegateRoot.longBody ? 2 : 1
++        Layout.column: delegateRoot.longBody ? 0 : delegateRoot.textColumn
++        Layout.columnSpan: delegateRoot.longBody ? 2 : 2 - delegateRoot.textColumn
++        Layout.topMargin: delegateRoot.longBody ? delegateRoot.sectionGap * 2 : Kirigami.Units.smallSpacing / 2
          Layout.fillWidth: true
          Layout.fillHeight: true
 -        Layout.row: summary.visible ? 3 : 2
@@ -520,7 +538,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
          // The body doesn't need to influence the implicit width in any way, this avoids a binding loop
          implicitWidth: -1
          implicitHeight: scroll.implicitHeight
-@@ -142,6 +172,11 @@
+@@ -142,6 +191,11 @@
                  delegateRoot.modelInterface.defaultActionInvoked();
              }
          }
@@ -532,7 +550,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
          PlasmaComponents3.ScrollView {
              id: scroll
              anchors.fill: parent
-@@ -153,6 +188,7 @@
+@@ -153,6 +207,7 @@
  
              Components.Body {
                  id: bodyLabel
@@ -540,18 +558,18 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
                  width: scroll.width - scroll.PlasmaComponents3.ScrollBar.vertical.width
                  modelInterface: delegateRoot.modelInterface
                  Accessible.ignored: true // ignore HTML body in favor of Accessible.description on delegateRoot
-@@ -162,12 +198,13 @@
+@@ -162,12 +217,13 @@
  
      Components.FooterLoader {
          id: footerLoader
 -        Layout.fillWidth: true
 -        Layout.row: 4
 -        Layout.column: delegateRoot.__firstColumn
-+        Layout.row: 2
++        Layout.row: 3
 +        Layout.column: 0
          Layout.columnSpan: 2
-+        // under the text, the cut, then as much again down to the content
-+        Layout.topMargin: delegateRoot.sectionGap * 2
++        // under the text, the cut, then as much again down to the content; under a long body, a gap
++        Layout.topMargin: delegateRoot.longBody ? Kirigami.Units.largeSpacing : delegateRoot.sectionGap * 2
 +        Layout.fillWidth: true
          modelInterface: delegateRoot.modelInterface
          iconContainerItem: icon
