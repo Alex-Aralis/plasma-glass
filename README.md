@@ -279,7 +279,8 @@ refreshed.
     it keeps its shadow (it goes as the panel touches the edge and comes back as it leaves)
   - notification popups: no header row. A 48 px icon on the left: the notification's picture (avatars
     and photos get rounded corners), else the app's icon; with neither, no icon, and the text starts
-    at the left. A picture wears the app's icon as a badge on its corner. The title (1.5x, 15 pt) runs the full width, its first line leaving room
+    at the left. An icon the icon theme doesn't have counts as none, instead of the theme's blank
+    "unknown" page. A picture wears the app's icon as a badge on its corner. The title (1.5x, 15 pt) runs the full width, its first line leaving room
     for the sender across from it, quiet: the web page for a browser's notification
     (calendar.google.com), else the app's name, and the time once the popup is a minute old. The body
     (1.3x, 13 pt) sits under the title; a body of more than three lines there goes below the cut
