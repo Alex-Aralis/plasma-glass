@@ -41,6 +41,9 @@ env -u WAYLAND_DISPLAY KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 KWIN_SCREENSHOT_NO_PE
 KWIN=$!
 for _ in $(seq 100); do [ -S "$XDG_RUNTIME_DIR/$SOCK" ] && break; sleep 0.1; done
 export WAYLAND_DISPLAY="$SOCK" QT_QPA_PLATFORM=wayland
+# a Plasma session's own: Qt then loads KDE's platform theme, so apps get your font (kdeglobals; Noto Sans
+# 10 pt by default) instead of Qt's generic "Sans Serif" 9 pt
+export XDG_CURRENT_DESKTOP=KDE KDE_FULL_SESSION=true KDE_SESSION_VERSION=6
 # REFRESH=240000 (mHz): the virtual output runs at that rate instead of 60 Hz, through a custom mode
 if [ -n "${REFRESH:-}" ]; then
     kscreen-doctor "output.Virtual-0.addCustomMode.$WIDTH.$HEIGHT.$REFRESH.full" >"$WORK/kscreen.log" 2>&1

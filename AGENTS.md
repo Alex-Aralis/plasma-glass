@@ -102,6 +102,10 @@ change different files), and each repo's check applies the other's installed pat
 - **Run `tools/check-patches.sh` before every emerge.** qmllint misses runtime-only QML errors.
   Example: `background: Item {}` together with the existing `background.z: -2` ("Cannot assign a
   value directly to a grouped property") built fine and then KRunner's UI failed to load.
+- **Previews need a Plasma session's environment.** Without `XDG_CURRENT_DESKTOP=KDE` (and
+  `KDE_FULL_SESSION`, `KDE_SESSION_VERSION`) Qt skips KDE's platform theme, so apps in the preview took
+  Qt's generic "Sans Serif" 9 pt (Liberation Sans) instead of the user's Noto Sans 10 pt: text about 10%
+  small in another face, unnoticed until 2026-10-28. `session.sh` exports them now.
 - **Never open KRunner or dialogs on the real screen to look at them.** They take keyboard focus
   from the user. Use `tools/preview/`, which runs a private bus and display. Its services get the
   virtual `WAYLAND_DISPLAY` and no `DISPLAY`, and leftovers on the private bus are killed at the end.
