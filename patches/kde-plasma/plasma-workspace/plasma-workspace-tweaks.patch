@@ -333,7 +333,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
 --- a/applets/notifications/delegates/DelegatePopup.qml
 +++ b/applets/notifications/delegates/DelegatePopup.qml
-@@ -7,132 +7,192 @@
+@@ -7,132 +7,194 @@
  
  import QtQuick
  import QtQuick.Layouts
@@ -365,11 +365,13 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +    // Content sits below a cut, on glass frosted less (NotificationPopup.qml): a screenshot, or a body
 +    // of more than shelfAfterLines lines beside the icon, which then runs the full width. The cut is
 +    // sectionGap under the header's text, the content as far below it. Controls (buttons, a reply
-+    // field, a transfer's progress) sit on a shelf set off from what's above them, its edge shelfGap
-+    // above them and as far below what's above: under the header, a shelf frosted less (the cut);
-+    // after content, a frosted shelf at the bottom, from shelfTop down.
++    // field, a transfer's progress) sit on a shelf set off from what's above them: under the header, a
++    // shelf frosted less (the cut); after content, a frosted shelf at the bottom, from shelfTop down.
++    // Its edge is shelfGap below what's above, and shelfInset above the controls: as far as the
++    // glass's bottom edge is below them, so they sit in the shelf's middle.
 +    readonly property int sectionGap: Kirigami.Units.largeSpacing * 2
 +    readonly property int shelfGap: Math.round(Kirigami.Units.largeSpacing * 1.5)
++    readonly property int shelfInset: modelInterface.popupBottomPadding
 +    readonly property int shelfAfterLines: 3
 +    // (by height: Text has no lineCount for rich text)
 +    readonly property bool longBody: hasBodyText && bodyMeasure.implicitHeight > bodyMetrics.lineSpacing * (shelfAfterLines + 0.5)
@@ -377,9 +379,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +    readonly property bool controlsFooter: footerLoader.visible && !pictureFooter
 +    readonly property bool hasContent: longBody || pictureFooter
 +    readonly property bool hasExtraContent: hasContent || controlsFooter
-+    readonly property real frostBottom: hasContent ? (longBody ? bodyArea.y : footerLoader.y) - sectionGap : footerLoader.y - shelfGap
++    readonly property real frostBottom: hasContent ? (longBody ? bodyArea.y : footerLoader.y) - sectionGap : footerLoader.y - shelfInset
 +    readonly property bool hasControlsShelf: hasContent && controlsFooter
-+    readonly property real shelfTop: footerLoader.y - shelfGap
++    readonly property real shelfTop: footerLoader.y - shelfInset
 +    readonly property bool darkGlass: Kirigami.ColorUtils.brightnessForColor(Kirigami.Theme.backgroundColor) === Kirigami.ColorUtils.Dark
 +
 +    columns: 2
@@ -613,7 +615,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
          // The body doesn't need to influence the implicit width in any way, this avoids a binding loop
          implicitWidth: -1
          implicitHeight: scroll.implicitHeight
-@@ -142,6 +202,11 @@
+@@ -142,6 +204,11 @@
                  delegateRoot.modelInterface.defaultActionInvoked();
              }
          }
@@ -625,7 +627,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
          PlasmaComponents3.ScrollView {
              id: scroll
              anchors.fill: parent
-@@ -153,6 +218,7 @@
+@@ -153,6 +220,7 @@
  
              Components.Body {
                  id: bodyLabel
@@ -633,7 +635,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
                  width: scroll.width - scroll.PlasmaComponents3.ScrollBar.vertical.width
                  modelInterface: delegateRoot.modelInterface
                  Accessible.ignored: true // ignore HTML body in favor of Accessible.description on delegateRoot
-@@ -162,12 +228,19 @@
+@@ -162,12 +230,19 @@
  
      Components.FooterLoader {
          id: footerLoader
@@ -643,11 +645,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +        Layout.row: 3
 +        Layout.column: 0
          Layout.columnSpan: 2
-+        // controls: their shelf's edge, and as much again. A screenshot: under a long body a gap, else
-+        // the cut and as much again
++        // controls: their shelf's edge, then down to the controls in its middle. A screenshot: under a
++        // long body a gap, else the cut and as much again
 +        Layout.topMargin: {
 +            if (delegateRoot.controlsFooter) {
-+                return delegateRoot.shelfGap * 2;
++                return delegateRoot.shelfGap + delegateRoot.shelfInset;
 +            }
 +            return delegateRoot.longBody ? Kirigami.Units.largeSpacing : delegateRoot.sectionGap * 2;
 +        }
