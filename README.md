@@ -284,7 +284,9 @@ refreshed.
     the popup is a minute old. The body (1.3x, 13 pt) sits under the title. Popups are 1.25x Plasma's
     width (445 px at scale 1), so lines keep their length. More padding. The glass is frosted more
     under the text, a white haze; with extra content (a screenshot, buttons, a transfer's progress)
-    the frost ends 16 px under the text and the content sits 16 px below that, on the clearer glass.
+    the frost ends 16 px under the text and the content sits 16 px below that, on the clearer glass,
+    under a very light shadow from the frost's edge (black at 6% on the light glass, 16% on the dark,
+    easing out over 10 px).
     A screenshot shows as a rounded picture, 160 px tall, under the text (stock's blurred band slid up
     over the second line). No settings or close buttons (the history keeps them), no countdown bar,
     no coloured stripe on critical ones, pointer cursor over the whole popup when it's clickable (over
