@@ -13,7 +13,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
  
  import org.kde.notificationmanager as NotificationManager
  import plasma.applet.org.kde.plasma.notifications as NotificationsApplet
-@@ -20,11 +22,34 @@
+@@ -20,11 +22,36 @@
  
      property int popupWidth
      property bool showPopupTimeout
@@ -29,6 +29,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
 +    readonly property real shelfFrost: 0.5
 +    readonly property bool sectioned: notificationItem.hasExtraContent
 +    readonly property real cutY: topPadding + extraPadding + notificationItem.frostBottom // in the window
++    // controls after the content sit on a frosted shelf at the bottom, from here down (in the window)
++    readonly property real shelfY: notificationItem.hasControlsShelf ? topPadding + extraPadding + notificationItem.shelfTop : height
 +
 +    function showOwnBackground(): void {
 +        for (const child of contentItem.children) {
@@ -49,7 +51,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
      readonly property int maximumContentWidth: Math.min((availableWidth > 0 ? availableWidth : Number.MAX_VALUE), popupWidth * 3)
  
      property alias modelInterface: notificationItem.modelInterface
-@@ -61,8 +86,8 @@
+@@ -61,8 +88,8 @@
          id: focusListener
          property bool wantsFocus: false
  
@@ -60,11 +62,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
  
          acceptedButtons: Qt.AllButtons
          hoverEnabled: true
-@@ -76,6 +101,59 @@
+@@ -76,6 +103,75 @@
              }
          }
  
-+        // the glass of a popup with a cut: the frame as it is above the cut, frosted less below it
++        // the glass of a popup with a cut: the frame as it is above the cut, frosted less below it, and as
++        // it is again on the shelf of controls at the bottom, if there is one
 +        Item {
 +            x: -notificationPopup.leftPadding
 +            y: -notificationPopup.topPadding
@@ -87,12 +90,27 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
 +            Item {
 +                y: notificationPopup.cutY
 +                width: parent.width
-+                height: parent.height - y
++                height: notificationPopup.shelfY - y
 +                clip: true
 +                opacity: notificationPopup.shelfFrost
 +
 +                KSvg.FrameSvgItem {
 +                    y: -notificationPopup.cutY
++                    width: notificationPopup.width
++                    height: notificationPopup.height
++                    imagePath: "dialogs/background"
++                }
++            }
++
++            Item {
++                y: notificationPopup.shelfY
++                width: parent.width
++                height: parent.height - y
++                clip: true
++                visible: notificationItem.hasControlsShelf
++
++                KSvg.FrameSvgItem {
++                    y: -notificationPopup.shelfY
 +                    width: notificationPopup.width
 +                    height: notificationPopup.height
 +                    imagePath: "dialogs/background"
@@ -120,7 +138,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
          // Activate default action when dragging a file over the notification.
          DropArea {
              id: activateDefaultActionDropArea
-@@ -121,10 +199,11 @@
+@@ -121,10 +217,11 @@
          DraggableDelegate {
              anchors {
                  fill: parent
@@ -135,7 +153,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
              hoverEnabled: true
              draggable: notificationItem.modelInterface.notificationType != NotificationManager.Notifications.JobType
              onDismissRequested: NotificationsApplet.Globals.popupNotificationsModel.close(NotificationsApplet.Globals.popupNotificationsModel.index(notificationItem.modelInterface.index, 0))
-@@ -149,6 +228,11 @@
+@@ -149,6 +246,11 @@
                  }
              }
  
@@ -147,7 +165,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
              LayoutMirroring.enabled: Application.layoutDirection === Qt.RightToLeft
              LayoutMirroring.childrenInherit: true
  
-@@ -201,10 +285,11 @@
+@@ -201,10 +303,11 @@
                      maximumLineCount: 8
                      bodyCursorShape: modelInterface.hasDefaultAction ? Qt.PointingHandCursor : 0
  
@@ -286,7 +304,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
 --- a/applets/notifications/delegates/DelegatePopup.qml
 +++ b/applets/notifications/delegates/DelegatePopup.qml
-@@ -7,132 +7,184 @@
+@@ -7,132 +7,191 @@
  
  import QtQuick
  import QtQuick.Layouts
@@ -315,16 +333,23 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +    // a picture (avatar, photo) rather than a themed icon
 +    readonly property bool iconIsImage: !!modelInterface.icon && typeof modelInterface.icon !== "string"
 +    readonly property int textColumn: iconColumn.visible ? 1 : 0
-+    // Extra content sits below a cut, on glass frosted less (NotificationPopup.qml): a screenshot,
-+    // buttons, a transfer's progress, or a body of more than shelfAfterLines lines beside the icon,
-+    // which then runs the full width. The cut is sectionGap under the header's text, the content as far
-+    // below it.
++    // Content sits below a cut, on glass frosted less (NotificationPopup.qml): a screenshot, or a body
++    // of more than shelfAfterLines lines beside the icon, which then runs the full width. The cut is
++    // sectionGap under the header's text, the content as far below it. Controls (buttons, a reply
++    // field, a transfer's progress) stay on frosted glass: with no content they just follow the text,
++    // after content they sit on a frosted shelf at the bottom, from shelfTop down, shelfGap above and
++    // below its edge.
 +    readonly property int sectionGap: Kirigami.Units.largeSpacing * 2
++    readonly property int shelfGap: Math.round(Kirigami.Units.largeSpacing * 1.5)
 +    readonly property int shelfAfterLines: 3
 +    // (by height: Text has no lineCount for rich text)
 +    readonly property bool longBody: hasBodyText && bodyMeasure.implicitHeight > bodyMetrics.lineSpacing * (shelfAfterLines + 0.5)
-+    readonly property bool hasExtraContent: longBody || footerLoader.visible
++    readonly property bool pictureFooter: footerLoader.visible && (footerLoader.item as Components.ThumbnailStrip) !== null
++    readonly property bool controlsFooter: footerLoader.visible && !pictureFooter
++    readonly property bool hasExtraContent: longBody || pictureFooter
 +    readonly property real frostBottom: (longBody ? bodyArea.y : footerLoader.y) - sectionGap
++    readonly property bool hasControlsShelf: hasExtraContent && controlsFooter
++    readonly property real shelfTop: footerLoader.y - shelfGap
 +    readonly property bool darkGlass: Kirigami.ColorUtils.brightnessForColor(Kirigami.Theme.backgroundColor) === Kirigami.ColorUtils.Dark
 +
 +    columns: 2
@@ -558,7 +583,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
          // The body doesn't need to influence the implicit width in any way, this avoids a binding loop
          implicitWidth: -1
          implicitHeight: scroll.implicitHeight
-@@ -142,6 +194,11 @@
+@@ -142,6 +201,11 @@
                  delegateRoot.modelInterface.defaultActionInvoked();
              }
          }
@@ -570,7 +595,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
          PlasmaComponents3.ScrollView {
              id: scroll
              anchors.fill: parent
-@@ -153,6 +210,7 @@
+@@ -153,6 +217,7 @@
  
              Components.Body {
                  id: bodyLabel
@@ -578,7 +603,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
                  width: scroll.width - scroll.PlasmaComponents3.ScrollBar.vertical.width
                  modelInterface: delegateRoot.modelInterface
                  Accessible.ignored: true // ignore HTML body in favor of Accessible.description on delegateRoot
-@@ -162,12 +220,13 @@
+@@ -162,12 +227,19 @@
  
      Components.FooterLoader {
          id: footerLoader
@@ -588,8 +613,14 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +        Layout.row: 3
 +        Layout.column: 0
          Layout.columnSpan: 2
-+        // under the text, the cut, then as much again down to the content; under a long body, a gap
-+        Layout.topMargin: delegateRoot.longBody ? Kirigami.Units.largeSpacing : delegateRoot.sectionGap * 2
++        // controls: under content, the shelf's edge and as much again; else just a gap under the text.
++        // A screenshot: under a long body a gap, else the cut and as much again
++        Layout.topMargin: {
++            if (delegateRoot.controlsFooter) {
++                return delegateRoot.hasExtraContent ? delegateRoot.shelfGap * 2 : Kirigami.Units.largeSpacing;
++            }
++            return delegateRoot.longBody ? Kirigami.Units.largeSpacing : delegateRoot.sectionGap * 2;
++        }
 +        Layout.fillWidth: true
          modelInterface: delegateRoot.modelInterface
          iconContainerItem: icon

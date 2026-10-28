@@ -285,11 +285,13 @@ refreshed.
     (calendar.google.com), else the app's name, and the time once the popup is a minute old. The body
     (1.3x, 13 pt) sits under the title; a body of more than three lines there goes below the cut
     instead, the full width, eight whole lines at most before it scrolls. Popups are 1.25x Plasma's
-    width (445 px at scale 1), so lines keep their length. More padding. Extra content (a screenshot,
-    buttons, a transfer's progress, a long body) sits below a cut 16 px under the text, 16 px further down, on
-    glass frosted less: the popup draws the style's glass itself, as it is above the cut and at half
-    strength below (KWin's blur is the same), under a very light shadow from the cut (black at 4% on
-    the light glass, 11% on the dark, easing out over 10 px).
+    width (445 px at scale 1), so lines keep their length. More padding. Content (a screenshot, a long
+    body) sits below a cut 16 px under the text, 16 px further down, on glass frosted less: the popup
+    draws the style's glass itself, as it is above the cut and at half strength below (KWin's blur is
+    the same), under a very light shadow from the cut (black at 4% on the light glass, 11% on the dark,
+    easing out over 10 px). Controls (buttons, a reply field, a transfer's progress) stay on frosted
+    glass: right under the text, or after content on a frosted shelf at the bottom, its edge 12 px
+    below the content and 12 px above the controls.
     A screenshot shows as a rounded picture, 160 px tall, under the text (stock's blurred band slid up
     over the second line). No settings or close buttons (the history keeps them), no countdown bar,
     no coloured stripe on critical ones, pointer cursor over the whole popup when it's clickable (over
