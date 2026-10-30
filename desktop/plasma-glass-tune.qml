@@ -269,7 +269,7 @@ Kirigami.ApplicationWindow {
                 Kirigami.FormData.label: "Slosh damping:"
                 key: "Ripple/sloshDamping"; fallback: 1.5; from: 0.3; to: 6; stepSize: 0.1; decimals: 1; unit: "s"
             }
-            Hint { text: "How long the sloshing takes to die down to about a third." }
+            Hint { text: "How long the sloshing takes to die down to about a third, along the glass. Across thin glass (KRunner without results, the panel) it dies down as much faster as the glass is thinner." }
 
             Kirigami.Separator {
                 Kirigami.FormData.isSection: true

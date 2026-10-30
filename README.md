@@ -189,8 +189,10 @@ KRunner's glass holds a liquid (with the Liquid Glass effect): shallow water sim
 since on real water long waves run faster than short ones. The ripples, short and slow, come from the
 busy push: while a search runs (or the index builds), a stretch of the rim beside the search field pushes
 into the liquid and eases back out, again and again, and a light breeze raises small waves all over. The
-swell, long and fast, is the liquid's momentum: dragging KRunner, or its dropdown opening and closing,
-sloshes it, since it lags behind as the glass speeds up and runs on as it stops. Waves reflect off the
+swell, long and fast, is the liquid's momentum: dragging KRunner, or its dropdown opening, sloshes it,
+since it lags behind as the glass speeds up and runs on as it stops (the dropdown folding away doesn't: the
+bar that's left never moved). Across thin glass, such as KRunner without results, the sloshing dies down
+as much faster as the glass is thinner, so it doesn't rock across it quickly enough to flicker. Waves reflect off the
 liquid's edge (as much as you set), cross and interfere, and die down; KWin bends what's behind the glass
 by them. The edge runs a little in from the rim in gentle bends and the floor is a little uneven (waves
 run faster where it's deeper), so waves don't set out or come back ruler-straight.
@@ -227,9 +229,9 @@ lines; the tuning window rewrites the file as you move its sliders):
 | | `side` | left | `left`, `right`, `top` or `bottom` |
 | | `position` | 0.333 | how far along that side the pushes land once results show (beside the search field before) |
 | | `strike` | 1 | px of the side that pushes in as one (the rest bows in less); wider starts a flatter front |
-| | `momentum` | 1 | how much the glass moving or growing sloshes the liquid (0: none): KRunner dragged or its dropdown opening or closing, a popup sliding up, the panel docking; the ripples it stirs are as wide as `width` |
+| | `momentum` | 1 | how much the glass moving or growing sloshes the liquid (0: none): KRunner dragged or its dropdown opening, a popup sliding up, the panel docking (shrinking glass only by the move both its edges share, so the dropdown folding away doesn't); the ripples it stirs are as wide as `width` |
 | | `sloshSpeed` | 900 | px/s the long waves run at: faster, and the liquid rocks back and forth quicker |
-| | `sloshDamping` | 1.5 | s for the sloshing to fall to about a third |
+| | `sloshDamping` | 1.5 | s for the sloshing to fall to about a third, along the glass; across it, as much faster as it's shorter that way |
 | | `shore` | 8 | px the liquid's edge wanders either way, a little in from the rim (0: it follows the rim) |
 | | `shoreScale` | 120 | px, how long the shore's bends are |
 | | `floor` | 0.35 | how much deeper and shallower the liquid gets (0-0.8 of the average; 0: flat), bending waves as they cross |

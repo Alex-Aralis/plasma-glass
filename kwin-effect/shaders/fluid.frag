@@ -22,8 +22,9 @@ uniform vec2 glass;        // the glass's size, logical px
 uniform vec4 corners;      // and its corners' radii: top left, top right, bottom left, bottom right
 uniform float cell;        // logical px a cell
 uniform vec4 timing;       // dt (s), c^2 (px^2/s^2), diffusion (px^2/s), how fast the level settles (1/s)
-uniform vec3 damping;      // the faces' velocities fade at this rate (1/s), and in the rim's band up to this
-                           // much more (the sponge, 1/s), over this many px in from the rim
+uniform vec4 damping;      // the faces' velocities fade at these rates (1/s): the left and right faces', the
+                           // top and bottom faces'; and in the rim's band up to this much more (the sponge,
+                           // 1/s), over this many px in from the rim
 uniform vec2 accel;        // px/s^2: what the glass's acceleration does to the liquid (minus it, scaled)
 uniform vec4 push;         // the busy push: its side (0 left, 1 right, 2 top, 3 bottom; -1 none), the px
                            // along it it peaks at, half the stretch that moves as one (px), and how fast it
@@ -172,8 +173,8 @@ float face(ivec2 a, ivec2 b, int axis, float v, float ha, float hb, float pa, fl
     if (wa && wb) {
         float dt = timing.x;
         float force = -timing.y * 0.5 * (da + db) * (hb - ha) / cell - (pb - pa) / cell + (axis == 0 ? accel.x : accel.y);
-        float sponge = damping.y * pow(clamp(1.0 + 0.5 * (sa + sb) / damping.z, 0.0, 1.0), 2.0);
-        return (v + dt * force) * exp(-(damping.x + sponge) * dt);
+        float sponge = damping.z * pow(clamp(1.0 + 0.5 * (sa + sb) / damping.w, 0.0, 1.0), 2.0);
+        return (v + dt * force) * exp(-((axis == 0 ? damping.x : damping.y) + sponge) * dt);
     }
     if (wa == wb) {
         return 0.0; // dry on both sides

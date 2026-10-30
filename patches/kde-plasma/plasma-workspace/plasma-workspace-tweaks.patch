@@ -1242,7 +1242,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
              checkable: true
              checked: root.runnerWindow.pinned
              onToggled: root.runnerWindow.pinned = checked
-@@ -313,12 +477,107 @@
+@@ -313,20 +477,121 @@
          }
      }
  
@@ -1319,6 +1319,8 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          Layout.fillWidth: true
          Layout.fillHeight: true
 -        Layout.maximumHeight: Math.max(listView.contentHeight, results.contentHeight)
+-        // This replaces the ColumnLayout spacing
+-        Layout.topMargin: Kirigami.Units.smallSpacing
 +        // Drop-down: the results area (and the window, which follows its size) unfolds smoothly
 +        // from nothing as results arrive, eases as their number changes and folds away when they go.
 +        readonly property real fullHeight: results.count > 0 ? Math.max(listView.contentHeight, results.contentHeight) : 0
@@ -1350,10 +1352,13 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
 +        readonly property real overhang: root.runnerWindow.bottomPadding
 +        Layout.bottomMargin: -overhang
 +        bottomPadding: overhang
-         // This replaces the ColumnLayout spacing
-         Layout.topMargin: Kirigami.Units.smallSpacing
++        // This replaces the ColumnLayout spacing; it folds away over the last of the results' height, as
++        // a margin left until the view hides dropped the window by its height at once, after the fold
++        // had seemed to end (OutQuart's last pixel takes 80 ms)
++        Layout.topMargin: Math.min(Kirigami.Units.smallSpacing, shownHeight)
  
-@@ -327,6 +586,10 @@
+         Milou.ResultsView {
+             id: results
              queryString: root.query
              queryField: queryField
              singleRunner: root.singleRunner
@@ -1364,7 +1369,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
  
              Keys.onEscapePressed: {
                  root.runnerWindow.visible = false
-@@ -347,9 +610,18 @@
+@@ -347,9 +612,18 @@
      }
  
      PlasmaComponents3.ScrollView {
@@ -1384,7 +1389,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/qml/RunCommand.qml b/kr
          // This replaces the ColumnLayout spacing
          Layout.topMargin: Kirigami.Units.smallSpacing
          visible: root.query.length === 0 && listView.count > 0
-@@ -358,6 +630,8 @@
+@@ -358,6 +632,8 @@
  
          ListView {
              id: listView // needs this id so the delegate can access it

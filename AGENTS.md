@@ -459,8 +459,8 @@ change different files), and each repo's check applies the other's installed pat
   it opening and closing, like the liquid inside has momentum"; `[Ripple] momentum`, 1, 0 for none). Since
   2026-10-16 KWin works it out from the window's own geometry (above): the glass's centre's acceleration,
   through the followers, pushes the liquid the other way, so dragging KRunner sloshes it (it piles up
-  against the trailing side, then rocks back and forth) and so does the dropdown unfolding or folding (the
-  centre moves). Before, KRunner sampled its own place and height (`View::floatingMoved`,
+  against the trailing side, then rocks back and forth) and so does the dropdown unfolding (the centre
+  moves; folding no longer does since 2026-10-30, below). Before, KRunner sampled its own place and height (`View::floatingMoved`,
   `floatingPosition()`) and a swing detector turned changes of speed into knocks off the wall that pushed
   into the liquid. What it found still holds for anything that differentiates a dragged window's place:
   frame-to-frame speed flickered with the pointer's 60 Hz steps against 120 Hz frames (a start made three
@@ -507,6 +507,21 @@ change different files), and each repo's check applies the other's installed pat
   difference). A drag through Kickoff leaves a trail of coloured shards. plasma-glass-mode takes
   `dark-frost`, and the dark one last picked there (or by install.sh's style) becomes KDE's
   `DefaultDarkLookAndFeel`, which the toggle and KDE's own Dark Mode switch go back to from light.
+- **KRunner flickered after its dropdown folded** (2026-10-30, the user, with a screencast: "i'm seeing a
+  flickering after krunner dropdown collapse", and that it predated Dark Frost). The momentum (above) took
+  the fold as the glass's centre rising ~300 px and stopping, and pushed the liquid that was left in the
+  70 px bar as hard as an unfold; across 70 px the swell rocks every 0.4 s at the user's `sloshSpeed` 350,
+  and their uneven floor (0.8) scattered it into choppy waves that bent what's behind for the 1.2 s their
+  `sloshDamping` took. Reproduced in the preview by typing "f" and Backspace with fakeinput while recording
+  (`INPUT`, the user's plasma-glassrc), measured as the mean frame-to-frame change inside the bar: with
+  momentum 0 the bar was still at once. Two changes, each half the fix alone: a shrinking glass moves its
+  liquid only by the move both its edges share (`carried()` in runLiquid; growing still counts the centre,
+  so the unfold sloshes as before), and the swell fades faster across thin glass, each way by the glass's
+  long side over its length that way (the slosh across the bar left from an unfold 1.25 s earlier rocked on
+  too). Over the 3 s after a fold, the dark glass went from 1.55 mean change (124 of 174 frames over 0.5)
+  to 0.013 (none), Dark Frost from 0.48 (89) to 0.007. Separately, the window dropped 4 px about 80 ms
+  after the fold seemed to end: the results' 4 px top margin stayed until the view hid, and OutQuart's
+  last pixel takes that long; it now folds away with the results' last 4 px (RunCommand.qml).
 - **Without shaders (software rendering) the busy pulse is a gradient, not a mask.** The band of
   light that stands in for the ripple is the gradient of a rounded Rectangle over the glass (stops
   moved by a 0..1 progress), so it keeps to the corners at every size. A MultiEffect mask (the

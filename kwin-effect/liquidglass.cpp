@@ -1293,10 +1293,20 @@ std::optional<double> LiquidGlassEffect::runLiquid(BlurEffectData &data, const L
     };
 
     // what the glass's moves do over a step from t s into the span: the liquid is pushed against the
-    // acceleration of the glass's centre (scaled by gain), so the dropdown unfolding sloshes it too. Each
-    // layer feels it smoothed over `smoothing` s: a jolt over that long sends off a wave about as wide as
-    // the push's, while one the window takes in steps (a dropdown that unfolds in batches, a pointer's
-    // 60 Hz) doesn't shake the liquid in short waves.
+    // acceleration of the glass (scaled by gain): of its centre as it grows, so the dropdown unfolding
+    // sloshes it too; as it shrinks, only of the move both its edges share, since the part of the glass
+    // that's left doesn't move as an edge comes in (the dropdown folding away pushed the liquid in the bar
+    // that was left as hard as unfolding, and it rocked across the bar). Each layer feels it smoothed over
+    // `smoothing` s: a jolt over that long sends off a wave about as wide as the push's, while one the
+    // window takes in steps (a dropdown that unfolds in batches, a pointer's 60 Hz) doesn't shake the liquid
+    // in short waves.
+    const auto carried = [](double place, double size) {
+        if (size >= 0) {
+            return place + 0.5 * size;
+        }
+        const double far = place + size; // the far edge's speed
+        return place * far <= 0 ? 0.0 : place > 0 ? std::min(place, far) : std::max(place, far);
+    };
     const auto moves = [&](double t, double dt, double gain, QVector2D &felt, double smoothing) {
         const auto change = [&](const LiquidGlassFollower &place, const LiquidGlassFollower &size) {
             double p0, p1, s0, s1;
@@ -1304,7 +1314,7 @@ std::optional<double> LiquidGlassEffect::runLiquid(BlurEffectData &data, const L
             followerAt(place, t + dt, omega, &p1);
             followerAt(size, t, omega, &s0);
             followerAt(size, t + dt, omega, &s1);
-            return ((p1 - p0) + 0.5 * (s1 - s0)) / dt;
+            return (carried(p1, s1) - carried(p0, s0)) / dt;
         };
         const QVector2D now(change(f.x, f.width), change(f.y, f.height));
         felt += (now - felt) * float(1 - std::exp(-dt / smoothing));
@@ -1361,10 +1371,16 @@ std::optional<double> LiquidGlassEffect::runLiquid(BlurEffectData &data, const L
                        const double gusts = m_liquid.chopScale;
                        m_fluidPass.shader->setUniform(m_fluidPass.breezeLocation, QVector3D(0.2 * m_liquid.chop * f.breeze * c * c * gusts, gusts, (start + t - f.born) * 0.5 * c / gusts));
                        m_fluidPass.shader->setUniform(m_fluidPass.timingLocation, QVector4D(dt, c * c, 10 * s_ripplesCell * s_ripplesCell / (M_PI * M_PI), s_liquidLevel));
-                       m_fluidPass.shader->setUniform(m_fluidPass.dampingLocation, QVector3D(2 / m_liquid.damping, sponge, rimWidth));
+                       m_fluidPass.shader->setUniform(m_fluidPass.dampingLocation, QVector4D(2 / m_liquid.damping, 2 / m_liquid.damping, sponge, rimWidth));
                    }, vbo);
-        // swell: fast and long, sloshed by the window's moves, every bit of it sent back by the rim
+        // swell: fast and long, sloshed by the window's moves, every bit of it sent back by the rim. Across a
+        // thin glass it fades in as few of its rocks as along it: each way, as much faster than sloshDamping
+        // (the long side's) as the glass is shorter that way. A slosh across the collapsed KRunner (70 px)
+        // rocked every 0.4 s at the user's slosh speed, and for the 1.2 s their damping took the bar
+        // flickered after each fold; the panel, tooltips and the like rocked the same across their thickness.
         const double cs = m_liquid.sloshSpeed;
+        const double longSide = std::max(glass.width(), glass.height());
+        const QVector2D sloshFade(2 / m_liquid.sloshDamping * longSide / glass.width(), 2 / m_liquid.sloshDamping * longSide / glass.height());
         if (momentum > 0) {
             stepLiquid(f.swell, QSize(int(std::ceil(glass.width() / s_swellCell)) + 3, int(std::ceil(glass.height() / s_swellCell)) + 3), s_swellCell, span,
                        0.5 * s_swellCell / (cs * fastest), [&](double t, double dt) {
@@ -1377,7 +1393,7 @@ std::optional<double> LiquidGlassEffect::runLiquid(BlurEffectData &data, const L
                            // its waves at least ~0.15 s long, so broad at its speed
                            moves(t, dt, s_swellMomentum * momentum, f.swellAccel, std::max(0.15, m_liquid.width / (0.38 * cs)));
                            m_fluidPass.shader->setUniform(m_fluidPass.timingLocation, QVector4D(dt, cs * cs, 10 * s_swellCell * s_swellCell / (M_PI * M_PI), s_liquidLevel));
-                           m_fluidPass.shader->setUniform(m_fluidPass.dampingLocation, QVector3D(2 / m_liquid.sloshDamping, 0, s_liquidRim));
+                           m_fluidPass.shader->setUniform(m_fluidPass.dampingLocation, QVector4D(sloshFade.x(), sloshFade.y(), 0, s_liquidRim));
                        }, vbo);
         } else {
             f.swell = LiquidGlassLayer(); // no momentum: none of it left standing
