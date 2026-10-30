@@ -4,3 +4,4 @@ __pycache__/
 theme/liquid-glass/*
 !theme/liquid-glass/generate.py
 theme/liquid-glass-light/
+theme/liquid-glass-dark-frost/

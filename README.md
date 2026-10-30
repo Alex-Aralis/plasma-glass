@@ -23,7 +23,8 @@ notification cruft trimmed.
   a little in colour. KRunner's glass holds a liquid, simulated: it sloshes as you drag KRunner or its
   dropdown opens, and while a search runs its rim pushes into it, sending waves across that bend what's
   behind. The light style's glass is frosted more, and the waves run beneath the frost, lit in shards of
-  colour as off an etched diffraction foil. A click presses down on the liquid of the glass it lands on,
+  colour as off an etched diffraction foil; Dark Frost is that glass in the dark, the shards a sheen of
+  colour under smoky frost. A click presses down on the liquid of the glass it lands on,
   the panel, a popup or KRunner, like a finger on a floating pane: a dimple under the pointer while the
   button is held, and rings that run out as it's pressed and let go. Drag with the button held and the
   finger goes through the liquid, leaving a wake behind it. And every glass surface's liquid has momentum:
@@ -130,10 +131,10 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 | `~/.config/embedsearch/config.toml` | search settings |
 | `~/intel/openvino_telemetry` | `0`: opts out of OpenVINO's usage reporting to Google Analytics (sent on every import otherwise); an existing file is left alone |
 | `~/.local/share/krunner/dbusplugins/`, `~/.local/share/dbus-1/services/`, `~/.config/systemd/user/` | KRunner plugin and the service that runs it |
-| `~/.local/share/plasma/desktoptheme/liquid-glass/` | the Plasma Style (`generate.py` draws it) |
+| `~/.local/share/plasma/desktoptheme/liquid-glass{,-light,-dark-frost}/` | the Plasma Styles (`generate.py`, in the first, draws all three) |
 | `~/.local/share/plasma-glass/`, `~/.local/bin/plasma-glass-tune`, `~/.local/share/applications/plasma-glass-tune.desktop` | Liquid Glass Tuning, which writes `~/.config/plasma-glassrc` (see [Tuning](#tuning-the-glass-and-krunners-liquid-live)) |
 | `~/.local/bin/plasma-glass-mode`, `~/.local/share/applications/plasma-glass-mode.desktop` | Toggle Dark/Light Mode (below) |
-| `~/.local/share/plasma/look-and-feel/plasma-glass.liquid-glass{,-light}/`, `kdeglobals` `[KDE] DefaultDarkLookAndFeel`, `DefaultLightLookAndFeel` | the Liquid Glass global themes, and KDE's default dark and light ones |
+| `~/.local/share/plasma/look-and-feel/plasma-glass.liquid-glass{,-light,-dark-frost}/`, `kdeglobals` `[KDE] DefaultDarkLookAndFeel`, `DefaultLightLookAndFeel` | the Liquid Glass global themes, and KDE's default dark and light ones |
 | `krunnerrc`, `kdeglobals`, `kglobalshortcutsrc` | settings from [`desktop/plasma-settings.sh`](desktop/plasma-settings.sh) |
 | `/etc/portage/patches/kde-plasma/{plasma-workspace,milou,kwin,plasma-desktop}/` | the patches (root): `plasma-workspace-tweaks.patch`, `milou-section-headers.patch`, `kwin-window-behavior-tabs.patch`, `plasma-desktop-tweaks.patch`, beside kde-fixes' |
 | `/usr/lib64/qt6/plugins/kwin/effects/plugins/liquidglass.so`, `/usr/local/lib64/plasma-glass/`, `/usr/local/share/plasma-glass/`, `/etc/portage/env/kde-plasma/kwin` | the Liquid Glass effect: KWin's link to the build in use, the build, its source and tool (for Portage's hook), the hook (root) |
@@ -146,12 +147,14 @@ another shortcut already uses Meta+Space (then it says so and leaves KRunner's k
 `uninstall.sh` puts Alt+Space back.
 
 To switch between dark and light, run `plasma-glass-mode` (or **Toggle Dark/Light Mode** from KRunner or
-the start menu; `plasma-glass-mode dark` or `light` sets one, and the launcher's right-click menu has
-both). It applies the Liquid Glass or Liquid Glass Light global theme: the Plasma Style (KWin's glass
-follows), Breeze Dark or Breeze Light colours, and icons to match. They are also KDE's default dark and
-light global themes, so KDE's own Dark Mode switch (in the tray's Brightness and Color, and in Quick
-Settings) does the same instead of putting the Plasma Style back to Breeze. Give the launcher a shortcut
-in System Settings > Keyboard > Shortcuts to toggle with a key.
+the start menu; `plasma-glass-mode dark`, `dark-frost` or `light` sets one, and the launcher's right-click
+menu has all three). It applies the Liquid Glass, Liquid Glass Dark Frost or Liquid Glass Light global
+theme: the Plasma Style (KWin's glass follows), Breeze Dark or Breeze Light colours, and icons to match.
+They are also KDE's default dark and light global themes, so KDE's own Dark Mode switch (in the tray's
+Brightness and Color, and in Quick Settings) does the same instead of putting the Plasma Style back to
+Breeze. There are two dark ones: the one you last picked (with `plasma-glass-mode` or `install.sh
+--dark`/`--dark-frost`) is the one the toggle and KDE's switch go back to from light. Give the launcher
+a shortcut in System Settings > Keyboard > Shortcuts to toggle with a key.
 
 To look at notification popups, open **Test Notifications** from KRunner or the start menu, or pin
 it to the panel. It sends a clickable one, a long one that scrolls, one with an image and a critical
@@ -193,14 +196,14 @@ by them. The edge runs a little in from the rim in gentle bends and the floor is
 run faster where it's deeper), so waves don't set out or come back ruler-straight.
 
 "Liquid Glass Tuning" (`plasma-glass-tune`, in the start menu or KRunner) has a slider for each of the
-liquid's settings, the dark glass's and Liquid Glass Light's: the ripples' speed, width, how often a
+liquid's settings, the dark glass's, Liquid Glass Light's and Dark Frost's: the ripples' speed, width, how often a
 push comes, damping, how much the rim sends back, amplitude, colour split, the breeze and its gusts'
 size, jitter; how the liquid is stirred (pushing the rim in, or pressing on the surface just inside it),
 which side, where along it and how much of it pushes in as one; momentum, and the sloshing's speed and
 damping; how hard and how wide a click presses; how far the shore bends and how uneven the floor is; the dark glass's frost, bevel width,
 refraction, colour split and sharpness; and the light
 glass's frost, the waves' refraction and diffraction beneath it, the diffraction foil's etch size and
-saturation, and an optional bevel. Changes apply as you drag. While the window is open, KRunner's
+saturation, and an optional bevel; and the same for Dark Frost. Changes apply as you drag. While the window is open, KRunner's
 liquid is stirred all the time and KRunner stays open when you click elsewhere, so open KRunner
 (Meta+Space) beside it and tune. Each row has a button back to its default, and "Reset All" resets
 everything. It needs the patched KRunner (`plasma-workspace-tweaks.patch`) and the Liquid Glass effect.
@@ -244,6 +247,7 @@ lines; the tuning window rewrites the file as you move its sliders):
 | | `etch` | 32 | px, the size of the foil's shards of colour |
 | | `saturation` | 0.8 | 0-1 |
 | | `bevelWidth`, `bevelRefraction`, `bevelDispersion`, `bevelSharpness` | 24, 0, 0, 0 | a bevel as the dark glass's (off: flat) |
+| `[DarkFrost]` | the same keys as `[Light]` | the same, but `saturation` 1 | Liquid Glass Dark Frost's glass |
 
 Keys from before the liquid was simulated (`widening`, `lifetime`, `ringing`, `edgeFade`, `standoff`,
 `packet`, `frontNoise`, `[Light] layer`) are ignored.
@@ -360,7 +364,9 @@ glass clear where they run, their colours parting a little more than the bevel's
 click lands on it (KWin watches the pointer's button; no app asks): it presses down there while the
 button is held, follows the pointer while it's dragged, and lets go as the button comes up. Liquid Glass Light gets frosted glass too
 (strength 5), flat by default, with the waves beneath the frost: what's behind bends under them, and
-an etched diffraction foil lights up in shards of colour where they crest, all softened by the frost. Only while one of those styles is
+an etched diffraction foil lights up in shards of colour where they crest, all softened by the frost.
+Liquid Glass Dark Frost gets the same glass under its dark tint, the foil's colours fully saturated
+(against the dark, Light's 0.8 comes out a little paler and greyer). Only while one of those styles is
 selected (it follows `plasmarc`, no relogin), on Plasma's own surfaces
 (KRunner, popups, notifications, the panel), not on windows with title bars. The glass's corners
 are read off each surface's shape, whatever their radius; where the glass meets the screen's edge (a

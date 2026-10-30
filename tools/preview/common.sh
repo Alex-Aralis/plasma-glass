@@ -3,9 +3,9 @@
 # appears on your screen, takes keyboard focus or changes your real settings.
 #
 # Environment:
-#   STYLE=repo         Plasma Style to preview: "repo" (default) or "repo-light" generate the Liquid Glass
-#                      styles from this checkout into the private data dir; anything else is an
-#                      installed style id
+#   STYLE=repo         Plasma Style to preview: "repo" (default), "repo-light" or "repo-dark-frost" generate
+#                      the Liquid Glass styles from this checkout into the private data dir and preview
+#                      Liquid Glass, Light or Dark Frost; anything else is an installed style id
 #   WALLPAPER=path     background image (default: your desktop wallpaper, else Breeze's "Next")
 #   WIDTH/HEIGHT/SCALE virtual screen (default 1920x1200 at 1.1)
 #   WALLPAPER_PAN=px/s the wallpaper scrolls up and down at this speed (record.sh: content moving behind
@@ -63,10 +63,10 @@ prepare() {
     done
     name="$STYLE"
     case "$STYLE" in
-        repo|repo-light)
-            d="$WORK/data/plasma/desktoptheme/liquid-glass"  # generate.py writes both styles from here
+        repo|repo-light|repo-dark-frost)
+            d="$WORK/data/plasma/desktoptheme/liquid-glass"  # generate.py writes all three styles from here
             mkdir -p "$d" && cp "$REPO/theme/liquid-glass/generate.py" "$d/" && python3 "$d/generate.py" >/dev/null
-            name=liquid-glass; [ "$STYLE" = repo-light ] && name=liquid-glass-light ;;
+            name="liquid-glass${STYLE#repo}" ;;
     esac
     kwriteconfig6 --file "$WORK/cfg/plasmarc" --group Theme --key name "$name"
     # the Liquid Glass effect, not the built-in blur: this checkout's, one given, or the installed one

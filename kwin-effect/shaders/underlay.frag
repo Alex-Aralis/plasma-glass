@@ -1,10 +1,11 @@
 #version 140
 
-// The liquid in KRunner's glass on Liquid Glass Light (plasma-glass), beneath the frost: what's behind the
-// glass, bent by the waves (seen from further in where a wave leans, as through a lens) and lit in shards
-// of colour where they crest, as off an etched diffraction foil. The blur's passes then frost this, so the
-// waves show through the frosting, softened. In: the background as it is, and the liquid's slope and
-// heights (surface.frag: the ripples' and the swell's) at half size. Out: the background to frost.
+// The liquid in KRunner's glass on Liquid Glass Light and Dark Frost (plasma-glass), beneath the frost:
+// what's behind the glass, bent by the waves (seen from further in where a wave leans, as through a lens)
+// and lit in shards of colour where they crest, as off an etched diffraction foil. The blur's passes then
+// frost this, so the waves show through the frosting, softened. In: the background as it is, and the
+// liquid's slope and heights (surface.frag: the ripples' and the swell's) at half size. Out: the background
+// to frost.
 
 uniform sampler2D texUnit;   // the background as it is
 uniform sampler2D wavesUnit; // the waves: the glass's slope (x, y), the ripples' height and the swell's

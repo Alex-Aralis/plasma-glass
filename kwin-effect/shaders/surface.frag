@@ -1,10 +1,10 @@
 #version 140
 
 // plasma-glass: the liquid's surface over the background behind a Liquid Glass window, for the bevel pass
-// (and Liquid Glass Light's underlay) to bend what's behind by: its slope (x, y), the ripples' height and
-// the swell's, at half size. The liquid runs in two layers of its own (fluid.frag), which add up:
-// ripples, the short waves (on cells of ripplesCell px), and swell, the long ones that slosh (swellCell
-// px). Past the liquid's wavy edge, a little in from the rim, there are none.
+// (and the underlay of Liquid Glass Light and Dark Frost) to bend what's behind by: its slope (x, y), the
+// ripples' height and the swell's, at half size. The liquid runs in two layers of its own (fluid.frag),
+// which add up: ripples, the short waves (on cells of ripplesCell px), and swell, the long ones that slosh
+// (swellCell px). Past the liquid's wavy edge, a little in from the rim, there are none.
 
 uniform sampler2D ripples;
 uniform sampler2D swell;

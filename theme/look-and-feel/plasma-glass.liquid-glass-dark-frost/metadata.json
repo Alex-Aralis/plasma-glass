@@ -1,0 +1,16 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "plasma-glass"
+            }
+        ],
+        "Category": "",
+        "Description": "Frosted dark glass: the Liquid Glass Dark Frost Plasma Style over Breeze Dark (with the plasma-glass effect, the waves run beneath the frost, lit in shards of colour)",
+        "Id": "plasma-glass.liquid-glass-dark-frost",
+        "License": "GPLv2+",
+        "Name": "Liquid Glass Dark Frost",
+        "Website": "https://github.com/Alex-Aralis/plasma-glass"
+    }
+}

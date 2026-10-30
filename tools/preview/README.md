@@ -15,8 +15,9 @@ STYLE=default tools/preview/elements.sh widgets/scrollbar slider-topleft     # s
 ```
 
 By default the style comes from this checkout: `theme/liquid-glass/generate.py` is regenerated into
-the private data dir on every run, so you can preview edits before installing them. `STYLE=<id>`
-previews an installed style instead. `WALLPAPER=path` and `WIDTH`/`HEIGHT`/`SCALE` change the
+the private data dir on every run, so you can preview edits before installing them: Liquid Glass, or
+with `STYLE=repo-light` or `STYLE=repo-dark-frost`, Light or Dark Frost. `STYLE=<id>` previews an
+installed style instead. `WALLPAPER=path` and `WIDTH`/`HEIGHT`/`SCALE` change the
 backdrop and virtual screen; see [`common.sh`](common.sh). `KWIN_ENV` passes extra environment to the
 preview's KWin only, e.g. `__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json`
 to composite on the Intel iGPU instead of the NVIDIA card.

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Generates the Liquid Glass Plasma Styles: Breeze everywhere, with glassy popups.
 
-Two styles come out of one run: "Liquid Glass" (follows your colour scheme) next to this file, and
-"Liquid Glass Light" (bright frosted glass with its own light colours) in ../liquid-glass-light.
+Three styles come out of one run: "Liquid Glass" (follows your colour scheme) next to this file,
+"Liquid Glass Light" (bright frosted glass with its own light colours) in ../liquid-glass-light, and
+"Liquid Glass Dark Frost" (Light's frosted glass in the dark, following your colour scheme) in
+../liquid-glass-dark-frost.
 
 Drawn here: dialogs/background (KRunner, Kickoff, the calendar and other popups), the panel's
 background (the same glass as a bar, floating or docked) and the popups' scrollbars, search fields, list
@@ -418,6 +420,16 @@ VARIANTS = {
             "HIGHLIGHT": {"hover": 0.05, "selected": 0.09, "selected+hover": 0.12},
             "SB_SLIDER": 0.30, "SB_HOVER": 0.50, "SB_TRACK": 0.06,
             "HEADING": {"band": 0.035, "line": 0.12},
+        },
+    },
+    "liquid-glass-dark-frost": {
+        "name": "Liquid Glass Dark Frost",
+        "description": "Frosted glass in the dark, like Liquid Glass Light's, with the waves beneath the frost (follows your colour scheme)",
+        "settings": {  # a deeper tint than the dark glass's, so light text reads over the heavier frost; rims
+                       # kept fairly even and little inner glow, as Light's, so the glass looks flat
+            "FILL_TRANSLUCENT": 0.50,
+            "RIM": {"top": 0.24, "side": 0.16, "bottom": 0.12},
+            "GLOW": {"top": 0.06, "side": 0.03, "bottom": 0.03},
         },
     },
 }

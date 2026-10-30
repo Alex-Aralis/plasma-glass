@@ -259,7 +259,7 @@ private:
         int areaLocation;
         int gainLocation;
     } m_surfacePass;
-    // Liquid Glass Light: the waves beneath the frost (shaders/underlay.frag)
+    // Liquid Glass Light and Dark Frost: the waves beneath the frost (shaders/underlay.frag)
     struct
     {
         std::unique_ptr<GLShader> shader;
@@ -277,12 +277,20 @@ private:
     QString m_plasmarc; // the Plasma style is set in there
     QString m_glassrc; // plasma-glass's own settings (plasma-glass-tune edits them)
     bool m_liquidGlass = false; // it's the dark Liquid Glass
-    bool m_liquidGlassLight = false; // it's Liquid Glass Light
-    QVector4D m_lightBevel; // Liquid Glass Light's bevel, as m_bevel
-    int m_lightFrost; // and frost, as m_frost
-    // and its waves beneath the frost: logical px what's behind is seen from further in where one leans
-    // fully, how bright the foil's colours are, its shards' size (logical px), how saturated they are
-    QVector4D m_lightUnderlay;
+    // a style whose waves go beneath the frost (Liquid Glass Light, Liquid Glass Dark Frost): its bevel, as
+    // m_bevel; its frost, as m_frost; and its waves beneath the frost: logical px what's behind is seen from
+    // further in where one leans fully, how bright the foil's colours are, its shards' size (logical px), how
+    // saturated they are
+    struct FrostedGlass
+    {
+        QVector4D bevel;
+        int frost;
+        QVector4D underlay;
+        bool operator==(const FrostedGlass &) const = default;
+    };
+    FrostedGlass m_light;
+    FrostedGlass m_darkFrost;
+    const FrostedGlass *m_frosted = nullptr; // the one in use, if it's one of those
     QVector4D m_bevel; // logical px: width, refraction, dispersion; sharpness at the edge
     int m_frost; // its blur strength, at most (as BlurStrength)
     // KWIN_LIQUID_GLASS_RIPPLE: how far the liquid's waves lean the glass, against the bevel's edge (0: not

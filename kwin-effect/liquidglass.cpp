@@ -84,6 +84,13 @@ static const QString s_liquidGlassLightTheme = QStringLiteral("liquid-glass-ligh
 static const QVector4D s_lightBevel(24, 0, 0, 0);
 static constexpr int s_lightFrost = 5;
 static const QVector4D s_lightUnderlay(16, 1.2, 32, 0.8);
+// and Liquid Glass Dark Frost, Light's glass in the dark: the same frost with the waves and the foil beneath
+// it, under a dark tint. The foil's colours are fully saturated there: against the dark, Light's 0.8 came out
+// a little paler and greyer. [DarkFrost], the same keys as [Light]
+static const QString s_liquidGlassDarkFrostTheme = QStringLiteral("liquid-glass-dark-frost");
+static const QVector4D s_darkFrostBevel(24, 0, 0, 0);
+static constexpr int s_darkFrostFrost = 5;
+static const QVector4D s_darkFrostUnderlay(16, 1.2, 32, 1);
 // the largest corner radius read off a blur region (logical px)
 static constexpr qreal s_liquidGlassMaxRadius = 48;
 // On thin glass (a panel, 44-46 px) the bevel takes up at most this share of the short side, its
@@ -302,7 +309,7 @@ LiquidGlassEffect::LiquidGlassEffect()
                                                                               QStringLiteral(PLASMA_GLASS_SHADERS "vertex.vert"),
                                                                               QStringLiteral(PLASMA_GLASS_SHADERS "underlay.frag"));
     if (!m_underlayPass.shader) {
-        qCWarning(KWIN_BLUR) << "Failed to load the Liquid Glass Light underlay shader";
+        qCWarning(KWIN_BLUR) << "Failed to load the Liquid Glass underlay shader";
     } else {
         m_underlayPass.mvpMatrixLocation = m_underlayPass.shader->uniformLocation("modelViewProjectionMatrix");
         m_underlayPass.sizeLocation = m_underlayPass.shader->uniformLocation("size");
@@ -316,9 +323,8 @@ LiquidGlassEffect::LiquidGlassEffect()
     }
     m_bevel = s_liquidGlassBevel;
     m_frost = s_liquidGlassFrost;
-    m_lightBevel = s_lightBevel;
-    m_lightFrost = s_lightFrost;
-    m_lightUnderlay = s_lightUnderlay;
+    m_light = {s_lightBevel, s_lightFrost, s_lightUnderlay};
+    m_darkFrost = {s_darkFrostBevel, s_darkFrostFrost, s_darkFrostUnderlay};
     if (qEnvironmentVariableIsSet("KWIN_LIQUID_GLASS_RIPPLE")) {
         const QStringList ripple = qEnvironmentVariable("KWIN_LIQUID_GLASS_RIPPLE").split(QLatin1Char(','));
         m_rippleLean = ripple[0].toDouble();
@@ -431,10 +437,10 @@ void LiquidGlassEffect::updateLiquidGlass()
     plasmarc->reparseConfiguration();
     const QString style = plasmarc->group(QStringLiteral("Theme")).readEntry("name", QString());
     const bool liquidGlass = style == s_liquidGlassTheme;
-    const bool light = style == s_liquidGlassLightTheme;
-    if (liquidGlass != m_liquidGlass || light != m_liquidGlassLight) {
+    const FrostedGlass *frosted = style == s_liquidGlassLightTheme ? &m_light : style == s_liquidGlassDarkFrostTheme ? &m_darkFrost : nullptr;
+    if (liquidGlass != m_liquidGlass || frosted != m_frosted) {
         m_liquidGlass = liquidGlass;
-        m_liquidGlassLight = light;
+        m_frosted = frosted;
         effects->addRepaintFull();
     }
 }
@@ -457,16 +463,21 @@ void LiquidGlassEffect::loadLiquidGlassSettings()
     bevel = QVector4D(std::max(bevel.x(), 1.0f), std::max(bevel.y(), 0.0f), std::max(bevel.z(), 0.0f), std::clamp(bevel.w(), 0.0f, 1.0f));
     frost = std::clamp(frost, 1, 15);
 
-    const KConfigGroup light = glassrc->group(QStringLiteral("Light"));
-    const QVector4D lightBevel(std::max(light.readEntry("bevelWidth", double(s_lightBevel.x())), 1.0),
-                               std::max(light.readEntry("bevelRefraction", double(s_lightBevel.y())), 0.0),
-                               std::max(light.readEntry("bevelDispersion", double(s_lightBevel.z())), 0.0),
-                               std::clamp(light.readEntry("bevelSharpness", double(s_lightBevel.w())), 0.0, 1.0));
-    const int lightFrost = std::clamp(light.readEntry("frost", s_lightFrost), 1, 15);
-    const QVector4D lightUnderlay(std::max(light.readEntry("refraction", double(s_lightUnderlay.x())), 0.0),
-                                  std::max(light.readEntry("diffraction", double(s_lightUnderlay.y())), 0.0),
-                                  std::max(light.readEntry("etch", double(s_lightUnderlay.z())), 2.0),
-                                  std::clamp(light.readEntry("saturation", double(s_lightUnderlay.w())), 0.0, 1.0));
+    // [Light] and [DarkFrost]: the styles whose waves go beneath the frost
+    const auto frostedGlass = [&glassrc](const char *name, const QVector4D &bevel, int frost, const QVector4D &underlay) {
+        const KConfigGroup group = glassrc->group(QLatin1String(name));
+        return FrostedGlass{QVector4D(std::max(group.readEntry("bevelWidth", double(bevel.x())), 1.0),
+                                      std::max(group.readEntry("bevelRefraction", double(bevel.y())), 0.0),
+                                      std::max(group.readEntry("bevelDispersion", double(bevel.z())), 0.0),
+                                      std::clamp(group.readEntry("bevelSharpness", double(bevel.w())), 0.0, 1.0)),
+                            std::clamp(group.readEntry("frost", frost), 1, 15),
+                            QVector4D(std::max(group.readEntry("refraction", double(underlay.x())), 0.0),
+                                      std::max(group.readEntry("diffraction", double(underlay.y())), 0.0),
+                                      std::max(group.readEntry("etch", double(underlay.z())), 2.0),
+                                      std::clamp(group.readEntry("saturation", double(underlay.w())), 0.0, 1.0))};
+    };
+    const FrostedGlass light = frostedGlass("Light", s_lightBevel, s_lightFrost, s_lightUnderlay);
+    const FrostedGlass darkFrost = frostedGlass("DarkFrost", s_darkFrostBevel, s_darkFrostFrost, s_darkFrostUnderlay);
 
     // the liquid's: it takes them at its next step
     const KConfigGroup ripple = glassrc->group(QStringLiteral("Ripple"));
@@ -495,12 +506,11 @@ void LiquidGlassEffect::loadLiquidGlassSettings()
     m_liquid.click = number("click", 1, 0, 5);
     m_liquid.clickWidth = number("clickWidth", 24, 2, 200);
 
-    if (bevel != m_bevel || frost != m_frost || lightBevel != m_lightBevel || lightFrost != m_lightFrost || lightUnderlay != m_lightUnderlay) {
+    if (bevel != m_bevel || frost != m_frost || light != m_light || darkFrost != m_darkFrost) {
         m_bevel = bevel;
         m_frost = frost;
-        m_lightBevel = lightBevel;
-        m_lightFrost = lightFrost;
-        m_lightUnderlay = lightUnderlay;
+        m_light = light;
+        m_darkFrost = darkFrost;
         effects->addRepaintFull();
     }
 }
@@ -770,7 +780,7 @@ void LiquidGlassEffect::pointerButton(PointerButtonEvent *event)
         m_clickWindow = nullptr;
         return;
     }
-    if (!(m_liquidGlass || m_liquidGlassLight) || m_liquid.click <= 0 || !m_fluidPass.shader || !m_bevelOnscreenPass.shader) {
+    if (!(m_liquidGlass || m_frosted) || m_liquid.click <= 0 || !m_fluidPass.shader || !m_bevelOnscreenPass.shader) {
         return;
     }
     const QPointF pos = event->position;
@@ -1428,10 +1438,11 @@ std::optional<double> LiquidGlassEffect::runLiquid(BlurEffectData &data, const L
     m_surfacePass.shader->setUniform(m_surfacePass.originLocation, QVector2D(background.x() - glass.x(), background.y() - glass.y()));
     m_surfacePass.shader->setUniform(m_surfacePass.areaLocation, QVector2D(background.width(), background.height()));
     // a fresh wave's crest is about this high (the push's speed over the waves' speed, in a straight channel);
-    // and, for Liquid Glass Light's foil, a slosh's from rim to rim of a glass this size (either way) whose
-    // slope just leans the glass fully (lean x slope = s_liquidSteep), so the foil lights up as the moves'
-    // waves show. On a surface only clicks stir, the crests the press heaps up around it (about a third of how
-    // deep it presses at full strength) are the fresh ones, so a click lights the foil whatever the pushes' width.
+    // and, for the foil beneath the frost (Light, Dark Frost), a slosh's from rim to rim of a glass this size
+    // (either way) whose slope just leans the glass fully (lean x slope = s_liquidSteep), so the foil lights up
+    // as the moves' waves show. On a surface only clicks stir, the crests the press heaps up around it (about a
+    // third of how deep it presses at full strength) are the fresh ones, so a click lights the foil whatever the
+    // pushes' width.
     const double crest = client ? s_pushSlope * m_liquid.width / (0.38 * M_PI) : 0.3 * 0.8 * m_liquid.clickWidth;
     const double sloshCrest = s_liquidSteep / std::max(m_rippleLean.value_or(m_liquid.amplitude), 0.05) * std::sqrt(glass.width() * glass.height()) / M_PI;
     m_surfacePass.shader->setUniform(m_surfacePass.gainLocation, QVector4D(1, swell ? 1 : 0, crest, sloshCrest));
@@ -1480,16 +1491,17 @@ void LiquidGlassEffect::blur(const RenderTarget &renderTarget, const RenderViewp
     // its mask rounds off, or a panel, which docked may have none
     BorderRadius bevelCorners;
     bool liquidGlass = false;
-    if ((m_liquidGlass || m_liquidGlassLight) && m_bevelOnscreenPass.shader && w->window()->borderRadius().isNull()) {
+    if ((m_liquidGlass || m_frosted) && m_bevelOnscreenPass.shader && w->window()->borderRadius().isNull()) {
         bevelCorners = liquidGlassCorners(blurShape, blurShape.boundingRect());
         liquidGlass = !bevelCorners.isNull() || w->isDock();
     }
-    const bool light = liquidGlass && m_liquidGlassLight;
+    // on Liquid Glass Light and Dark Frost, with the waves beneath its frost
+    const FrostedGlass *frosted = liquidGlass ? m_frosted : nullptr;
     // and it's frosted more lightly than other blur
     size_t iterationCount = m_iterationCount;
     float offset = m_offset;
     if (liquidGlass) {
-        const BlurValuesStruct &frost = blurStrengthValues[std::clamp(light ? m_lightFrost : m_frost, 1, LiquidGlassConfig::blurStrength()) - 1];
+        const BlurValuesStruct &frost = blurStrengthValues[std::clamp(frosted ? frosted->frost : m_frost, 1, LiquidGlassConfig::blurStrength()) - 1];
         iterationCount = frost.iteration;
         offset = frost.offset;
     }
@@ -1688,11 +1700,11 @@ void LiquidGlassEffect::blur(const RenderTarget &renderTarget, const RenderViewp
         }
     }
 
-    // Liquid Glass Light: the waves go beneath the frost. The background, bent by them and lit in shards of
-    // colour where they crest, is what the blur's passes frost (and what its bevel shows sharp), and they
-    // don't lean the glass on top.
+    // Liquid Glass Light and Dark Frost: the waves go beneath the frost. The background, bent by them and lit
+    // in shards of colour where they crest, is what the blur's passes frost (and what its bevel shows sharp),
+    // and they don't lean the glass on top.
     GLTexture *frostSource = renderInfo.textures[0].get();
-    if (light && ripple.x() > 0 && m_underlayPass.shader) {
+    if (frosted && ripple.x() > 0 && m_underlayPass.shader) {
         const QSize underlaySize = renderInfo.textures[0]->size();
         if (!blurInfo.underlayTexture || blurInfo.underlayTexture->size() != underlaySize || blurInfo.underlayTexture->internalFormat() != textureFormat) {
             blurInfo.underlayFramebuffer.reset();
@@ -1716,7 +1728,8 @@ void LiquidGlassEffect::blur(const RenderTarget &renderTarget, const RenderViewp
             m_underlayPass.shader->setUniform(m_underlayPass.originLocation, QVector2D(backgroundRect.x() - window.x(), backgroundRect.y() - window.y()));
             m_underlayPass.shader->setUniform(m_underlayPass.areaLocation, QVector2D(backgroundRect.width(), backgroundRect.height()));
             m_underlayPass.shader->setUniform(m_underlayPass.leanLocation, ripple.x());
-            m_underlayPass.shader->setUniform(m_underlayPass.lightLocation, QVector4D(m_lightUnderlay.x() * scale, m_lightUnderlay.y(), m_lightUnderlay.z(), m_lightUnderlay.w()));
+            const QVector4D &underlay = frosted->underlay;
+            m_underlayPass.shader->setUniform(m_underlayPass.lightLocation, QVector4D(underlay.x() * scale, underlay.y(), underlay.z(), underlay.w()));
             m_underlayPass.shader->setUniform(m_underlayPass.timeLocation, float(std::fmod(monotonicNow(), 1000.0)));
             m_underlayPass.shader->setUniform(m_underlayPass.texUnitLocation, 0);
             m_underlayPass.shader->setUniform(m_underlayPass.wavesUnitLocation, 1);
@@ -1738,7 +1751,7 @@ void LiquidGlassEffect::blur(const RenderTarget &renderTarget, const RenderViewp
             frostSource = blurInfo.underlayTexture.get();
         }
     }
-    if (light) {
+    if (frosted) {
         ripple = QVector2D();
     }
 
@@ -1855,7 +1868,7 @@ void LiquidGlassEffect::blur(const RenderTarget &renderTarget, const RenderViewp
         const float scale = viewport.scale();
         const RectF glass = blurShape.boundingRect();
         // on thin glass the bevel is narrower (s_liquidGlassThinBevel)
-        QVector4D bevel = light ? m_lightBevel : m_bevel;
+        QVector4D bevel = frosted ? frosted->bevel : m_bevel;
         if (const qreal thin = s_liquidGlassThinBevel * std::min(glass.width(), glass.height()); bevel.x() > thin) {
             bevel.setY(bevel.y() * thin / bevel.x());
             bevel.setX(thin);
@@ -1886,7 +1899,7 @@ void LiquidGlassEffect::blur(const RenderTarget &renderTarget, const RenderViewp
         m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.wavesUnitLocation, 2);
         m_bevelOnscreenPass.shader->setUniform(m_bevelOnscreenPass.rippleLocation, QVector3D(ripple.x(), ripple.y(), rippleDispersion * scale));
 
-        // the background as it is, before the blur (on light glass, with the waves in it); the liquid's surface
+        // the background as it is, before the blur (on frosted glass, with the waves in it); the liquid's surface
         glActiveTexture(GL_TEXTURE1);
         frostSource->bind();
         if (ripple.x() > 0) {

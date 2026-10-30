@@ -20,7 +20,7 @@ change different files), and each repo's check applies the other's installed pat
 | `search/embedsearch.py` | search service: indexer, KRunner D-Bus runner (`local.embedsearch`), CLI. Installed copy: `~/.local/share/embedsearch/` (service `embedsearch.service`) |
 | `search/settings_index.py` | builds `search/settings-index.json` (System Settings option labels, page, tab; the Shortcuts page's Common Actions; Qt's key names) from the installed packages' source tarballs; re-run after a Plasma upgrade |
 | `search/export_model.py` | one-time PyTorch to OpenVINO export with a parity check (run by install.sh in a throwaway venv) |
-| `theme/liquid-glass/generate.py` | draws both styles (`liquid-glass`, `liquid-glass-light`) into `~/.local/share/plasma/desktoptheme/` |
+| `theme/liquid-glass/generate.py` | draws the three styles (`liquid-glass`, `liquid-glass-light`, `liquid-glass-dark-frost`) into `~/.local/share/plasma/desktoptheme/` |
 | `patches/kde-plasma/{plasma-workspace,milou,kwin,plasma-desktop}/*.patch` | Portage user patches, one per package (`plasma-workspace-tweaks.patch`, `milou-section-headers.patch`, `kwin-window-behavior-tabs.patch`, `plasma-desktop-tweaks.patch`; the KWin one was `kwin-fixes.patch` until 2026-10-17 and `kwin-liquid-glass.patch`, with the glass, until 2026-10-22; the plasma-desktop one `plasma-desktop-shortcut-search.patch` until 2026-10-22) |
 | `kwin-effect/` | the Liquid Glass effect: KWin 6.7.5's blur effect (plugins/blur) with the glass, a plugin of its own (`liquidglass.cpp`, `shaders/`; `portage-hook.sh` rebuilds it after KWin merges). The notes below from before 2026-10-22 name the patch's files: blur.cpp is liquidglass.cpp, `BlurEffect` `LiquidGlassEffect` |
 | `tools/kwin-effect.sh` | the effect: `build` (a new id each time), `install [LIB]` (root: KWin's plugin folder links `liquidglass.so` to it), `reload` (the running KWin swaps it in over D-Bus, checks `Build()`), `enable`/`disable` (kwinrc), `status` |
@@ -35,7 +35,7 @@ change different files), and each repo's check applies the other's installed pat
 ## Dev loops
 
 - **Style:** edit `generate.py`, then `tools/preview/krunner.sh /tmp/k.png "query"` (or
-  `STYLE=repo-light`). Apply with `./install.sh --no-search --no-settings`, which regenerates the SVGs,
+  `STYLE=repo-light`, `STYLE=repo-dark-frost`). Apply with `./install.sh --no-search --no-settings`, which regenerates the SVGs,
   drops Plasma's cached renders and reapplies.
 - **Patches:** `tools/patch-dev.sh setup`, edit under `~/.cache/plasma-glass/dev/b/<pkg>/`, then
   `refresh` and `check`, then `sudo tools/patch-dev.sh install`. After the build, run
@@ -494,6 +494,19 @@ change different files), and each repo's check applies the other's installed pat
   (momentum 2, sloshSpeed 1800, amplitude 2) a Meta+drag's sloshes crested at 0.3-0.4, faint patches;
   with the lean in, 0.7-1, as bright as the busy pushes' foil. Read the waves texture back (a scratch
   `glReadPixels` per frame into raw files) to measure such things; it slows KWin's frames.
+- **Liquid Glass Dark Frost** (2026-10-30, the user: "create a darkmode version that uses the behind frost
+  diffraction grains"): Light's glass in the dark, a third style beside the two. generate.py's
+  `liquid-glass-dark-frost` follows the colour scheme as the dark style does (no colours file; its global
+  theme sets Breeze Dark), with a deeper tint (`FILL_TRANSLUCENT` 0.50 against the dark's 0.40, so light text
+  reads over the heavier frost) and rims and glow kept fairly even, as Light's are, so it looks flat. In
+  KWin it's a frosted style as Light is: `FrostedGlass` (bevel, frost, underlay) for each, read from
+  `[Light]` and `[DarkFrost]` with the same keys, and `m_frosted` points at the one in use (none on the
+  dark glass). Its defaults are Light's but `saturation` 1. In the preview over the user's Orbit wallpapers
+  (Tarantula, Rho), KRunner busy: through the dark tint, diffraction 0.6-0.8 lit faint, muddy patches and
+  1.2 a clear sheen of colour; at 1.2, saturation 0.8 came out a little paler and greyer than 1 (a modest
+  difference). A drag through Kickoff leaves a trail of coloured shards. plasma-glass-mode takes
+  `dark-frost`, and the dark one last picked there (or by install.sh's style) becomes KDE's
+  `DefaultDarkLookAndFeel`, which the toggle and KDE's own Dark Mode switch go back to from light.
 - **Without shaders (software rendering) the busy pulse is a gradient, not a mask.** The band of
   light that stands in for the ripple is the gradient of a rounded Rectangle over the glass (stops
   moved by a 0..1 progress), so it keeps to the corners at every size. A MultiEffect mask (the

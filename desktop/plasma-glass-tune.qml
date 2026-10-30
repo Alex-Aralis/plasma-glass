@@ -4,10 +4,10 @@
     SPDX-License-Identifier: GPL-2.0-or-later
 */
 
-// Liquid Glass Tuning: the liquid in KRunner's glass and the dark Liquid Glass, live. Each change goes to
-// ~/.config/plasma-glassrc within a tenth of a second, and plasma-glass's KWin takes it at once. While this
-// is open (and "Keep stirring" is on), KRunner's liquid is stirred all the time and KRunner stays open when
-// you click here: open it (Meta+Space) and tune beside it.
+// Liquid Glass Tuning: the liquid in KRunner's glass and the Liquid Glass styles' glass, live. Each change
+// goes to ~/.config/plasma-glassrc within a tenth of a second, and plasma-glass's KWin takes it at once. While
+// this is open (and "Keep stirring" is on), KRunner's liquid is stirred all the time and KRunner stays open
+// when you click here: open it (Meta+Space) and tune beside it.
 //   qml6 -a widget plasma-glass-tune.qml        (install.sh installs it as plasma-glass-tune)
 pragma ComponentBehavior: Bound
 
@@ -383,6 +383,51 @@ Kirigami.ApplicationWindow {
                 key: "Light/bevelSharpness"; fallback: 0; from: 0; to: 1; stepSize: 0.05; decimals: 2
             }
             Hint { text: "Liquid Glass Light is flat by default; give it a bevel like the dark glass's here." }
+
+            Kirigami.Separator {
+                Kirigami.FormData.isSection: true
+                Kirigami.FormData.label: "Liquid Glass Dark Frost"
+            }
+            Hint { text: "Liquid Glass Light's glass in the dark: the same frost, with the waves and the foil beneath it, under a dark tint." }
+            Tuner {
+                Kirigami.FormData.label: "Frost:"
+                key: "DarkFrost/frost"; fallback: 5; from: 1; to: 15; stepSize: 1
+            }
+            Hint { text: "Blur strength over the waves, as in KWin's Blur settings; never more than yours there." }
+            Tuner {
+                Kirigami.FormData.label: "Refraction:"
+                key: "DarkFrost/refraction"; fallback: 16; from: 0; to: 40; stepSize: 0.5; decimals: 1; unit: "px"
+            }
+            Tuner {
+                Kirigami.FormData.label: "Diffraction:"
+                key: "DarkFrost/diffraction"; fallback: 1.2; from: 0; to: 3; stepSize: 0.05; decimals: 2
+            }
+            Tuner {
+                Kirigami.FormData.label: "Etch size:"
+                key: "DarkFrost/etch"; fallback: 32; from: 4; to: 120; stepSize: 1; unit: "px"
+            }
+            Tuner {
+                Kirigami.FormData.label: "Saturation:"
+                key: "DarkFrost/saturation"; fallback: 1; from: 0; to: 1; stepSize: 0.05; decimals: 2
+            }
+            Hint { text: "Fully saturated by default: against the dark, Light's 80% comes out a little paler and greyer." }
+            Tuner {
+                Kirigami.FormData.label: "Bevel width:"
+                key: "DarkFrost/bevelWidth"; fallback: 24; from: 4; to: 60; stepSize: 1; unit: "px"
+            }
+            Tuner {
+                Kirigami.FormData.label: "Bevel refraction:"
+                key: "DarkFrost/bevelRefraction"; fallback: 0; from: 0; to: 30; stepSize: 0.5; decimals: 1; unit: "px"
+            }
+            Tuner {
+                Kirigami.FormData.label: "Bevel colour split:"
+                key: "DarkFrost/bevelDispersion"; fallback: 0; from: 0; to: 8; stepSize: 0.5; decimals: 1; unit: "px"
+            }
+            Tuner {
+                Kirigami.FormData.label: "Bevel sharpness:"
+                key: "DarkFrost/bevelSharpness"; fallback: 0; from: 0; to: 1; stepSize: 0.05; decimals: 2
+            }
+            Hint { text: "Flat by default too, as Light is." }
         }
     }
 }

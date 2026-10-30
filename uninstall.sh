@@ -30,7 +30,8 @@ kwriteconfig6 --file kdeglobals --group KDE --key DefaultLightLookAndFeel --dele
 case "$(kreadconfig6 --file plasmarc --group Theme --key name)" in
     liquid-glass*) plasma-apply-desktoptheme default ;;
 esac
-rm -rf "$DATA/plasma/look-and-feel/plasma-glass.liquid-glass" "$DATA/plasma/look-and-feel/plasma-glass.liquid-glass-light"
+rm -rf "$DATA/plasma/look-and-feel/plasma-glass.liquid-glass" "$DATA/plasma/look-and-feel/plasma-glass.liquid-glass-light" \
+       "$DATA/plasma/look-and-feel/plasma-glass.liquid-glass-dark-frost"
 rm -f "$HOME/.local/bin/plasma-glass-test-notifications" "$DATA/applications/plasma-glass-test-notifications.desktop"
 rm -f "$HOME/.local/bin/plasma-glass-tune" "$DATA/applications/plasma-glass-tune.desktop"
 rm -f "$HOME/.local/bin/plasma-glass-mode" "$DATA/applications/plasma-glass-mode.desktop"
@@ -39,7 +40,7 @@ sh "$(dirname "$0")/tools/kwin-effect.sh" disable 2>/dev/null || true
 rm -f "$HOME/.local/bin/plasma-glass-reload-kwin"
 rm -rf "$DATA/plasma-glass"  # the tuning window; its settings (~/.config/plasma-glassrc) stay
 rm -rf "$DATA/plasma/desktoptheme/liquid-glass" "$DATA/plasma/desktoptheme/liquid-glass-light" \
-       "${XDG_CACHE_HOME:-$HOME/.cache}"/plasma_theme_liquid-glass*.kcache
+       "$DATA/plasma/desktoptheme/liquid-glass-dark-frost" "${XDG_CACHE_HOME:-$HOME/.cache}"/plasma_theme_liquid-glass*.kcache
 
 # undo desktop/plasma-settings.sh
 for key in browserhistoryEnabled browsertabsEnabled helprunnerEnabled; do
