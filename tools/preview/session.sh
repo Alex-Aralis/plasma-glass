@@ -10,7 +10,8 @@
 #                              in and is restored RESTORE_AT s in, into record.mkv
 #   session.sh unfold QUERY    KRunner; capture frames while results for QUERY unfold, then fold
 #   session.sh drag QUERY      KRunner with results for QUERY, then FAKEINPUT < DRAG_INPUT, while a KWin
-#                              script logs KRunner's frame geometry and output (kwin.log, "KRUNNER" lines)
+#                              script logs KRunner's frame geometry and output (kwin.log, "KRUNNER" lines; with
+#                              TRACK_TIMES=1 also Date.now())
 #   session.sh record QUERY    KRunner with results for QUERY, then (HOLD s later, 3) its window recorded for
 #                              SECONDS_CAPTURED into record.mkv (frames.py record), HOVER_INPUT sent as it starts
 #   session.sh settings KCM [ARGS]  System Settings on page KCM, given ARGS (systemsettings --args), after
@@ -31,6 +32,12 @@ export XDG_CONFIG_HOME="$WORK/cfg"
 shortcuts=--no-global-shortcuts
 case "$MODE" in popup|panel|settings) shortcuts= ;; esac
 [ -z "${SHORTCUTS:-}" ] || shortcuts=
+# a Plasma session's own: Qt then loads KDE's platform theme, so apps get your font (kdeglobals; Noto Sans
+# 10 pt by default) instead of Qt's generic "Sans Serif" 9 pt. KWin too: KService's cache lists the
+# mimeapps.list files it read, kde-mimeapps.list only with XDG_CURRENT_DESKTOP=KDE, and when KWin's list and
+# the apps' differed each rebuilt the shared cache for the other, about once a second, with two fsyncs on KWin's
+# main thread (30-45 ms on the laptop's disk: frames KRunner waited for)
+export XDG_CURRENT_DESKTOP=KDE KDE_FULL_SESSION=true KDE_SESSION_VERSION=6
 # KWIN_ENV: extra environment for KWin only, e.g. to composite on another GPU like the real session.
 # KWIN_WAYLAND: a dev build of KWin to run instead of the installed one (tools/patch-dev.sh kwin, then
 # ninja -C ~/.cache/plasma-glass/dev/kwin/build kwin_wayland)
@@ -41,9 +48,6 @@ env -u WAYLAND_DISPLAY KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 KWIN_SCREENSHOT_NO_PE
 KWIN=$!
 for _ in $(seq 100); do [ -S "$XDG_RUNTIME_DIR/$SOCK" ] && break; sleep 0.1; done
 export WAYLAND_DISPLAY="$SOCK" QT_QPA_PLATFORM=wayland
-# a Plasma session's own: Qt then loads KDE's platform theme, so apps get your font (kdeglobals; Noto Sans
-# 10 pt by default) instead of Qt's generic "Sans Serif" 9 pt
-export XDG_CURRENT_DESKTOP=KDE KDE_FULL_SESSION=true KDE_SESSION_VERSION=6
 # REFRESH=240000 (mHz): the virtual output runs at that rate instead of 60 Hz, through a custom mode
 if [ -n "${REFRESH:-}" ]; then
     kscreen-doctor "output.Virtual-0.addCustomMode.$WIDTH.$HEIGHT.$REFRESH.full" >"$WORK/kscreen.log" 2>&1
@@ -109,10 +113,13 @@ JS
         sleep 2
         qdbus6 org.kde.krunner /App org.kde.krunner.App.query "$1"
         sleep 3
-        cat >"$WORK/track.js" <<'JS'
+        # TRACK_TIMES=1: each line also says when (Date.now(), ms), for frametimes.sh
+        printf 'const TIMES = %s;\n' "${TRACK_TIMES:-0}" >"$WORK/track.js"
+        cat >>"$WORK/track.js" <<'JS'
 function track(w) {
     if (String(w.resourceClass).indexOf("krunner") < 0) return;
-    const log = () => console.info("KRUNNER", w.output ? w.output.name : "-", JSON.stringify(w.frameGeometry));
+    const log = TIMES ? () => console.info("KRUNNER", Date.now(), w.output ? w.output.name : "-", JSON.stringify(w.frameGeometry))
+                      : () => console.info("KRUNNER", w.output ? w.output.name : "-", JSON.stringify(w.frameGeometry));
     log();
     w.frameGeometryChanged.connect(log);
     w.outputChanged.connect(log);
