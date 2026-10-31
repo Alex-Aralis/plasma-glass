@@ -1541,9 +1541,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/relative-pointer-unstab
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view.cpp
 --- a/krunner/view.cpp
 +++ b/krunner/view.cpp
-@@ -8,6 +8,13 @@
+@@ -7,17 +7,29 @@
+ #include "view.h"
  
  #include <QAction>
++#include <QAnimationDriver>
  #include <QClipboard>
 +#include <QDBusConnection>
 +#include <QDBusMessage>
@@ -1553,9 +1555,11 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
 +#include <QDBusVariant>
 +#include <QDateTime>
  #include <QDebug>
++#include <QElapsedTimer>
  #include <QGuiApplication>
++#include <QOpenGLContext>
  #include <QPlatformSurfaceEvent>
-@@ -15,9 +22,11 @@
+ #include <QQmlContext>
  #include <QQmlEngine>
  #include <QQuickItem>
  #include <QScreen>
@@ -1567,7 +1571,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
  #include <KIO/CommandLauncherJob>
  #include <KLocalizedString>
  #include <KService>
-@@ -26,12 +35,113 @@
+@@ -26,14 +38,178 @@
  #include <KX11Extras>
  
  #include <LayerShellQt/Window>
@@ -1680,8 +1684,93 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
 +
  KCONFIGGROUP_DECLARE_ENUM_QOBJECT(View, HistoryBehavior)
  
++// Qt Quick's choice of render loop (QSGRenderLoop::instance): the basic one draws on the GUI thread, which Qt
++// picks for OpenGL where the platform can't draw on other threads (QtWayland on desktop NVIDIA: QTBUG-95817)
++static bool basicRenderLoop()
++{
++    const QByteArray loop = qgetenv("QSG_RENDER_LOOP");
++    if (loop == "basic" || loop == "windows") {
++        return true;
++    } else if (loop == "threaded") {
++        return false;
++    } else if (qEnvironmentVariableIntValue("QML_BAD_GUI_RENDER_LOOP")) {
++        return true;
++    } else if (qEnvironmentVariableIntValue("QML_FORCE_THREADED_RENDERER")) {
++        return false;
++    }
++    return QQuickWindow::graphicsApi() == QSGRendererInterface::OpenGL && !QOpenGLContext::supportsThreadedOpenGL();
++}
++
++// Steps Qt Quick's animations once per frame the window draws, at that frame's time rounded to the screen's refresh
++// period, as the threaded loop steps them with its swaps. The basic loop steps them from a 16 ms timer that drifts
++// against the frames KWin asks for, so now and then a frame showed the same step as the one before it and the next
++// frame two (the dropdown's steps came up to 11 ms off their frames' times, against 3 on the threaded loop).
++class FrameAnimationDriver : public QAnimationDriver
++{
++public:
++    explicit FrameAnimationDriver(QWindow *window)
++        : QAnimationDriver(window)
++        , m_window(window)
++    {
++    }
++
++    // as the window begins a frame; while animations run, it asks for the next one
++    void frame()
++    {
++        if (!isRunning()) {
++            return;
++        }
++        const qreal hz = m_window->screen() ? m_window->screen()->refreshRate() : 60;
++        const qreal period = 1000 / std::max<qreal>(hz, 1);
++        m_time = std::max(m_time + 1, qRound64(std::round(m_clock.elapsed() / period) * period));
++        advance();
++        m_window->requestUpdate();
++    }
++
++    qint64 elapsed() const override
++    {
++        return m_time;
++    }
++
++protected:
++    void start() override
++    {
++        m_clock.start();
++        m_time = 0;
++        QAnimationDriver::start();
++        m_window->requestUpdate();
++    }
++
++private:
++    QWindow *m_window;
++    QElapsedTimer m_clock;
++    qint64 m_time = 0;
++};
++
  View::View(PlasmaQuick::SharedQmlEngine *engine, QWindow *)
-@@ -65,7 +175,25 @@
+     : PlasmaQuick::PlasmaWindow()
+     , m_engine(engine)
+@@ -41,6 +217,19 @@
+ {
+     KCrash::initialize();
+ 
++    // On the basic render loop the GUI thread draws, and with a swap interval QtWayland makes each swap wait for
++    // KWin's frame callback (waitForFrameSync): 15-16 ms of every frame at 60 Hz in which the window can't take in
++    // the size it asked for or step its animations, so the dropdown unfolded and folded in steps 33-50 ms apart.
++    // Without one, frames still come only as KWin asks for them (frame callbacks pace requestUpdate), and the GUI
++    // thread is free between them. Not on the threaded loop, whose swaps on the render thread pace its animations.
++    if (basicRenderLoop()) {
++        QSurfaceFormat surfaceFormat = format();
++        surfaceFormat.setSwapInterval(0);
++        setFormat(surfaceFormat);
++        m_animationDriver = new FrameAnimationDriver(this);
++        m_animationDriver->install();
++    }
++
+     if (KWindowSystem::isPlatformX11()) {
+         m_x11Positioner = new X11WindowScreenRelativePositioner(this);
+     }
+@@ -65,7 +254,25 @@
      connect(&m_consumer, &KActivities::Consumer::currentActivityChanged, this, &View::activityChanged);
      Q_EMIT activityChanged(m_consumer.currentActivity());
  
@@ -1707,7 +1796,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
  
      new AppAdaptor(this);
      QDBusConnection::sessionBus().registerObject(u"/App"_s, this);
-@@ -93,7 +221,8 @@
+@@ -93,7 +300,8 @@
  {
      if (m_floating) {
          const QRect r = screen()->availableGeometry();
@@ -1717,7 +1806,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      } else {
          return {}; // Zeros
      }
-@@ -104,13 +233,26 @@
+@@ -104,13 +312,26 @@
      auto item = qobject_cast<QQuickItem *>(m_engine->rootObject());
      setMainItem(item);
  
@@ -1750,7 +1839,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
  }
  
  void View::slotFocusWindowChanged()
-@@ -119,11 +261,46 @@
+@@ -119,11 +340,46 @@
          displayWithClipboardContents();
      }
  
@@ -1798,7 +1887,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
  bool View::freeFloating() const
  {
      return m_floating;
-@@ -145,6 +322,9 @@
+@@ -145,6 +401,9 @@
  
  void View::loadConfig()
  {
@@ -1808,7 +1897,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      setFreeFloating(m_config.readEntry("FreeFloating", false));
      setRetainPriorSearch(m_config.readEntry("RetainPriorSearch", true));
      setPinned(m_stateData.readEntry("Pinned", false));
-@@ -157,6 +337,7 @@
+@@ -157,6 +416,7 @@
          KX11Extras::setOnAllDesktops(winId(), true);
      }
      QQuickWindow::showEvent(event);
@@ -1816,7 +1905,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
      requestActivate();
      if (KWindowSystem::isPlatformX11()) {
          KX11Extras::forceActiveWindow(winId());
-@@ -167,7 +348,15 @@
+@@ -167,7 +427,15 @@
  {
      const auto screens = QGuiApplication::screens();
      auto screenIt = screens.cend();
@@ -1833,7 +1922,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
          auto message = QDBusMessage::createMethodCall(u"org.kde.KWin"_s, u"/KWin"_s, u"org.kde.KWin"_s, u"activeOutputName"_s);
          QDBusReply<QString> reply = QDBusConnection::sessionBus().call(message);
          if (reply.isValid()) {
-@@ -187,11 +376,10 @@
+@@ -187,11 +455,10 @@
  
      if (KWindowSystem::isPlatformWayland()) {
          auto layerWindow = LayerShellQt::Window::get(this);
@@ -1846,7 +1935,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
          if (m_floating) {
              layerWindow->setScreen(shownOnScreen);
          } else {
-@@ -209,6 +397,262 @@
+@@ -209,6 +476,265 @@
      }
  }
  
@@ -2040,6 +2129,9 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.cpp b/krunner/view
 +    // (QQuickWindow::event delivers pointer events to Qt Quick unless they come in unaccepted, which
 +    // they don't, so overriding mousePressEvent() and the like can't keep them away)
 +    const QEvent::Type type = event->type();
++    if (type == QEvent::UpdateRequest && m_animationDriver) {
++        m_animationDriver->frame(); // the basic loop polishes and draws the frame in PlasmaWindow::event
++    }
 +    if (type == QEvent::MouseButtonPress || type == QEvent::MouseButtonRelease || type == QEvent::MouseButtonDblClick
 +        || type == QEvent::MouseMove) {
 +        auto mouse = static_cast<QMouseEvent *>(event);
@@ -2124,17 +2216,18 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  #include <qqmlregistration.h>
  
  #include <PlasmaQuick/PlasmaWindow>
-@@ -21,6 +25,9 @@
+@@ -21,6 +25,10 @@
  
  class X11WindowScreenRelativePositioner;
  class ViewPrivate;
 +class RelativePointerManager;
 +class RelativePointer;
 +class ButtonWatcher;
++class FrameAnimationDriver;
  
  class View : public PlasmaQuick::PlasmaWindow
  {
-@@ -47,6 +54,53 @@
+@@ -47,6 +55,53 @@
  
      void positionOnScreen();
  
@@ -2188,7 +2281,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
      bool freeFloating() const;
      void setFreeFloating(bool floating);
  
-@@ -82,12 +136,19 @@
+@@ -82,12 +137,19 @@
      }
  
  Q_SIGNALS:
@@ -2208,7 +2301,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
  
  public Q_SLOTS:
      void display();
-@@ -97,15 +158,53 @@
+@@ -97,15 +159,54 @@
      void query(const QString &term);
      void querySingleRunner(const QString &runnerName, const QString &term);
  
@@ -2235,6 +2328,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/krunner/view.h b/krunner/view.h
 +    void fetchIndexingProgress();
 +    void setIndexingProgress(qreal progress);
 +    qreal m_indexingProgress = -1;
++    FrameAnimationDriver *m_animationDriver = nullptr; // on the basic render loop (see View::View)
 +    void loadLiquidGlass();
 +    KSharedConfig::Ptr m_liquidGlassConfig;
 +    QVariantMap m_liquidGlass;
