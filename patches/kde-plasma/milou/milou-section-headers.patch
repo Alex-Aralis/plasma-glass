@@ -271,7 +271,18 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/lib/ResultsView.qml b/lib/Resul
  import org.kde.milou as Milou
  
  ListView {
-@@ -39,6 +41,23 @@
+@@ -33,12 +35,34 @@
+         pressed: (listView.currentItem as T.AbstractButton)?.down ?? false
+     }
+     highlightMoveDuration: 0
++    // Every row is made as the results come, not as they come into view: KRunner's dropdown unfolds from nothing
++    // over them, and making the rows it uncovered as it went cost two 50 ms frames at the start of each unfold
++    // on the laptop. The window is still folded when the results come, so making them all then shows no stall.
++    // (Once the list shows in full, every row is in view anyway.)
++    cacheBuffer: 10000
+     activeFocusOnTab: true
+     Accessible.role: Accessible.List
+ 
      section {
          criteria: ViewSection.FullString
          property: "category"

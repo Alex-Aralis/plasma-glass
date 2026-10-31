@@ -28,7 +28,7 @@ change different files), and each repo's check applies the other's installed pat
 | `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` builds a test copy, `kwin` compiles the edited KWin files (with kde-fixes' installed KWin patches in the tree), `kcm-keys` builds the Shortcuts page and KRunner's Global Shortcuts runner, `plasmashell` plasmashell (for `tools/preview/panel.sh`) |
 | `tools/check-patches.sh` | patches apply, alone and with the other user patches installed for the package (kde-fixes'); patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
 | `tools/screenprobe/screen.sh` | probes on the real screens (small, never focused, ask first): `fps` measures Qt Quick frame rate and animation speed per screen, `glass` shows the style's glass over a grey square (screenshot or by eye) |
-| `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh` (`SWITCH`: across a global theme switch), `settings.sh` (System Settings on a page with arguments), `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `panel.sh` (your panel, floating or docked, screenshot or video), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`); `record.sh` records KRunner into a video (demos); `fakeinput.c` for pointer input |
+| `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh` (`SWITCH`: across a global theme switch), `settings.sh` (System Settings on a page with arguments), `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `panel.sh` (your panel, floating or docked, screenshot or video), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`), `frametimes.sh` its dropped frames (`frametimes.py`, from KWin's frame log); `record.sh` records KRunner into a video (demos); `fakeinput.c` for pointer input |
 | `tools/liquid/` | the liquid off screen: `liquid.sh` runs a numpy model of `fluid.frag`'s ripples with the user's tuning (`drag` speeds, `click`, `check`: pass/fail for the press keeping up, its trench, a plain click's rings); `record.sh DIR` logs drags across Kickoff in the preview (`KWIN_LIQUID_GLASS_CLICK_LOG`: every step, the real liquid read back each frame) and `liquid.sh compare DIR` holds the model against it. Keep `liquid.py` in step with `fluid.frag` and `runLiquid` |
 | `desktop/test-notifications.sh` | sample popups (clickable, long and scrolling, image, critical); installed as `plasma-glass-test-notifications` with a "Test Notifications" launcher |
 
@@ -507,6 +507,26 @@ change different files), and each repo's check applies the other's installed pat
   difference). A drag through Kickoff leaves a trail of coloured shards. plasma-glass-mode takes
   `dark-frost`, and the dark one last picked there (or by install.sh's style) becomes KDE's
   `DefaultDarkLookAndFeel`, which the toggle and KDE's own Dark Mode switch go back to from light.
+- **KRunner dropped frames as its dropdown unfolded** (2026-10-30, the user: "on the laptop there are some
+  dropped frames on fold and unfold"). Measured in the preview on the laptop itself (its CPU; the main box hides
+  it) with `frametimes.sh`: KWin rendered every frame in 2.5-5 ms and skipped no vblanks; KRunner took two 50 ms
+  steps at the start of every unfold (176->251->315 px) and was smooth after. It wasn't the day's changes (the
+  KRunner from before them did the same), the glass (built-in blur alike) or the search service's inference on
+  the shared GPU (queries every 0.2 s through its D-Bus `Match` changed nothing). A profile of KRunner's main
+  thread (`perf record --call-graph dwarf -t`) put it in making the rows: the list's height animates from 0, so
+  ListView made the rows each step uncovered, two or three at a time over OutQuart's fast start. milou's
+  ResultsView now has `cacheBuffer: 10000`, so every row is made as the results come, while the window is still
+  folded: no dropped frame in an unfold since, and the unfold doesn't start any later. Found on the way, both
+  KRunner's main thread: KSvg's `FrameSvg::mask()` (Plasma's window takes its blur region from it on every
+  resize: a render of the whole mask frame per step, about a quarter of the thread's time) and, 600 ms after
+  the last step, KSvg saving the last frame to its disk cache as PNG (37-44 ms). Building the region from the
+  corners of a 128 px mask instead (disconnecting PlasmaWindow's handler from DialogBackground's `maskChanged`)
+  gave the very same regions at all 51 sizes compared, but measured no fewer drops, even with KRunner on two
+  E-cores, so it wasn't shipped; it's the next thing to try if folds still drop. The first fold after KRunner
+  starts takes one 30-40 ms step. The preview's own bug, fixed: KWin started before session.sh set
+  `XDG_CURRENT_DESKTOP=KDE`, so its KService cache listed different mimeapps.list files from the apps' and the
+  two rebuilt the shared cache for each other about once a second, with two fsyncs on KWin's main thread (30-45 ms
+  on the laptop's disk), which first looked like KRunner waiting 60-70 ms in its swaps for frame callbacks.
 - **KRunner flickered after its dropdown folded** (2026-10-30, the user, with a screencast: "i'm seeing a
   flickering after krunner dropdown collapse", and that it predated Dark Frost). The momentum (above) took
   the fold as the glass's centre rising ~300 px and stopping, and pushed the liquid that was left in the
