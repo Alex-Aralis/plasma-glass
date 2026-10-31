@@ -17,8 +17,10 @@ notification cruft trimmed.
   bands in applet popups. The panel is the same glass, floating or docked: a rounded bar with 16 px
   corners while it floats, and flush against the screen's edge once a maximized window docks it, glass
   still (the style turns off Plasma's adaptive transparency, which made a docked panel opaque). Docked,
-  it casts no shadow, and its popups keep floating clear of it with all their corners rounded, as they do
-  from the floating panel (both with the patches). Everything else falls back to Breeze, and colours follow your colour scheme. With the Liquid Glass effect (a KWin plugin, see Patches), the dark style's
+  it has no rim and casts no shadow, as glass attached to the screen's edge, and its popups keep floating
+  clear of it with all their corners rounded, as they do from the floating panel (all three with the
+  patches). The start menu's button is a grid of nine squares, centred between the glass's edge and the
+  next applet whether the panel floats or is docked. Everything else falls back to Breeze, and colours follow your colour scheme. With the Liquid Glass effect (a KWin plugin, see Patches), the dark style's
   glass is frosted lightly and rounds off at the edge like a lens: what's behind bends there and parts
   a little in colour. KRunner's glass holds a liquid, simulated: it sloshes as you drag KRunner or its
   dropdown opens, and while a search runs its rim pushes into it, sending waves across that bend what's
@@ -136,6 +138,7 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 | `~/.local/bin/plasma-glass-mode`, `~/.local/share/applications/plasma-glass-mode.desktop` | Toggle Dark/Light Mode (below) |
 | `~/.local/share/plasma/look-and-feel/plasma-glass.liquid-glass{,-light,-dark-frost}/`, `kdeglobals` `[KDE] DefaultDarkLookAndFeel`, `DefaultLightLookAndFeel` | the Liquid Glass global themes, and KDE's default dark and light ones |
 | `krunnerrc`, `kdeglobals`, `kglobalshortcutsrc` | settings from [`desktop/plasma-settings.sh`](desktop/plasma-settings.sh) |
+| `~/.local/share/icons/hicolor/scalable/places/plasmaglass-app-grid-symbolic.svg`, the start menu's `icon` in `plasma-org.kde.plasma.desktop-appletsrc` | the start menu's app grid, and the settings script putting it on the button |
 | `/etc/portage/patches/kde-plasma/{plasma-workspace,milou,kwin,plasma-desktop}/` | the patches (root): `plasma-workspace-tweaks.patch`, `milou-section-headers.patch`, `kwin-window-behavior-tabs.patch`, `plasma-desktop-tweaks.patch`, beside kde-fixes' |
 | `/usr/lib64/qt6/plugins/kwin/effects/plugins/liquidglass.so`, `/usr/local/lib64/plasma-glass/`, `/usr/local/share/plasma-glass/`, `/etc/portage/env/kde-plasma/kwin` | the Liquid Glass effect: KWin's link to the build in use, the build, its source and tool (for Portage's hook), the hook (root) |
 | `kwinrc` `[Plugins] blurEnabled`, `liquidglassEnabled`; `~/.local/bin/plasma-glass-reload-kwin` | the effect in place of the built-in blur; swaps a new build into the running KWin |
@@ -144,7 +147,9 @@ Both scripts are safe to re-run. `./install.sh --help` lists options for skippin
 that also hides the KRunner page in System Settings. Delete `kcm_krunnersettings` from
 `~/.config/kdeglobals` to get it back. It also gives KRunner Meta+Space in place of Alt+Space, unless
 another shortcut already uses Meta+Space (then it says so and leaves KRunner's keys alone);
-`uninstall.sh` puts Alt+Space back.
+`uninstall.sh` puts Alt+Space back. And it puts the app grid on the start menu's button in place of the
+Plasma logo, unless you gave the start menu an icon of your own; `desktop/kickoff-icon.sh plasma` puts
+the logo back (as `uninstall.sh` does), `grid` the grid again.
 
 To switch between dark and light, run `plasma-glass-mode` (or **Toggle Dark/Light Mode** from KRunner or
 the start menu; `plasma-glass-mode dark`, `dark-frost` or `light` sets one, and the launcher's right-click
@@ -169,7 +174,8 @@ the old ones and reapplies the style.
 
 The panel's frame takes the same glass with its own corner radius, shadow and margins (`PANEL_R`,
 `PANEL_SHADOW`, `PANEL_THICK_MARGIN`). Floating, Plasma draws all of it; docked, it leaves out the edges
-against the screen's.
+against the screen's and draws the `docked-` pieces, the same glass without rim or glow (with the
+plasma-desktop patch; without it the docked panel has the floating one's rim).
 
 Plasma sizes each piece by its bounding box, so the generator builds everything from fills inside
 exact tile rectangles. Strokes would make the box half a pixel bigger and leave visible gaps.
@@ -330,7 +336,11 @@ refreshed.
   2026-10-22)
   - the panel: a floating panel that docks (a window touches it) keeps its popups floating, a gap from the
     panel with all their borders, as they are while it floats; stock attaches them to it, square on its side.
-    A panel set not to float keeps Plasma's choice ("Floating applets" in its settings)
+    A panel set not to float keeps Plasma's choice ("Floating applets" in its settings). Docked, it draws
+    the style's `docked` pieces where the style has them (Liquid Glass: no rim)
+  - the start menu (Kickoff) at either end of a panel: its icon sits halfway between the glass's edge and
+    the next applet, and moves with the edge as a floating panel docks (stock leaves it where it was, so
+    docked it sat 23 px from the screen's edge and 13 from the pager); its highlight while open moves with it
   - System Settings' Shortcuts page opens on an action: `systemsettings kcm_keys --args "kwin Maximize
     Window"` (the component's id, then the action's name) puts the name in the page's search field,
     selects the component and opens the action's keys, also when the page is already open. Stock takes

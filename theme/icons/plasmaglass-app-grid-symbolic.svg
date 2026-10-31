@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <style type="text/css" id="current-color-scheme">.ColorScheme-Text { color: #fcfcfc; }</style>
+  <rect x="5" y="4" width="5" height="5" rx="1.5" class="ColorScheme-Text" style="fill:currentColor"/>
+  <rect x="14" y="4" width="5" height="5" rx="1.5" class="ColorScheme-Text" style="fill:currentColor"/>
+  <rect x="23" y="4" width="5" height="5" rx="1.5" class="ColorScheme-Text" style="fill:currentColor"/>
+  <rect x="5" y="13" width="5" height="5" rx="1.5" class="ColorScheme-Text" style="fill:currentColor"/>
+  <rect x="14" y="13" width="5" height="5" rx="1.5" class="ColorScheme-Text" style="fill:currentColor"/>
+  <rect x="23" y="13" width="5" height="5" rx="1.5" class="ColorScheme-Text" style="fill:currentColor"/>
+  <rect x="5" y="22" width="5" height="5" rx="1.5" class="ColorScheme-Text" style="fill:currentColor"/>
+  <rect x="14" y="22" width="5" height="5" rx="1.5" class="ColorScheme-Text" style="fill:currentColor"/>
+  <rect x="23" y="22" width="5" height="5" rx="1.5" class="ColorScheme-Text" style="fill:currentColor"/>
+</svg>

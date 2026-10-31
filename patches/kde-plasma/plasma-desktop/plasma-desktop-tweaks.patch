@@ -1,3 +1,78 @@
+diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/kickoff/main.qml b/applets/kickoff/main.qml
+--- a/applets/kickoff/main.qml
++++ b/applets/kickoff/main.qml
+@@ -257,6 +257,63 @@
+         onPressed: wasExpanded = kickoff.expanded
+         onClicked: kickoff.expanded = !wasExpanded
+ 
++        // plasma-glass: at either end of a panel, the icon sits halfway between the glass's edge and the
++        // next applet. A floating panel's applets stay put as it docks while its glass grows out to the
++        // screen's edge, which left the button 23 px from the edge and 13 from the pager; the icon
++        // follows the edge by half its move.
++        readonly property Item panelView: ancestor(item => item.floatingness !== undefined) // Panel.qml
++        readonly property Item appletContainer: ancestor(item => item.isAppletContainer === true)
++        function ancestor(test: var): Item {
++            compactRoot.Window.window; // look again once the applet is in the panel's window
++            for (let item = compactRoot.parent; item; item = item.parent) {
++                if (test(item)) {
++                    return item;
++                }
++            }
++            return null;
++        }
++        readonly property int edgeOffset: {
++            const container = appletContainer;
++            const layout = container ? container.parent : null;
++            if (!kickoff.inPanel || !panelView || !layout) {
++                return 0;
++            }
++            const horizontal = !kickoff.vertical;
++            const along = item => horizontal ? item.x : item.y;
++            // the cell's place in the panel, added up item by item: reading each place makes this follow
++            // any of them (the containment, centred on the glass, shifts by a pixel as the panel docks)
++            let start = 0;
++            for (let item = compactRoot; item && item !== panelView; item = item.parent) {
++                start += along(item);
++            }
++            const end = start + (horizontal ? compactRoot.width : compactRoot.height);
++            const others = layout.children.filter(item => item !== container && item.isAppletContainer === true && item.visible);
++            const spacing = horizontal ? layout.columnSpacing : layout.rowSpacing;
++            if (!others.some(item => along(item) < along(container))) {
++                const glassStart = horizontal ? panelView.leftFloatingPadding : panelView.topFloatingPadding;
++                return Math.round((glassStart + spacing - start) / 2);
++            }
++            if (!others.some(item => along(item) > along(container))) {
++                const glassEnd = horizontal ? panelView.width - panelView.rightFloatingPadding : panelView.height - panelView.bottomFloatingPadding;
++                return Math.round((glassEnd - spacing - end) / 2);
++            }
++            return 0;
++        }
++        Translate {
++            id: edgeShift
++            x: kickoff.vertical ? 0 : compactRoot.edgeOffset
++            y: kickoff.vertical ? compactRoot.edgeOffset : 0
++        }
++        // the shell's highlight while the menu is open (CompactApplet's, over the whole cell) moves with it
++        readonly property Item expandedFeedback: ancestor(item => item.expandedFeedback !== undefined)?.expandedFeedback ?? null
++        function shiftFeedback() {
++            if (expandedFeedback) {
++                expandedFeedback.transform = [edgeShift];
++            }
++        }
++        onExpandedFeedbackChanged: shiftFeedback()
++        Component.onCompleted: shiftFeedback()
++
+         DropArea {
+             id: compactDragArea
+             anchors.fill: parent
+@@ -279,6 +336,7 @@
+             id: iconLabelRow
+             anchors.fill: parent
+             spacing: 0
++            transform: edgeShift
+ 
+             Kirigami.Icon {
+                 id: buttonIcon
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/desktoppackage/contents/views/Panel.qml b/desktoppackage/contents/views/Panel.qml
 --- a/desktoppackage/contents/views/Panel.qml
 +++ b/desktoppackage/contents/views/Panel.qml
@@ -16,6 +91,17 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/desktoppackage/contents/views/P
          } else if ((floating && !touchingWindow) && (isTransparent || isAdaptive)) {
              panelOpacity = 0
              floatingnessTarget = 1
+@@ -261,7 +262,9 @@
+             pre = "";
+             break;
+         }
+-        translucentItem.prefix = opaqueItem.prefix = floatingTranslucentItem.prefix = floatingOpaqueItem.prefix = [pre, ""];
++        floatingTranslucentItem.prefix = floatingOpaqueItem.prefix = [pre, ""];
++        // plasma-glass: docked, the style's "docked" pieces if it has them (Liquid Glass: no rim or glow)
++        translucentItem.prefix = opaqueItem.prefix = ["docked", pre, ""];
+     }
+ 
+     onContainmentChanged: {
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/kcms/keys/kcm_keys.cpp b/kcms/keys/kcm_keys.cpp
 --- a/kcms/keys/kcm_keys.cpp
 +++ b/kcms/keys/kcm_keys.cpp

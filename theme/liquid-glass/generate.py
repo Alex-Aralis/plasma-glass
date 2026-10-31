@@ -38,7 +38,9 @@ T = SHADOW + C           # shadow tile thickness: SHADOW outside, C under the co
 
 # The panel (widgets/panel-background): the same glass as a bar, with smaller corners, since it's only
 # 44-46 px thick. Floating, it has all four edges; docked, Plasma leaves out the edges against the
-# screen's, so the glass runs on past them. KWin's glass reads the corners off the panel's mask.
+# screen's, so the glass runs on past them, and draws the `docked` pieces (Panel.qml tries that prefix
+# first, plasma-desktop-tweaks.patch): the same glass without rim or glow, as glass attached to the
+# screen's edge has none. KWin's glass reads the corners off the panel's mask.
 PANEL_R = 16             # corner radius: two fit across panels down to 32 px thick
 PANEL_SHADOW = 24
 PANEL_GLOW_DEPTH = 8
@@ -72,8 +74,8 @@ def tile(name, x, y, w, h, body):
     return f'<g id="{name}" transform="translate({x},{y})"><rect width="{w}" height="{h}" fill="none"/>{body}</g>'
 
 
-def frame(x0, prefix, fill_opacity, glass=True, mask=False):
-    """The nine frame pieces at (x0, 0). Mask pieces are plain solid shapes (the blur region)."""
+def frame(x0, prefix, fill_opacity, glass=True, mask=False, y0=0):
+    """The nine frame pieces at (x0, y0). Mask pieces are plain solid shapes (the blur region)."""
     bg = 'fill="#000"' if mask else f'class="ColorScheme-Background" style="fill:currentColor;fill-opacity:{fill_opacity}"'
     pieces = []
 
@@ -109,7 +111,7 @@ def frame(x0, prefix, fill_opacity, glass=True, mask=False):
             # rim brightness blends from one neighbouring edge to the other along the arc
             rim_grad = gradient("linear", rid, [(0, "#fff", rim[0]), (1, "#fff", rim[1])], x1=sx, y1=sy, x2=ex, y2=ey)
             body += f'<path d="{ring}" fill="{rim_grad}"/>'
-        pieces.append(tile(prefix + name, x0 + ox, oy, C, C, body))
+        pieces.append(tile(prefix + name, x0 + ox, y0 + oy, C, C, body))
 
     # corner centres sit at the tile's inner corner
     corner("topleft", 0, 0, C, C, (0, C), (C, 0), (RIM["side"], RIM["top"]), "top")
@@ -126,13 +128,13 @@ def frame(x0, prefix, fill_opacity, glass=True, mask=False):
             body += f'<rect width="{w}" height="{h}" fill="{gradient("linear", gid, ease(GLOW[key], 0, 1), x1=x1, y1=y1, x2=x2, y2=y2)}"/>'
             rx, ry, rw, rh = rim_rect
             body += f'<rect x="{rx}" y="{ry}" width="{rw}" height="{rh}" fill="#fff" fill-opacity="{RIM[key]}"/>'
-        pieces.append(tile(prefix + name, x0 + ox, oy, w, h, body))
+        pieces.append(tile(prefix + name, x0 + ox, y0 + oy, w, h, body))
 
     edge("top", C, 0, K, C, "top", (0, 0, K, 1), (0, 1, 0, 1 + GLOW_DEPTH))
     edge("bottom", C, C + K, K, C, "bottom", (0, C - 1, K, 1), (0, C - 1, 0, C - 1 - GLOW_DEPTH))
     edge("left", 0, C, C, K, "side", (0, 0, 1, K), (1, 0, 1 + GLOW_DEPTH, 0))
     edge("right", C + K, C, C, K, "side", (C - 1, 0, 1, K), (C - 1, 0, C - 1 - GLOW_DEPTH, 0))
-    pieces.append(tile(prefix + "center", x0 + C, C, K, K, f'<rect width="{K}" height="{K}" {bg}/>'))
+    pieces.append(tile(prefix + "center", x0 + C, y0 + C, K, K, f'<rect width="{K}" height="{K}" {bg}/>'))
     return "".join(pieces)
 
 
@@ -166,7 +168,7 @@ def shadow(x0):
     return "".join(pieces)
 
 
-def hints(y0, thick=None):
+def hints(y0, thick=None, prefixes=("",)):
     h, x = [], 0
 
     def rect(id_, w, hh):
@@ -175,15 +177,16 @@ def hints(y0, thick=None):
         x += max(w, 4) + 4
 
     rect("hint-stretch-borders", 4, 4)  # stretch edges instead of tiling them
-    for s in ("top", "bottom"):
-        rect(f"hint-{s}-margin", 4, MARGIN)
-        # the glass starts at the frame edge (the shadow is outside, drawn by KWin). Breeze declares its
-        # zero insets too; without them PlasmoidHeading falls back to sizing itself from its own
-        # position, which loops (plasmashell warns as popups are torn down)
-        rect(f"hint-{s}-inset", 4, 0.001)
-    for s in ("left", "right"):
-        rect(f"hint-{s}-margin", MARGIN, 4)
-        rect(f"hint-{s}-inset", 0.001, 4)
+    for p in prefixes:  # KSvg reads a prefixed frame's margins from its own hints
+        for s in ("top", "bottom"):
+            rect(f"{p}hint-{s}-margin", 4, MARGIN)
+            # the glass starts at the frame edge (the shadow is outside, drawn by KWin). Breeze declares its
+            # zero insets too; without them PlasmoidHeading falls back to sizing itself from its own
+            # position, which loops (plasmashell warns as popups are torn down)
+            rect(f"{p}hint-{s}-inset", 4, 0.001)
+        for s in ("left", "right"):
+            rect(f"{p}hint-{s}-margin", MARGIN, 4)
+            rect(f"{p}hint-{s}-inset", 0.001, 4)
     for s in ("top", "bottom"):
         rect(f"shadow-hint-{s}-margin", 4, SHADOW)
         rect(f"shadow-hint-{s}-inset", 4, SHADOW)
@@ -199,17 +202,21 @@ def hints(y0, thick=None):
     return "".join(h), x
 
 
-def svg(fill_opacity, glass=True, with_shadow=True, thick=None):
+def svg(fill_opacity, glass=True, with_shadow=True, thick=None, docked=False):
     _defs.clear()
     span = 2 * C + K
     body = frame(0, "", fill_opacity, glass=glass)
     body += frame(span + 10, "mask-", 1, mask=True)
     if with_shadow:
         body += shadow(2 * (span + 10))
-    hint_xml, hint_w = hints(2 * T + K + 10, thick)
+    hint_xml, hint_w = hints(2 * T + K + 10, thick, ("", "docked-") if docked else ("",))
     body += hint_xml
     width = max(2 * (span + 10) + 2 * T + K, hint_w) + 10
     height = 2 * T + K + 10 + SHADOW + 10
+    if docked:  # a row of their own below the hints: the docked panel's glass, no rim or glow, and its mask
+        body += frame(0, "docked-", fill_opacity, glass=False, y0=height)
+        body += frame(span + 10, "mask-docked-", 1, mask=True, y0=height)
+        height += span + 10
     style = ('<style type="text/css" id="current-color-scheme">'
              '.ColorScheme-Background{color:#202326;}.ColorScheme-Text{color:#fcfcfc;}</style>')
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">'
@@ -223,7 +230,7 @@ def panel_svg(fill_opacity, glass=True):
     globals().update(R=PANEL_R, C=PANEL_R, T=PANEL_SHADOW + PANEL_R, SHADOW=PANEL_SHADOW,
                      GLOW_DEPTH=PANEL_GLOW_DEPTH, MARGIN=PANEL_MARGIN)
     try:
-        return svg(fill_opacity, glass=glass, thick=PANEL_THICK_MARGIN)
+        return svg(fill_opacity, glass=glass, thick=PANEL_THICK_MARGIN, docked=True)
     finally:
         globals().update(saved)
 

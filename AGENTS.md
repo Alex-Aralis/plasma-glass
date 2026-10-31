@@ -21,11 +21,12 @@ change different files), and each repo's check applies the other's installed pat
 | `search/settings_index.py` | builds `search/settings-index.json` (System Settings option labels, page, tab; the Shortcuts page's Common Actions; Qt's key names) from the installed packages' source tarballs; re-run after a Plasma upgrade |
 | `search/export_model.py` | one-time PyTorch to OpenVINO export with a parity check (run by install.sh in a throwaway venv) |
 | `theme/liquid-glass/generate.py` | draws the three styles (`liquid-glass`, `liquid-glass-light`, `liquid-glass-dark-frost`) into `~/.local/share/plasma/desktoptheme/` |
+| `theme/icons/` | the start menu's app grid (`plasmaglass-app-grid-symbolic.svg`), which install.sh puts in hicolor |
 | `patches/kde-plasma/{plasma-workspace,milou,kwin,plasma-desktop}/*.patch` | Portage user patches, one per package (`plasma-workspace-tweaks.patch`, `milou-section-headers.patch`, `kwin-window-behavior-tabs.patch`, `plasma-desktop-tweaks.patch`; the KWin one was `kwin-fixes.patch` until 2026-10-17 and `kwin-liquid-glass.patch`, with the glass, until 2026-10-22; the plasma-desktop one `plasma-desktop-shortcut-search.patch` until 2026-10-22) |
 | `kwin-effect/` | the Liquid Glass effect: KWin 6.7.5's blur effect (plugins/blur) with the glass, a plugin of its own (`liquidglass.cpp`, `shaders/`; `portage-hook.sh` rebuilds it after KWin merges). The notes below from before 2026-10-22 name the patch's files: blur.cpp is liquidglass.cpp, `BlurEffect` `LiquidGlassEffect` |
 | `tools/kwin-effect.sh` | the effect: `build` (a new id each time), `install [LIB]` (root: KWin's plugin folder links `liquidglass.so` to it), `reload` (the running KWin swaps it in over D-Bus, checks `Build()`), `enable`/`disable` (kwinrc), `status` |
-| `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc), `krunner-shortcut.sh` (KRunner on Meta+Space, or back on Alt+Space), `plasma-glass-tune.qml` (Liquid Glass Tuning: the liquid and the dark glass, live) |
-| `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` builds a test copy, `kwin` compiles the edited KWin files (with kde-fixes' installed KWin patches in the tree), `kcm-keys` builds the Shortcuts page and KRunner's Global Shortcuts runner, `plasmashell` plasmashell (for `tools/preview/panel.sh`) |
+| `desktop/` | KRunner plugin, systemd and D-Bus files, `plasma-settings.sh` (krunnerrc, kdeglobals, plasmanotifyrc), `krunner-shortcut.sh` (KRunner on Meta+Space, or back on Alt+Space), `kickoff-icon.sh` (the app grid on the start menu's button, or the Plasma logo back), `plasma-glass-tune.qml` (Liquid Glass Tuning: the liquid and the dark glass, live) |
+| `tools/patch-dev.sh` | patch workflow: setup, edit, check, refresh, install; `krunner` builds a test copy, `kwin` compiles the edited KWin files (with kde-fixes' installed KWin patches in the tree), `kcm-keys` builds the Shortcuts page and KRunner's Global Shortcuts runner, `kickoff` the start menu, `plasmashell` plasmashell (for `tools/preview/panel.sh`) |
 | `tools/check-patches.sh` | patches apply, alone and with the other user patches installed for the package (kde-fixes'); patched QML loads under qml6 with stubs; patched KRunner C++ syntax-checks |
 | `tools/screenprobe/screen.sh` | probes on the real screens (small, never focused, ask first): `fps` measures Qt Quick frame rate and animation speed per screen, `glass` shows the style's glass over a grey square (screenshot or by eye) |
 | `tools/preview/` | screenshots on a virtual KWin display: `krunner.sh` (`SWITCH`: across a global theme switch), `settings.sh` (System Settings on a page with arguments), `dialog.sh`, `popup.sh` (a real plasmashell tray popup), `panel.sh` (your panel, floating or docked, screenshot or video), `elements.sh`; `unfold.sh` measures KRunner's resize animation frame by frame (`frames.py`), `frametimes.sh` its dropped frames (`frametimes.py`, from KWin's frame log); `record.sh` records KRunner into a video (demos); `fakeinput.c` for pointer input |
@@ -266,6 +267,39 @@ change different files), and each repo's check applies the other's installed pat
   shadow darkened them from 46 to 38 over the maximized window; flat after). Task manager and pager
   highlights are still Breeze's (`widgets/tasks`, `widgets/pager`: a style's file replaces Breeze's whole,
   so glassy ones need every element, progress and group arrows too).
+- **Docked, the panel has no rim, and the start button sits centred** (2026-10-31, the user: "i don't like
+  the rim on the collapsed taskbar, pitch me some better styles. also not a huge fan of the start menu icon
+  on the left with it's weird spacing"; of the options rendered in panel.sh (no rim, a shadow cast by the
+  window above, a soft band of light, the tint thinning at the top, a dark hairline; a glint and an etched
+  line tried too) and five start buttons, "app grid + seamless"). Glass attached to the screen's edge has no
+  rim, as in Apple's Liquid Glass; the floating panel keeps its own. Panel.qml drew both forms from the same
+  pieces (`[location, ""]`), so a style couldn't tell them apart: `plasma-desktop-tweaks.patch` gives the
+  docked items (`translucentItem`, `opaqueItem`) `["docked", location, ""]`, and generate.py draws
+  `docked-*` (the glass without rim or glow), `mask-docked-*` and `docked-hint-*`, since KSvg reads a
+  prefixed frame's mask and margins under its prefix. A FrameSvgItem takes the first prefix whose `-center`
+  the style has, again on every theme change, so other styles look as before and a style switch picks it
+  up live. Where a dark window meets a dark part of the wallpaper the bar's top is faint now, only its tint
+  setting it apart. The start button: Kickoff's cell is 38 px at 16 px in the panel's window (the 8 px
+  floating gap and 8 px of margins), its icon rounded to 32, and the Plasma logo (start-here-kde-symbolic)
+  fills 23x24 of that; docking grows the glass 8 px out to the screen's edge while the applets stay put, so
+  docked the logo sat 23 px from the edge and 13 from the pager. Kickoff (`applets/kickoff/main.qml`) at
+  either end of a panel now moves its icon halfway between the glass's edge and the next applet's cell,
+  (edge + spacing - cell) / 2 rounded to whole pixels, by a `Translate` it also hands CompactApplet's
+  `expandedFeedback` (the highlight while the menu is open). The edge is Panel.qml's `leftFloatingPadding`
+  (its root found as the ancestor with `floatingness`), the neighbours the `AppletContainer`'s siblings. The
+  cell's place is added up from each ancestor's x, not `mapToItem`: a binding only follows what it reads,
+  and the containment, centred on the glass with `anchors.centerIn`, shifts back by a pixel just as the
+  dock animation ends, which left the icon a pixel off whenever nothing it read changed then. The icon is
+  `plasmaglass-app-grid-symbolic` (`theme/icons`, put in hicolor by install.sh; `desktop/kickoff-icon.sh`
+  sets Kickoff's `icon` over plasmashell's scripting, from plasma-settings.sh): nine 5 px squares 4 px
+  apart, whole pixels at 32 px and half a pixel right of the middle (23 can't centre in 32), so with the
+  pager drawing a pixel inside its cell the gaps come out 18 | 18 docked, 14 | 14 floating. No dash after
+  "plasma" in the name: KIconLoader tries a name cut short at each dash in one theme before the next one,
+  and Breeze has `plasma-symbolic` (`QT_QPA_PLATFORM=offscreen kiconfinder6 NAME` shows what a name finds).
+  Preview: `QT_PLUGIN_PATH=$(tools/patch-dev.sh kickoff)
+  SHELL_PACKAGE=~/.cache/plasma-glass/dev/b/plasma-desktop/desktoppackage tools/preview/panel.sh`, with the
+  icon in this account's ~/.local/share/icons and the start menu's `icon` in its copy of your layout;
+  `check-patches.sh` compiles the patched main.qml.
 - **Clicks press on the liquid** (2026-10-22, the user: "add the fluid effect when clicking on the menu
   items. have the effect like a push down on the floating element"). KWin does it without the apps:
   `slotMouseChanged` (EffectsHandler::mouseChanged, emitted on every button change, no polling needed)

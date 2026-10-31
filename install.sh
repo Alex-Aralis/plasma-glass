@@ -139,6 +139,11 @@ if [ "$DO_STYLE" = 1 ]; then
     kwriteconfig6 --file kdeglobals --group KDE --key DefaultDarkLookAndFeel "$dark"
     kwriteconfig6 --file kdeglobals --group KDE --key DefaultLightLookAndFeel plasma-glass.liquid-glass-light
     kwriteconfig6 --file kdeglobals --group KDE --key LookAndFeelPackage "plasma-glass.$STYLE"
+    # the start menu's app grid (plasma-settings.sh puts it on Kickoff's button), drawn in the text colour.
+    # No dash after "plasma": KDE's icon lookup tries a name cut short at each dash in Breeze before it looks
+    # in hicolor, and Breeze has plasma-symbolic
+    install -D -m 644 "$REPO/theme/icons/plasmaglass-app-grid-symbolic.svg" \
+        "$DATA/icons/hicolor/scalable/places/plasmaglass-app-grid-symbolic.svg"
     # "Test Notifications" launcher (KRunner / start menu; right-click for single kinds) to check popups
     install -D -m 755 "$REPO/desktop/test-notifications.sh" "$HOME/.local/bin/plasma-glass-test-notifications"
     mkdir -p "$DATA/applications"

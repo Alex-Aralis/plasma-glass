@@ -23,6 +23,9 @@ kwriteconfig6 --file krunnerrc --group Plugins --key helprunnerEnabled false
 kwriteconfig6 --file krunnerrc --group Plugins --group Favorites --key plugins \
     "krunner_sessions,krunner_powerdevil,krunner_systemsettings,krunner_services"
 
+# The start menu's button: plasma-glass's app grid instead of the Plasma logo (an icon you picked stays)
+sh "$(dirname "$0")/kickoff-icon.sh" grid
+
 # Notification popups: no countdown bar along the top
 kwriteconfig6 --file plasmanotifyrc --group Notifications --key ShowPopupTimeout false --notify
 

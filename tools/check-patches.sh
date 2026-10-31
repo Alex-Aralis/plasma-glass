@@ -199,6 +199,8 @@ fi
 [ -n "$MI" ] && load_qml "milou ResultsView.qml (+ ResultDelegate.qml)" "$MI/lib/ResultsView.qml"
 # needs the page's C++ (the kcm object, its models) to instantiate, so compile only
 [ -n "$PD" ] && load_qml "Shortcuts page main.qml (+ ShortcutActionDelegate.qml)" "$PD/kcms/keys/ui/main.qml" compile
+# an applet only instantiates inside plasmashell, so compile only
+[ -n "$PD" ] && load_qml "Kickoff main.qml" "$PD/applets/kickoff/main.qml" compile
 
 echo "C++"
 if [ -n "$PW" ] && [ -f "$PW/krunner/view.cpp" ]; then

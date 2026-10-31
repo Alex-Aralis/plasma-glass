@@ -35,6 +35,8 @@ rm -rf "$DATA/plasma/look-and-feel/plasma-glass.liquid-glass" "$DATA/plasma/look
 rm -f "$HOME/.local/bin/plasma-glass-test-notifications" "$DATA/applications/plasma-glass-test-notifications.desktop"
 rm -f "$HOME/.local/bin/plasma-glass-tune" "$DATA/applications/plasma-glass-tune.desktop"
 rm -f "$HOME/.local/bin/plasma-glass-mode" "$DATA/applications/plasma-glass-mode.desktop"
+sh "$(dirname "$0")/desktop/kickoff-icon.sh" plasma  # the start menu's Plasma logo back
+rm -f "$DATA/icons/hicolor/scalable/places/plasmaglass-app-grid-symbolic.svg"
 # KWin's built-in blur again in place of the Liquid Glass effect
 sh "$(dirname "$0")/tools/kwin-effect.sh" disable 2>/dev/null || true
 rm -f "$HOME/.local/bin/plasma-glass-reload-kwin"
