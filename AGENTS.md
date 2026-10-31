@@ -529,20 +529,22 @@ change different files), and each repo's check applies the other's installed pat
   on the laptop's disk), which first looked like KRunner waiting 60-70 ms in its swaps for frame callbacks.
 - **KRunner's dropdown stuttered on the main box** (2026-10-30, the user: "the unfold feels like it stutters"
   on the 60 Hz screen, where KRunner floats, "while the laptop is now very smooth"). On desktop NVIDIA QtWayland
-  turns threaded GL off (resizing froze Qt Quick there: QTBUG-95817), so KRunner gets the basic render loop, which
+  up to 6.11 turns threaded GL off (resizing froze Qt Quick there: QTBUG-95817), so KRunner gets the basic loop, which
   draws on the GUI thread, and QtWayland makes each swap wait for KWin's frame callback (`waitForFrameSync`, for
   a swap interval of 1): 15-16 ms of every 60 Hz frame in which the GUI thread can't take in the size it asked for
   or step animations, which the basic loop drives from a 16 ms timer anyway. Reproduced in the preview at 60 Hz
-  with `QSG_RENDER_LOOP=basic` (Mesa, as the threaded loop can't be forced on NVIDIA either): the dropdown moved
+  with `QSG_RENDER_LOOP=basic` (Mesa, the preview's renderer, with NVIDIA's loop forced): the dropdown moved
   every 33-50 ms, and against OutQuart over 350 ms its steps came 13.8 ms off their frames' times on average (sd;
   worst 47), against 1.0 (worst 2.8) on the threaded loop. KRunner now, on the basic loop only (Qt Quick's own
   choice, from `QOpenGLContext::supportsThreadedOpenGL()` and the environment overrides): swap interval 0 (frames
   still come as KWin asks for them; 2.5 ms sd, worst 10.7, no step late) and an animation driver that steps once
   per frame at the frame's time rounded to the screen's refresh period, as the threaded loop's does (1.3 ms sd,
   worst 3.7, no step late, not even the first fold's). Nothing changes on the threaded loop (Mesa, the laptop).
-  plasmashell's popups get the basic loop on NVIDIA too. The timing error: from each logged height, where along
-  the easing curve that frame was, against when it came (`frametimes.sh` logs; a frame that repeats a step shows
-  as a 33 ms gap, a late one as a time off the curve).
+  plasmashell's popups get the basic loop on NVIDIA too. Since 2026-10-30 kde-fixes backports Qt 6.12's fix
+  for QTBUG-95817 (`qtbase-wayland-nvidia-threaded-resize.patch`), and with it Qt picks the threaded loop on
+  NVIDIA too, so this stays off there: it's for a stock Qt 6.11 or `QSG_RENDER_LOOP=basic`. The timing error:
+  from each logged height, where along the easing curve that frame was, against when it came (`frametimes.sh`
+  logs; a frame that repeats a step shows as a 33 ms gap, a late one as a time off the curve).
 - **KRunner flickered after its dropdown folded** (2026-10-30, the user, with a screencast: "i'm seeing a
   flickering after krunner dropdown collapse", and that it predated Dark Frost). The momentum (above) took
   the fold as the glass's centre rising ~300 px and stopping, and pushed the liquid that was left in the
