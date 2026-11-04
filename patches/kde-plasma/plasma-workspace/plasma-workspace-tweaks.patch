@@ -167,19 +167,25 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
          // Activate default action when dragging a file over the notification.
          DropArea {
              id: activateDefaultActionDropArea
-@@ -118,13 +243,37 @@
+@@ -118,13 +243,43 @@
              onTriggered: notificationItem.modelInterface.defaultActionInvoked()
          }
  
 +        // mainItem stops at the frame's margins: out there on the glass's rim, a click opens the popup and a
-+        // middle-click closes it, as on the rest of it (inside, the delegate's own handlers have them)
++        // middle-click closes it, as on the rest of it (inside, the delegate's own handlers have them). A
++        // right-click anywhere that nothing above takes (the delegate takes none) opens the copy menu
 +        MouseArea {
++            id: rimArea
 +            x: -notificationPopup.leftPadding
 +            y: -notificationPopup.topPadding
 +            width: notificationPopup.width
 +            height: notificationPopup.height
-+            acceptedButtons: Qt.LeftButton | Qt.MiddleButton
++            acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
 +            onPressed: mouse => {
++                if (mouse.button === Qt.RightButton) {
++                    notificationItem.openCopyMenu(rimArea, mouse.x, mouse.y);
++                    return;
++                }
 +                mouse.accepted = mouse.x < notificationPopup.leftPadding || mouse.x >= width - notificationPopup.rightPadding
 +                    || mouse.y < notificationPopup.topPadding || mouse.y >= height - notificationPopup.bottomPadding;
 +            }
@@ -188,7 +194,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
 +                    if (notificationItem.modelInterface.closable) {
 +                        notificationItem.modelInterface.closeClicked();
 +                    }
-+                } else if (notificationPopup.modelInterface.hasDefaultAction) {
++                } else if (mouse.button === Qt.LeftButton && notificationPopup.modelInterface.hasDefaultAction) {
 +                    notificationItem.modelInterface.defaultActionInvoked();
 +                }
 +            }
@@ -208,7 +214,17 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
              hoverEnabled: true
              draggable: notificationItem.modelInterface.notificationType != NotificationManager.Notifications.JobType
              onDismissRequested: NotificationsApplet.Globals.popupNotificationsModel.close(NotificationsApplet.Globals.popupNotificationsModel.index(notificationItem.modelInterface.index, 0))
-@@ -201,10 +350,11 @@
+@@ -165,7 +320,8 @@
+                     if (interval <= 0) {
+                         return false;
+                     }
+-                    if (notificationItem.dragging || notificationItem.menuOpen || activateDefaultActionDropArea.containsAcceptableDrag) {
++                    if (notificationItem.dragging || notificationItem.menuOpen || notificationItem.copyMenuOpen
++                            || activateDefaultActionDropArea.containsAcceptableDrag) {
+                         return false;
+                     }
+                     if (notificationItem.modelInterface.replying
+@@ -201,10 +357,11 @@
                      maximumLineCount: 8
                      bodyCursorShape: modelInterface.hasDefaultAction ? Qt.PointingHandCursor : 0
  
@@ -224,7 +240,7 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/Notificat
  
                      // When notification is updated, restart hide timer
                      onTimeChanged: {
-@@ -216,11 +366,8 @@
+@@ -216,11 +373,8 @@
  
                      closable: true
  
@@ -503,14 +519,14 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/component
 diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates/DelegatePopup.qml b/applets/notifications/delegates/DelegatePopup.qml
 --- a/applets/notifications/delegates/DelegatePopup.qml
 +++ b/applets/notifications/delegates/DelegatePopup.qml
-@@ -7,167 +7,334 @@
+@@ -7,167 +7,402 @@
  
  import QtQuick
  import QtQuick.Layouts
 +import Qt5Compat.GraphicalEffects
  
  import org.kde.plasma.components as PlasmaComponents3
--import org.kde.plasma.extras as PlasmaExtras
+ import org.kde.plasma.extras as PlasmaExtras
  import org.kde.kirigami as Kirigami
  import org.kde.kquickcontrolsaddons as KQuickControlsAddons
  
@@ -557,6 +573,26 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +        + (hasBodyText && !longBody ? bodyArea.implicitHeight + Kirigami.Units.smallSpacing / 2 : 0)
 +    readonly property real shelfTop: footerLoader.y - shelfInset
 +    readonly property bool darkGlass: Kirigami.ColorUtils.brightnessForColor(Kirigami.Theme.backgroundColor) === Kirigami.ColorUtils.Dark
++    readonly property bool copyMenuOpen: copyMenu.status === PlasmaExtras.Menu.Open
++
++    // the server's markup for a body as plain text: a few tags (a <br/> for each line break) and entities
++    function plainText(markup: string): string {
++        return markup.replace(/<\?xml[^>]*\?>/, "")
++            .replace(/<br\s*\/?>/g, "\n")
++            .replace(/<[^>]*>/g, "")
++            .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&(apos|#39);/g, "'")
++            .replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCodePoint(parseInt(hex, 16)))
++            .replace(/&#([0-9]+);/g, (match, dec) => String.fromCodePoint(Number(dec)))
++            .replace(/&amp;/g, "&")
++            .trim();
++    }
++
++    // at a point in item, on a right-click anywhere on the popup nothing else takes it (a screenshot or a
++    // file's icon keeps its own menu)
++    function openCopyMenu(item: Item, x: real, y: real): void {
++        copyMenu.visualParent = item;
++        copyMenu.open(x, y);
++    }
 +
 +    columns: 2
 +    columnSpacing: Math.round(Kirigami.Units.gridUnit * 0.75)
@@ -571,7 +607,21 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
      Accessible.role: Accessible.Notification
  
 -    readonly property int __firstColumn: modelInterface.urgency === NotificationManager.Notifications.CriticalUrgency ? 1 : 0
--
++    // The popup's text can't be selected, so it's copied from here, as plain text: the title as shown,
++    // the body, or both, the title on the first line. Only what the popup has
++    PlasmaExtras.Menu {
++        id: copyMenu
++
++        readonly property string title: summary.visible ? summary.text : ""
++        readonly property string body: delegateRoot.hasBodyText ? delegateRoot.plainText(delegateRoot.modelInterface.body) : ""
++
++        PlasmaExtras.MenuItem {
++            text: i18ndc("plasma_applet_org.kde.plasma.notifications", "@action:inmenu", "Copy Title")
++            icon: "edit-copy-symbolic"
++            visible: copyMenu.title !== ""
++            onClicked: clipboard.content = copyMenu.title
++        }
+ 
 -    PlasmaExtras.PlasmoidHeading {
 -        id: heading
 -        topInset: 0
@@ -585,6 +635,25 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 -        // HACK PlasmoidHeading is a QQC2 Control which accepts left mouse button by default,
 -        // which breaks the popup default action mouse handler, cf. QTBUG-89785
 -        Component.onCompleted: Notifications.InputDisabler.makeTransparentForInput(this)
++        PlasmaExtras.MenuItem {
++            text: i18ndc("plasma_applet_org.kde.plasma.notifications", "@action:inmenu", "Copy Body")
++            icon: "edit-copy-symbolic"
++            visible: copyMenu.body !== ""
++            onClicked: clipboard.content = copyMenu.body
++        }
++
++        PlasmaExtras.MenuItem {
++            text: i18ndc("plasma_applet_org.kde.plasma.notifications", "@action:inmenu", "Copy All")
++            icon: "edit-copy-symbolic"
++            enabled: copyMenu.title !== "" || copyMenu.body !== ""
++            onClicked: clipboard.content = [copyMenu.title, copyMenu.body].filter(text => text !== "").join("\n")
++        }
++    }
++
++    KQuickControlsAddons.Clipboard {
++        id: clipboard
++    }
++
 +    Item {
 +        id: iconColumn
 +        Layout.row: 0
@@ -704,6 +773,16 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 -        color: Kirigami.Theme.neutralTextColor
 -        visible: delegateRoot.modelInterface.urgency === NotificationManager.Notifications.CriticalUrgency
 -    }
+-
+-    Components.Summary {
+-        id: summary
+-        // Base layout intentionally has no row spacing, so add top padding here when needed
+-        Layout.topMargin: delegateRoot.hasBodyText || icon.visible ? Kirigami.Units.smallSpacing : 0
+-        Layout.fillWidth: true
+-        Layout.row: 2
+-        Layout.column: delegateRoot.__firstColumn
+-        Layout.columnSpan: icon.visible ? 1 : 2
+-        modelInterface: delegateRoot.modelInterface
 +        // who sent it: the app's small icon, then quietly its name, or the web page's for a browser's
 +        // notification (the icon shows the browser), then how long ago once it's a minute old
 +        RowLayout {
@@ -725,15 +804,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +                visible: valid && status !== Kirigami.Icon.Error
 +            }
  
--    Components.Summary {
--        id: summary
--        // Base layout intentionally has no row spacing, so add top padding here when needed
--        Layout.topMargin: delegateRoot.hasBodyText || icon.visible ? Kirigami.Units.smallSpacing : 0
--        Layout.fillWidth: true
--        Layout.row: 2
--        Layout.column: delegateRoot.__firstColumn
--        Layout.columnSpan: icon.visible ? 1 : 2
--        modelInterface: delegateRoot.modelInterface
+-        KQuickControlsAddons.MouseEventListener {
+-            anchors.fill: parent
+-            visible: delegateRoot.modelInterface.hasDefaultAction && !delegateRoot.hasBodyText
+-            onClicked: delegateRoot.modelInterface.defaultActionInvoked();
+-        }
+-    }
 +            PlasmaComponents3.Label {
 +                id: senderName
 +                Layout.maximumWidth: delegateRoot.width * 0.4
@@ -743,16 +819,6 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +                text: delegateRoot.modelInterface.originName || delegateRoot.modelInterface.applicationName
 +            }
  
--        KQuickControlsAddons.MouseEventListener {
--            anchors.fill: parent
--            visible: delegateRoot.modelInterface.hasDefaultAction && !delegateRoot.hasBodyText
--            onClicked: delegateRoot.modelInterface.defaultActionInvoked();
-+            Components.HeadingButtons {
-+                modelInterface: delegateRoot.modelInterface
-+            }
-         }
-     }
- 
 -    Components.Icon {
 -        id: icon
 -        // Base layout intentionally has no row spacing, so add top padding here
@@ -761,8 +827,12 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 -        Layout.column: delegateRoot.__firstColumn + 1
 -        Layout.rowSpan: 2
 -        modelInterface: delegateRoot.modelInterface
--    }
--
++            Components.HeadingButtons {
++                modelInterface: delegateRoot.modelInterface
++            }
++        }
+     }
+ 
      KQuickControlsAddons.MouseEventListener {
 -        // Base layout intentionally has no row spacing, so add top padding here when needed
 -        Layout.topMargin: summary.visible ? 0 : Kirigami.Units.smallSpacing
@@ -827,14 +897,27 @@ diff -ruN '--exclude=*.orig' '--exclude=*.rej' a/applets/notifications/delegates
 +            }
 +        }
 +        // The scroll view is a Pane, which takes every button, so a middle-click on the body never
-+        // reaches the popup's TapHandler: it's caught here on its way in, and closes the popup
-+        acceptedButtons: Qt.LeftButton | Qt.MiddleButton
++        // reaches the popup's TapHandler: it's caught here on its way in, and closes the popup. So is
++        // a right-click, which opens the copy menu once the press has gone in: opened while the press is
++        // still on its way, the menu closed at once. The press comes past here for each item it's
++        // offered to, and the menu opens once
++        acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
++        property point copyMenuAt
++        function openCopyMenu(): void {
++            delegateRoot.openCopyMenu(bodyArea, copyMenuAt.x, copyMenuAt.y);
++        }
++        onPressed: mouse => {
++            if (mouse.button === Qt.RightButton) {
++                copyMenuAt = Qt.point(mouse.x, mouse.y);
++                Qt.callLater(bodyArea.openCopyMenu);
++            }
++        }
 +        onClicked: mouse => {
 +            if (mouse.button === Qt.MiddleButton) {
 +                if (delegateRoot.modelInterface.closable) {
 +                    delegateRoot.modelInterface.closeClicked();
 +                }
-+            } else if (delegateRoot.modelInterface.hasDefaultAction && !delegateRoot.hoveredLink) {
++            } else if (mouse.button === Qt.LeftButton && delegateRoot.modelInterface.hasDefaultAction && !delegateRoot.hoveredLink) {
                  delegateRoot.modelInterface.defaultActionInvoked();
              }
          }

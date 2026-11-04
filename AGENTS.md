@@ -648,6 +648,18 @@ change different files), and each repo's check applies the other's installed pat
   query area: none without indexing, waves throughout with `INDEXING="3 7"` (over ColorfulCups, since on
   dark glass only KWin's bending shows them).
 - **`Kirigami.Icon` rounds to standard sizes** (`roundToIconSize`): ask for 28 px and you get 22.
+- **A menu opened while its press is still being delivered closes at once** (2026-11-04, the popups'
+  copy menu: the user, "i'd like a right click copy for my plasma glass notifications. copy body, copy
+  title and copy all"). A right-click on a popup's body reaches the menu through the body area's
+  MouseEventListener, which sees it in `childMouseEventFilter` before the scroll view (a Pane, which takes
+  every button) gets it; a `PlasmaExtras.Menu` (a QMenu) opened from there was Open and then Closed
+  before KWin ever mapped it. Opened with `Qt.callLater` once the press is in, it stays. The filter sees
+  the press once for each item it's offered to (three here), so the call goes through one method that
+  `callLater` folds into one, or the QMenu pops up three times. Opened from a MouseArea's own
+  `onPressed` (the popup's background, under everything) it stays as is. Tested in the preview's
+  plasmashell (`popup.sh notify`) with `rdown`/`rup` in a scratch fakeinput, KWin scripts listing the
+  menu windows (`w.popupMenu`) and the clipboard read back from the preview's Klipper
+  (`qdbus6 org.kde.klipper /klipper org.kde.klipper.klipper.getClipboardContents`).
 - **QQuickWindow sees every press as accepted after delivery**, even on empty space. Handle input
   in QML, as the KRunner drag area does (a MouseArea under the content).
 - **KRunner's results model ends every refresh with `layoutChanged`**, which makes ListView recreate

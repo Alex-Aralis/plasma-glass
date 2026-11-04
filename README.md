@@ -318,7 +318,10 @@ refreshed.
     over the second line). No settings or close buttons (the history keeps them), no countdown bar,
     no coloured stripe on critical ones. The arrow over the popup, the pointing hand only over its
     buttons and links (a screenshot keeps Plasma's open hand, as it can be dragged out). Its text can't
-    be selected (the history's still can). Paragraphs in the body are set apart by half a line, once
+    be selected (the history's still can); right-click anywhere on a popup for Copy Title, Copy Body
+    (each only when the popup has one) and Copy All (the title on the first line, then the body), as
+    plain text (a screenshot and a file's icon keep their own menus). Paragraphs in the body are set
+    apart by half a line, once
     kde-fixes keeps the blank line between them (stock's server folds it into a line break).
     Popups still close on click, timeout, middle-click or swipe;
     middle-click and click now work anywhere on them (stock lost the middle button to the body's
